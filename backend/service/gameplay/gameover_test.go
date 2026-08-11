@@ -45,12 +45,12 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		event           model.FinishedGame
+		event           model.FinishGameEvent
 		wantLeaderboard []redis.Z
 	}{
 		{
 			name: "InsertFinishedGame",
-			event: model.FinishedGame{
+			event: model.FinishGameEvent{
 				GameID:       newGameID,
 				Board:        chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
@@ -73,7 +73,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 		{
 			name: "inserting already inserted finished game",
-			event: model.FinishedGame{
+			event: model.FinishGameEvent{
 				GameID: model.GameID(itest.FirstReplayGameID),
 				Board:  chess.NewEmptyBoard(true),
 				Moves:  []chess.HistMove{},
@@ -89,7 +89,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		},
 		{
 			name: "inserting a game with a guest",
-			event: model.FinishedGame{
+			event: model.FinishGameEvent{
 				GameID:       newGameIDGuest,
 				Board:        chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},

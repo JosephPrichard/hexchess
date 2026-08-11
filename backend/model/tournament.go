@@ -32,7 +32,7 @@ type TournamentReplay struct {
 
 type FullMatch struct {
 	Ordering      int64             `json:"ordering"`
-	GameID        GameID            `json:"gameID"`
+	GameID        GameID            `json:"gameId"`
 	TournamentKey uuid.UUID         `json:"tournamentKey"`
 	Round         int32             `json:"round"`
 	CreatedOn     time.Time         `json:"createdOn"`

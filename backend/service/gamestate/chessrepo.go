@@ -62,29 +62,29 @@ func (services *ChessRepoService) getChessState(ctx context.Context, getter Redi
 
 func (services *ChessRepoService) SetChessState(ctx context.Context, id model.GameID, state *model.ChessState) error {
 	touch := time.Now()
-	return services.setChessStateAt(ctx, id, state, touch)
-}
-
-func (services *ChessRepoService) setChessStateAt(ctx context.Context, id model.GameID, state *model.ChessState, touch time.Time) error {
 	return services.SetChessStatePiped(ctx, services.redis.PrimaryClient, id, state, touch)
 }
 
 type RedisChessSetter interface {
 	Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
 	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
-	ZRem(ctx context.Context, key string, members ...any) *redis.IntCmd
 }
 
 func (services *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error {
 	defer perf.WithContext(ctx).Log()
 
-	gameKey := cache.FmtGameKey(id)
-
 	bytes, err := model.MarshalChessState(state)
 	if err != nil {
 		return serrors.New("marshal chess state", err)
 	}
+
+	gameKey := cache.FmtGameKey(id)
 	setter.Set(ctx, gameKey, bytes, 0)
+
+	if false {
+		gameTimersKey := cache.FmtGameTimersZSet(id.Partition())
+		setter.ZAdd(ctx, gameTimersKey)
+	}
 
 	slog.InfoContext(ctx, "set chess state", "key", gameKey, "updtTime", updtTime)
 	return nil

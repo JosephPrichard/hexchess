@@ -69,7 +69,7 @@ func TestUpdateGameMetadata(t *testing.T) {
 	service, testinfra := setupGameMetadataTest(t)
 	defer testinfra.Close()
 
-	err := service.UpdateGameMetadata(ctx, model.GameMetadataUpdt{
+	err := service.UpdateGameMetadata(ctx, model.UpdtGameMetadataEvent{
 		GameID:      itest.GameID1,
 		WhitePlayer: opt.Some(int64(1)),
 		Mode:        model.ModeCorrespondence1,

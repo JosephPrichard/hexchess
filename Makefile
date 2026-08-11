@@ -82,11 +82,11 @@ vulncheck:
 # Testing
 functional-test:
 	# Backend server test (-p 1 is required to force tests to run serially)
-	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -p 1 -timeout=600s
+	cd $(BACKEND_DIR) && go test $$(go list ./... | grep -v '^.*/cmd|/wasm/') -p 1 -timeout=30s
 
 wasm-test:
 	# Backend wasm module test
-	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -coverprofile=coverage_browser.out -v -tags=browser -timeout=60s -exec wasmbrowsertest
+	cd $(BACK_WASM_DIR) && GOOS=js GOARCH=wasm go test -coverprofile=coverage_browser.out -v -tags=browser -timeout=10s -exec wasmbrowsertest
 
 perf-test:
 	# k6 HTTP perf tests

@@ -27,7 +27,7 @@ type serviceMocks struct {
 	Dispatcher async.Dispatcher
 }
 
-func setupTestHandler(t alog.TestLogger, mocks *serviceMocks) (http.Handler, itest.TestInfra) {
+func setupMuxTest(t alog.TestLogger, mocks *serviceMocks) (http.Handler, itest.TestInfra) {
 	if mocks == nil {
 		mocks = &serviceMocks{}
 	}
@@ -187,7 +187,7 @@ func createLeaderboard(t *testing.T, rdb cache.Redis, changes ...updtLbChangeSet
 	ctx := t.Context()
 	pipe := rdb.PrimaryClient.Pipeline()
 	for _, change := range changes {
-		modeLbZSet := fmt.Sprintf("%s/mode:{%s}", cache.Contants.LeaderboardZSet, change.Mode.String())
+		modeLbZSet := fmt.Sprintf("%s/mode:{%s}", cache.Constants.LeaderboardZSet, change.Mode.String())
 		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
 	}
 	if _, err := pipe.Exec(ctx); err != nil {

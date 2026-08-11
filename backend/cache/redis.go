@@ -18,6 +18,7 @@ type RedisNames struct {
 	GamesZSet                 string `json:"gamesZSet"`
 	ActiveUsersZSet           string `json:"activeUsersZSet"`
 	GameChatsZSet             string `json:"gameChatsZSet"`
+	GameTimersZSet            string `json:"gameTimersZSet"`
 	GamesChannel              string `json:"gamesChannel"`
 	TournamentsChannel        string `json:"tournamentsChannel"`
 	UsersChannel              string `json:"usersChannel"`
@@ -29,11 +30,12 @@ type RedisNames struct {
 	UpdtGameMetaConsumerGroup string `json:"updtGameMetaConsumerGroup"`
 }
 
-var Contants = RedisNames{
+var Constants = RedisNames{
 	LeaderboardZSet:           "leaderboard",
 	GamesZSet:                 "games",
 	ActiveUsersZSet:           "active_users",
 	GameChatsZSet:             "chats",
+	GameTimersZSet:            "game_timers",
 	GamesChannel:              "games_channel",
 	UsersChannel:              "users_channel",
 	TournamentsChannel:        "tournaments_channel",

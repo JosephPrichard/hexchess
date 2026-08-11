@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hexchess-svc/cache"
 	"hexchess-svc/database"
-	"hexchess-svc/queue"
 	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
@@ -86,7 +86,7 @@ func (consumer *StreamConsumer) Consume() {
 func (consumer *StreamConsumer) ConsumePartition(partitionKey string) {
 	consumerID := uuid.NewString()
 
-	stream := queue.FmtStreamKey(consumer.streamKey, partitionKey)
+	stream := cache.FmtStreamKey(consumer.streamKey, partitionKey)
 	streams := []string{stream, ">"}
 
 	err := consumer.redis.XGroupCreateMkStream(consumer.ctx, stream, consumer.consumerGroup, "0").Err()

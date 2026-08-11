@@ -61,7 +61,7 @@ type FinishedGameResult struct {
 	GameID   model.GameID `json:"gameId"`
 }
 
-func (services *GameOverService) InsertFinishedGame(ctx context.Context, finishedGame model.FinishedGame) (FinishedGameResult, error) {
+func (services *GameOverService) InsertFinishedGame(ctx context.Context, finishedGame model.FinishGameEvent) (FinishedGameResult, error) {
 	defer perf.WithContext(ctx).Log()
 
 	insertedTime := time.Now()

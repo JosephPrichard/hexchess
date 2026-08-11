@@ -72,8 +72,8 @@ func (e ErrInvalidMove) Error() string {
 	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
 }
 
-func mapMetadataUpdt(state *model.ChessState) model.GameMetadataUpdt {
-	return model.GameMetadataUpdt{
+func mapMetadataUpdt(state *model.ChessState) model.UpdtGameMetadataEvent {
+	return model.UpdtGameMetadataEvent{
 		GameID:      state.ID,
 		WhitePlayer: opt.Option[int64]{Value: state.WhitePlayer.ID, Present: state.WhitePlayer.Present},
 		BlackPlayer: opt.Option[int64]{Value: state.BlackPlayer.ID, Present: state.BlackPlayer.Present},
@@ -205,7 +205,7 @@ func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.G
 			result = model.BlackWin
 		}
 
-		err := producers.ProduceFinishGame(ctx, pipe, model.FinishedGame{
+		err := producers.ProduceFinishGame(ctx, pipe, model.FinishGameEvent{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,
 			BlackPlayer:  state.BlackPlayer.ID,
@@ -309,7 +309,7 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 			result = model.WhiteWin
 		}
 
-		err := producers.ProduceFinishGame(ctx, pipe, model.FinishedGame{
+		err := producers.ProduceFinishGame(ctx, pipe, model.FinishGameEvent{
 			GameID:       gameID,
 			WhitePlayer:  state.WhitePlayer.ID,
 			BlackPlayer:  state.BlackPlayer.ID,

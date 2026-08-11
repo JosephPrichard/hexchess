@@ -34,7 +34,7 @@ func NewChessMetaService(
 	return &ChessMetaService{Database: database, entropy: entropy, broadcaster: broadcaster}
 }
 
-func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.GameMetadataUpdt) error {
+func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) error {
 	defer perf.WithContext(ctx).Log()
 
 	updtResult, err := services.Mutator().UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{

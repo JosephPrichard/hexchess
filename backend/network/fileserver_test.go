@@ -77,7 +77,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, &serviceMocks{Entropy: &svc.StableSource{}, Dispatcher: async.SyncDispatcher{}})
+			h, testinfra := setupMuxTest(t, &serviceMocks{Entropy: &svc.StableSource{}, Dispatcher: async.SyncDispatcher{}})
 			defer testinfra.Close()
 
 			cloud.SetupS3Test(t, testinfra.AWS, nil)
@@ -136,7 +136,7 @@ func TestHandleGetProfilePic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupTestHandler(t, nil)
+			h, testinfra := setupMuxTest(t, nil)
 			defer testinfra.Close()
 
 			if tt.setupTestData != nil {

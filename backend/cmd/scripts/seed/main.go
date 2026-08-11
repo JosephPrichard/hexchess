@@ -317,7 +317,7 @@ func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService,
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
 
-			_, err = gameoverSvc.InsertFinishedGame(egCtx, model.FinishedGame{
+			_, err = gameoverSvc.InsertFinishedGame(egCtx, model.FinishGameEvent{
 				GameID:       model.NewGameID(),
 				Board:        chess.InitialBoard(),
 				Moves:        moveSeq,

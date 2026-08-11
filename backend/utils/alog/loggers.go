@@ -13,6 +13,7 @@ type LogRecordHandler struct {
 }
 
 type staticLogData struct {
+	serviceName     string
 	awsRegion       string
 	awsExecutionEnv string
 	*ecsTaskMetadataBody
@@ -20,10 +21,11 @@ type staticLogData struct {
 
 var PropagatedLogKeys = []string{Trace, SessionID, MessageID, GroupID, EventID, RequestID}
 
-func NewLogRecordHandler(h slog.Handler) slog.Handler {
+func NewLogRecordHandler(serviceName string, h slog.Handler) slog.Handler {
 	return &LogRecordHandler{
 		Handler: h,
 		staticLogData: staticLogData{
+			serviceName:         serviceName,
 			awsRegion:           os.Getenv("AWS_REGION"),
 			awsExecutionEnv:     os.Getenv("AWS_EXECUTION_ENV"),
 			ecsTaskMetadataBody: getEcsMetadata(),
@@ -41,6 +43,9 @@ func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 
 	// propagates common AWS environment data into the logs for easier debugging. if details are not provided, does not fail
+	if h.staticLogData.serviceName != "" {
+		r.Add("serviceName", h.staticLogData.serviceName)
+	}
 	if h.staticLogData.awsRegion != "" {
 		r.Add("awsRegion", h.staticLogData.awsRegion)
 	}

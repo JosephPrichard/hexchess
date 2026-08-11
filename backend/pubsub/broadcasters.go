@@ -60,11 +60,11 @@ func (b *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, c
 }
 
 func (b *Broadcaster) BroadcastActiveCount(ctx context.Context, count int64) {
-	b.broadcastCountEvent(ctx, cache.Contants.ActiveCountChannel, count)
+	b.broadcastCountEvent(ctx, cache.Constants.ActiveCountChannel, count)
 }
 
 func (b *Broadcaster) BroadcastGameCount(ctx context.Context, count int64) {
-	b.broadcastCountEvent(ctx, cache.Contants.GamesCountChannel, count)
+	b.broadcastCountEvent(ctx, cache.Constants.GamesCountChannel, count)
 }
 
 func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) {
@@ -75,7 +75,7 @@ func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOu
 		slog.ErrorContext(ctx, "failed to marshal game message", "error", err)
 		return
 	}
-	b.broadcastMessage(context.WithoutCancel(ctx), cache.Contants.GamesChannel, bytes)
+	b.broadcastMessage(context.WithoutCancel(ctx), cache.Constants.GamesChannel, bytes)
 }
 
 func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament model.TournamentOutput) {
@@ -86,7 +86,7 @@ func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament model.
 		slog.ErrorContext(ctx, "failed to marshal tournament message", "error", err)
 		return
 	}
-	b.broadcastMessage(context.WithoutCancel(ctx), cache.Contants.TournamentsChannel, bytes)
+	b.broadcastMessage(context.WithoutCancel(ctx), cache.Constants.TournamentsChannel, bytes)
 }
 
 func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message model.UserMessage) {
@@ -97,5 +97,5 @@ func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message model.Us
 		slog.ErrorContext(ctx, "failed to marshal user message", "error", err)
 		return
 	}
-	b.broadcastMessage(context.WithoutCancel(ctx), cache.Contants.UsersChannel, bytes)
+	b.broadcastMessage(context.WithoutCancel(ctx), cache.Constants.UsersChannel, bytes)
 }

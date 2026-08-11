@@ -100,7 +100,7 @@ func (b *LocalBroadcasters) Listen(rdb cache.Redis) {
 //}
 
 func (b *LocalBroadcasters) ListenGameMessages(rdb cache.Redis) chan struct{} {
-	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Contants.GamesChannel}, func(v redigo.Message) {
+	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Constants.GamesChannel}, func(v redigo.Message) {
 		var outputID pb.GameOutputID
 		if err := outputID.UnmarshalVT(v.Data); err != nil {
 			slog.Error("unmarshal game message", "error", err)
@@ -110,7 +110,7 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb cache.Redis) chan struct{} {
 		type payload = struct {
 			Id string `json:"gameId"`
 		}
-		slog.Info("received message on channel", "channel", cache.Contants.GamesChannel, "payload", payload{outputID.GameId})
+		slog.Info("received message on channel", "channel", cache.Constants.GamesChannel, "payload", payload{outputID.GameId})
 
 		gameID := model.GameID(outputID.GameId)
 
@@ -119,26 +119,26 @@ func (b *LocalBroadcasters) ListenGameMessages(rdb cache.Redis) chan struct{} {
 }
 
 func (b *LocalBroadcasters) ListenTournamentMessages(rdb cache.Redis) chan struct{} {
-	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Contants.TournamentsChannel}, func(v redigo.Message) {
+	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Constants.TournamentsChannel}, func(v redigo.Message) {
 		var output model.TournamentOutputKey
 		if err := sonic.Unmarshal(v.Data, &output); err != nil {
 			slog.Error("unmarshal tournament message", "error", err)
 			return
 		}
-		slog.Info("received message on channel", "channel", cache.Contants.TournamentsChannel, "payload", &output)
+		slog.Info("received message on channel", "channel", cache.Constants.TournamentsChannel, "payload", &output)
 
 		b.Tournament.Broadcast(output.TournamentKey, v.Data)
 	})
 }
 
 func (b *LocalBroadcasters) ListenUsersMessages(rdb cache.Redis) chan struct{} {
-	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Contants.UsersChannel}, func(v redigo.Message) {
+	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Constants.UsersChannel}, func(v redigo.Message) {
 		var message model.UserMessage
 		if err := sonic.Unmarshal(v.Data, &message); err != nil {
 			slog.Error("unmarshal user message", "error", err)
 			return
 		}
-		slog.Info("received message on channel", "channel", cache.Contants.UsersChannel, "payload", &message)
+		slog.Info("received message on channel", "channel", cache.Constants.UsersChannel, "payload", &message)
 
 		switch message.Kind {
 		case model.ChallengeKind:
@@ -151,8 +151,8 @@ func (b *LocalBroadcasters) ListenUsersMessages(rdb cache.Redis) chan struct{} {
 
 func (b *LocalBroadcasters) ListenCountEvents(rdb cache.Redis) chan struct{} {
 	var eventMap = map[string]CountEventKind{
-		cache.Contants.ActiveCountChannel: GlobalActiveEvent,
-		cache.Contants.GamesCountChannel:  GlobalGamesEvent,
+		cache.Constants.ActiveCountChannel: GlobalActiveEvent,
+		cache.Constants.GamesCountChannel:  GlobalGamesEvent,
 	}
 
 	var channels []string

@@ -39,7 +39,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	newGameID := model.NewGameID()
 	partitionID := newGameID.Partition()
 
-	finishedGame := model.FinishedGame{
+	finishedGame := model.FinishGameEvent{
 		GameID:       newGameID,
 		Board:        chess.NewEmptyBoard(true),
 		Moves:        []chess.HistMove{},
@@ -89,8 +89,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		pollCount:     1,
 		maxEvents:     1,
 		blockDuration: time.Millisecond,
-		streamKey:     cache.Contants.FinishGameStreamKey,
-		consumerGroup: cache.Contants.FinishGameConsumerGroup,
+		streamKey:     cache.Constants.FinishGameStreamKey,
+		consumerGroup: cache.Constants.FinishGameConsumerGroup,
 		partitionKeys: []string{string(partitionID)},
 	}
 
@@ -127,7 +127,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	gameID := model.NewGameID()
 	partitionID := gameID.Partition()
 
-	updtGame := model.GameMetadataUpdt{
+	updtGame := model.UpdtGameMetadataEvent{
 		GameID:      gameID,
 		WhitePlayer: opt.Some(whiteUser0.ID),
 		BlackPlayer: opt.Some(blackUser1.ID),
@@ -150,8 +150,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		pollCount:     1,
 		maxEvents:     1,
 		blockDuration: time.Millisecond,
-		streamKey:     cache.Contants.UpdtGameMetaStreamKey,
-		consumerGroup: cache.Contants.UpdtGameMetaConsumerGroup,
+		streamKey:     cache.Constants.UpdtGameMetaStreamKey,
+		consumerGroup: cache.Constants.UpdtGameMetaConsumerGroup,
 		partitionKeys: []string{string(partitionID)},
 	}
 	consumer.ConsumePartition(string(partitionID))

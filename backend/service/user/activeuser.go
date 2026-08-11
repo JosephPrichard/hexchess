@@ -27,7 +27,7 @@ func NewActiveUserService(redis cache.Redis, broadcaster pubsub.Broadcaster) *Ac
 }
 
 func (services *ActiveUserService) IsActiveUser(ctx context.Context, id string) bool {
-	_, err := services.redis.PrimaryClient.ZScore(ctx, cache.Contants.ActiveUsersZSet, id).Result()
+	_, err := services.redis.PrimaryClient.ZScore(ctx, cache.Constants.ActiveUsersZSet, id).Result()
 	return err == nil
 }
 
@@ -37,7 +37,7 @@ func (services *ActiveUserService) GetActiveCount(ctx context.Context) (int64, e
 	expireBefore := services.entropy.GetTime().Add(-ActiveUserMaxAge)
 	expireBeforeStr := fmt.Sprintf("%d", expireBefore.UnixMilli())
 
-	removed, err := services.redis.PrimaryClient.ZRemRangeByScore(ctx, cache.Contants.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
+	removed, err := services.redis.PrimaryClient.ZRemRangeByScore(ctx, cache.Constants.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
 	if err != nil {
 		return 0, serrors.New("get expired active users by range", err)
 	}
@@ -45,7 +45,7 @@ func (services *ActiveUserService) GetActiveCount(ctx context.Context) (int64, e
 		slog.InfoContext(ctx, "expired users with keys", "count", removed, "expireBefore", expireBefore)
 	}
 
-	count, err := services.redis.PrimaryClient.ZCard(ctx, cache.Contants.ActiveUsersZSet).Result()
+	count, err := services.redis.PrimaryClient.ZCard(ctx, cache.Constants.ActiveUsersZSet).Result()
 	if err != nil {
 		return 0, serrors.New("count active users", err)
 	}
@@ -59,7 +59,7 @@ func (services *ActiveUserService) RetainActiveUser(ctx context.Context, id stri
 
 	updtTime := float64(services.entropy.GetTime().UnixMilli())
 
-	_, err := services.redis.PrimaryClient.ZAddXX(ctx, cache.Contants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
+	_, err := services.redis.PrimaryClient.ZAddXX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
 		return serrors.New("retain active user", err, "id", id)
 	}
@@ -73,7 +73,7 @@ func (services *ActiveUserService) AddActiveUser(ctx context.Context, id string)
 
 	updtTime := float64(services.entropy.GetTime().UnixMilli())
 
-	_, err := services.redis.PrimaryClient.ZAddNX(ctx, cache.Contants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
+	_, err := services.redis.PrimaryClient.ZAddNX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
 		return 0, serrors.New("add active user", err, "id", id)
 	}
@@ -91,7 +91,7 @@ func (services *ActiveUserService) AddActiveUser(ctx context.Context, id string)
 func (services *ActiveUserService) RemoveActiveUser(ctx context.Context, id string) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
-	res, err := services.redis.PrimaryClient.ZRem(ctx, cache.Contants.ActiveUsersZSet, id).Result()
+	res, err := services.redis.PrimaryClient.ZRem(ctx, cache.Constants.ActiveUsersZSet, id).Result()
 	if err != nil {
 		return 0, serrors.New("remove active user", err, "id", id)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/model"
-	"hexchess-svc/queue"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 
@@ -16,14 +15,14 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishedGame) error {
+func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishGameEvent) error {
 	bytes, err := sonic.Marshal(finishedGame)
 	if err != nil {
 		return serrors.New("marshal finish game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
-		Stream: queue.FmtGameStreamKey(cache.Contants.FinishGameStreamKey, finishedGame.GameID),
+		Stream: cache.FmtGameStreamKey(cache.Constants.FinishGameStreamKey, finishedGame.GameID),
 		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
@@ -35,14 +34,14 @@ func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, finishedGame mod
 	return nil
 }
 
-func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, gameUpdt model.GameMetadataUpdt) error {
+func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, gameUpdt model.UpdtGameMetadataEvent) error {
 	bytes, err := sonic.Marshal(gameUpdt)
 	if err != nil {
 		return serrors.New("marshal update game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
-		Stream: queue.FmtGameStreamKey(cache.Contants.UpdtGameMetaStreamKey, gameUpdt.GameID),
+		Stream: cache.FmtGameStreamKey(cache.Constants.UpdtGameMetaStreamKey, gameUpdt.GameID),
 		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()

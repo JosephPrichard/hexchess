@@ -41,8 +41,8 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 	metricQuerier := database.QuerierMutator()
 
 	finishGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     cache.Contants.FinishGameStreamKey,
-		ConsumerGroup: cache.Contants.FinishGameConsumerGroup,
+		StreamKey:     cache.Constants.FinishGameStreamKey,
+		ConsumerGroup: cache.Constants.FinishGameConsumerGroup,
 		PollCount:     8,
 		PartitionKeys: GameConsumerPartitions,
 
@@ -54,8 +54,8 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 	go finishGameConsumer.Consume()
 
 	updtGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     cache.Contants.UpdtGameMetaStreamKey,
-		ConsumerGroup: cache.Contants.UpdtGameMetaConsumerGroup,
+		StreamKey:     cache.Constants.UpdtGameMetaStreamKey,
+		ConsumerGroup: cache.Constants.UpdtGameMetaConsumerGroup,
 		PollCount:     8,
 		PartitionKeys: GameConsumerPartitions,
 
@@ -92,7 +92,7 @@ func NewFinishedGameWorker(
 }
 
 func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
-	var event model.FinishedGame
+	var event model.FinishGameEvent
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
@@ -127,7 +127,7 @@ func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Gener
 }
 
 func (w UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
-	var event model.GameMetadataUpdt
+	var event model.UpdtGameMetadataEvent
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
 	}

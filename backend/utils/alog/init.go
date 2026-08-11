@@ -21,7 +21,7 @@ func init() {
 	slog.SetDefault(slog.New(stderrHandler))
 }
 
-func InitLoggers(name string, oltpEndpoint string, activeProfile config.Profile) func() {
+func InitLoggers(serviceName string, oltpEndpoint string, activeProfile config.Profile) func() {
 	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
@@ -31,7 +31,7 @@ func InitLoggers(name string, oltpEndpoint string, activeProfile config.Profile)
 
 	if oltpEndpoint != "" {
 		otelResource, err := resource.New(context.Background(),
-			resource.WithAttributes(semconv.ServiceName(name), semconv.DeploymentEnvironment(activeProfile.String())),
+			resource.WithAttributes(semconv.ServiceName(serviceName), semconv.DeploymentEnvironment(activeProfile.String())),
 			resource.WithHost(),
 			resource.WithProcess(),
 		)
@@ -64,7 +64,7 @@ func InitLoggers(name string, oltpEndpoint string, activeProfile config.Profile)
 	}
 
 	slog.SetDefault(slog.New(
-		NewLogRecordHandler(NewLogFanoutHandler(handlers)),
+		NewLogRecordHandler(serviceName, NewLogFanoutHandler(handlers)),
 	))
 
 	slog.Info("finished initializing loggers", "oltpEndpoint", oltpEndpoint)

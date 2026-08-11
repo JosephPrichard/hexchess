@@ -58,7 +58,7 @@ func (gameID GameID) Partition() rune {
 	return lastSymbol
 }
 
-type FinishedGame struct {
+type FinishGameEvent struct {
 	GameID       GameID           `json:"id"`
 	Board        chess.Board      `json:"board"`
 	Moves        []chess.HistMove `json:"moves"`
@@ -70,7 +70,7 @@ type FinishedGame struct {
 	InsertedTime time.Time        `json:"insertedTime"`
 }
 
-type GameMetadataUpdt struct {
+type UpdtGameMetadataEvent struct {
 	GameID      GameID            `json:"id"`
 	WhitePlayer opt.Option[int64] `json:"whitePlayer"`
 	BlackPlayer opt.Option[int64] `json:"blackPlayer"`
