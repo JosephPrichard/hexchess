@@ -11,6 +11,7 @@ import (
 	"hexchess-svc/utils/entropy"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"hexchess-svc/utils/alog"
@@ -131,6 +132,7 @@ func NewServeMux(setup ServeMuxSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	r.Get("/api/countries", Json(server.staticData.countryList))
 
 	r.Get("/api/ws/game", server.HandleGameWs)
+	r.Get("/api/info", info)
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL.String())
@@ -149,6 +151,33 @@ func NewServeMux(setup ServeMuxSetup, opts ...func(*chi.Mux)) *chi.Mux {
 	slog.Info("initialized serve mux", "handlers", handlers)
 
 	return r
+}
+
+func info(w http.ResponseWriter, _ *http.Request) {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+
+	resp := struct {
+		CommitHash     string `json:"commitHash"`
+		LastCommitTime string `json:"lastCommitTime"`
+		Modified       string `json:"modified"`
+	}{}
+
+	for _, setting := range bi.Settings {
+		if setting.Key == "vcs.revision" {
+			resp.CommitHash = setting.Value
+		}
+		if setting.Key == "vcs.time" {
+			resp.LastCommitTime = setting.Value
+		}
+		if setting.Key == "vcs.modified" {
+			resp.Modified = setting.Value
+		}
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }
 
 type HealthConfig struct {

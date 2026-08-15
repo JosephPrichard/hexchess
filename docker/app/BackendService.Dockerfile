@@ -12,7 +12,8 @@ RUN cd backend && go mod download
 COPY contracts contracts/
 COPY backend backend/
 
-# ---- Compile Layer ----
+# ---- Compile Layer (with git metadata) ----
+COPY .git .
 ARG SERVICE=api
 RUN cd backend && CGO_ENABLED=0 go build -trimpath -ldflags=-s -o /bin/app ./cmd/server/${SERVICE}
 

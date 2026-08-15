@@ -70,10 +70,7 @@ func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
 }
 
 func NewDatabaseFromPool(pool *pgxpool.Pool) Database {
-	return Database{
-		writePool: pool,
-		readPool:  pool,
-	}
+	return Database{writePool: pool, readPool: pool}
 }
 
 func NewRiverClient(ctx context.Context, cfg PoolConfig) RiverClientAPI {
@@ -82,7 +79,7 @@ func NewRiverClient(ctx context.Context, cfg PoolConfig) RiverClientAPI {
 }
 
 func NewRiverClientFromPool(pool *pgxpool.Pool) RiverClientAPI {
-	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), nil)
+	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {
 		alog.Fatal("create river queue client", err)
 	}
