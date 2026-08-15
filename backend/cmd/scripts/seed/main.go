@@ -146,13 +146,7 @@ func newServices(
 	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
 	userSvc := user.NewUserService(databaseClient)
 	challengeSvc := challenge.NewChallengeService(databaseClient, entropy.RealSource{})
-	gameoverSvc := gameplay.NewGameoverService(
-		databaseClient,
-		redisClient,
-		// producer and broadcaster won't be invoked in the specific codepath needed to seed the data
-		nil,
-		pubsub.Broadcaster{},
-	)
+	gameoverSvc := gameplay.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil)
 	return Services{
 		leaderboard: leaderboardSvc,
 		user:        userSvc,
@@ -317,9 +311,9 @@ func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService,
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
 
-			_, err = gameoverSvc.InsertFinishedGame(egCtx, model.FinishGameEvent{
+			_, err = gameoverSvc.HandleFinishedGame(egCtx, model.FinishGameEvent{
 				GameID:       model.NewGameID(),
-				Board:        chess.InitialBoard(),
+				InitialBoard: chess.InitialBoard(),
 				Moves:        moveSeq,
 				WhitePlayer:  inst.WhiteID,
 				BlackPlayer:  inst.BlackID,

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/redis/go-redis/v9"
 
 	"hexchess-svc/itest"
@@ -59,8 +60,10 @@ func TestEchoChessState(t *testing.T) {
 
 	assert.Equal(t, ErrNoChessState, errBadID)
 	assert.NotNil(t, outState1)
-	testutil.Equal(t, s1, outState1)
+	testutil.Equal(t, s1, outState1, cmpOptsChessState)
 }
+
+var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "StartTime")
 
 func TestUpdateChessState(t *testing.T) {
 	services, testinfra := setupRepoTest(t)
@@ -87,8 +90,8 @@ func TestUpdateChessState(t *testing.T) {
 	wantState := inState.DeepCopy()
 	wantState.EndState = model.Aborted
 
-	testutil.Equal(t, &wantState, outState)
-	assertRedisChess(t, services, &wantState)
+	testutil.Equal(t, &wantState, outState, cmpOptsChessState)
+	assertRedisChess(t, services, &wantState, cmpOptsChessState)
 
 	arbitraryVal, err := testinfra.Redis.PrimaryClient.Get(ctx, arbitraryKey).Result()
 	require.NoError(t, err)

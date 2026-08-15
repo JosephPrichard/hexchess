@@ -41,7 +41,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	finishedGame := model.FinishGameEvent{
 		GameID:       newGameID,
-		Board:        chess.NewEmptyBoard(true),
+		InitialBoard: chess.NewEmptyBoard(true),
 		Moves:        []chess.HistMove{},
 		WhitePlayer:  whiteUser0.ID, // winner
 		BlackPlayer:  blackUser1.ID, // loser

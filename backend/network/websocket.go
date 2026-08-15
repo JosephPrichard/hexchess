@@ -240,7 +240,7 @@ func (server *Server) handleGameForfeit(ctx GameSocketContext, messageID string)
 }
 
 func (server *Server) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
-	moveResult, err := server.services.NewGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
+	moveResult, err := server.services.MakeGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return serrors.New("make move on game", err, "gameID", ctx.GameID)
 	}

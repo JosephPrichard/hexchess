@@ -85,6 +85,7 @@ message ChessState {
   ChessBoard initial_board = 9;
   int64 undo_id = 10;
   EndKind end_state = 11;
+  int64 start_time_ms = 12;
 }
 
 message HistMoves {

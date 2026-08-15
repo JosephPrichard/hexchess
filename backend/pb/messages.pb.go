@@ -678,6 +678,7 @@ type ChessState struct {
 	InitialBoard  *ChessBoard            `protobuf:"bytes,9,opt,name=initial_board,json=initialBoard,proto3" json:"initial_board,omitempty"`
 	UndoId        int64                  `protobuf:"varint,10,opt,name=undo_id,json=undoId,proto3" json:"undo_id,omitempty"`
 	EndState      EndKind                `protobuf:"varint,11,opt,name=end_state,json=endState,proto3,enum=messages.EndKind" json:"end_state,omitempty"`
+	StartTimeMs   int64                  `protobuf:"varint,12,opt,name=start_time_ms,json=startTimeMs,proto3" json:"start_time_ms,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -780,6 +781,13 @@ func (x *ChessState) GetEndState() EndKind {
 		return x.EndState
 	}
 	return EndKind_NOT_ENDED
+}
+
+func (x *ChessState) GetStartTimeMs() int64 {
+	if x != nil {
+		return x.StartTimeMs
+	}
+	return 0
 }
 
 type HistMoves struct {
@@ -2189,7 +2197,7 @@ const file_messages_proto_rawDesc = "" +
 	"blackMoves\x12,\n" +
 	"\x12taken_white_pieces\x18\x04 \x03(\rR\x10takenWhitePieces\x12,\n" +
 	"\x12taken_black_pieces\x18\x05 \x03(\rR\x10takenBlackPieces\x12(\n" +
-	"\x05moves\x18\x06 \x03(\v2\x12.messages.HistMoveR\x05moves\"\x88\x03\n" +
+	"\x05moves\x18\x06 \x03(\v2\x12.messages.HistMoveR\x05moves\"\xac\x03\n" +
 	"\n" +
 	"ChessState\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
@@ -2203,7 +2211,8 @@ const file_messages_proto_rawDesc = "" +
 	"\rinitial_board\x18\t \x01(\v2\x14.messages.ChessBoardR\finitialBoard\x12\x17\n" +
 	"\aundo_id\x18\n" +
 	" \x01(\x03R\x06undoId\x12.\n" +
-	"\tend_state\x18\v \x01(\x0e2\x11.messages.EndKindR\bendState\"5\n" +
+	"\tend_state\x18\v \x01(\x0e2\x11.messages.EndKindR\bendState\x12\"\n" +
+	"\rstart_time_ms\x18\f \x01(\x03R\vstartTimeMs\"5\n" +
 	"\tHistMoves\x12(\n" +
 	"\x05moves\x18\x01 \x03(\v2\x12.messages.HistMoveR\x05moves\":\n" +
 	"\rPieceMoveList\x12)\n" +

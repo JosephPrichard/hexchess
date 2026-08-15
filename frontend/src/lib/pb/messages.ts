@@ -239,6 +239,10 @@ export interface ChessState {
      * @generated from protobuf field: messages.EndKind end_state = 11
      */
     endState: EndKind;
+    /**
+     * @generated from protobuf field: int64 start_time_ms = 12
+     */
+    startTimeMs: bigint;
 }
 /**
  * @generated from protobuf message messages.HistMoves
@@ -1308,7 +1312,8 @@ class ChessState$Type extends MessageType<ChessState> {
             { no: 8, name: "touch", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 9, name: "initial_board", kind: "message", T: () => ChessBoard },
             { no: 10, name: "undo_id", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 11, name: "end_state", kind: "enum", T: () => ["messages.EndKind", EndKind] }
+            { no: 11, name: "end_state", kind: "enum", T: () => ["messages.EndKind", EndKind] },
+            { no: 12, name: "start_time_ms", kind: "scalar", T: 3 /*ScalarType.INT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<ChessState>): ChessState {
@@ -1319,6 +1324,7 @@ class ChessState$Type extends MessageType<ChessState> {
         message.touch = 0n;
         message.undoId = 0n;
         message.endState = 0;
+        message.startTimeMs = 0n;
         if (value !== undefined)
             reflectionMergePartial<ChessState>(this, message, value);
         return message;
@@ -1357,6 +1363,9 @@ class ChessState$Type extends MessageType<ChessState> {
                     break;
                 case /* messages.EndKind end_state */ 11:
                     message.endState = reader.int32();
+                    break;
+                case /* int64 start_time_ms */ 12:
+                    message.startTimeMs = reader.int64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1400,6 +1409,9 @@ class ChessState$Type extends MessageType<ChessState> {
         /* messages.EndKind end_state = 11; */
         if (message.endState !== 0)
             writer.tag(11, WireType.Varint).int32(message.endState);
+        /* int64 start_time_ms = 12; */
+        if (message.startTimeMs !== 0n)
+            writer.tag(12, WireType.Varint).int64(message.startTimeMs);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

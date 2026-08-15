@@ -8,12 +8,14 @@ const (
 	Checkmate ReplayCause = iota
 	Forfeit
 	Stalemate
+	Timeout
 )
 
 var replayCauseEntries = []enum.Entry[ReplayCause]{
 	{Enum: Checkmate, String: "CHECKMATE"},
 	{Enum: Forfeit, String: "FORFEIT"},
 	{Enum: Stalemate, String: "STALEMATE"},
+	{Enum: Timeout, String: "TIMEOUT"},
 }
 
 var ReplayCauseEnums = enum.BuildReverseMap(replayCauseEntries)

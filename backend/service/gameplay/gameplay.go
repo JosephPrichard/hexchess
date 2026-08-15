@@ -62,6 +62,14 @@ func (e ErrTurn) Error() string {
 	return fmt.Sprintf("invalid turn (player=%d, curr=%d, game=%s)", e.PlayerID, e.CurrID, e.GameID)
 }
 
+type ErrTimeout struct {
+	GameID model.GameID
+}
+
+func (e ErrTimeout) Error() string {
+	return fmt.Sprintf("game timer has expired (game=%s)", e.GameID)
+}
+
 type ErrInvalidMove struct {
 	GameID    model.GameID
 	PlayerID  int64
@@ -70,15 +78,6 @@ type ErrInvalidMove struct {
 
 func (e ErrInvalidMove) Error() string {
 	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
-}
-
-func mapMetadataUpdt(state *model.ChessState) model.UpdtGameMetadataEvent {
-	return model.UpdtGameMetadataEvent{
-		GameID:      state.ID,
-		WhitePlayer: opt.Option[int64]{Value: state.WhitePlayer.ID, Present: state.WhitePlayer.Present},
-		BlackPlayer: opt.Option[int64]{Value: state.BlackPlayer.ID, Present: state.BlackPlayer.Present},
-		Mode:        state.Mode,
-	}
 }
 
 func (services *GamePlayService) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
@@ -93,13 +92,15 @@ func (services *GamePlayService) SetupGame(ctx context.Context, setup model.Stat
 	state := model.NewChessState(setup)
 	state.Game.InitPieceMoves()
 
-	_, err := services.redis.PrimaryClient.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-
-		if err := services.chessState.SetChessStatePiped(ctx, pipe, gameID, state, time.Now()); err != nil {
+	commit := func(pipe redis.Pipeliner) error {
+		now := time.Now()
+		if err := services.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
 			return serrors.New("set chess state", err, "gameID", gameID)
 		}
-		return producers.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
-	})
+		return produceUpdtGameMetadata(ctx, pipe, state)
+	}
+
+	_, err := services.redis.PrimaryClient.TxPipelined(ctx, commit)
 	return err
 }
 
@@ -139,18 +140,19 @@ func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.Game
 		}
 		if playerExists {
 			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "gameID", gameID)
-			return nil
 		}
 		return nil
 	}
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
 		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
-		return producers.ProduceUpdtGameMetadata(ctx, pipe, mapMetadataUpdt(state))
+		return produceUpdtGameMetadata(ctx, pipe, state)
 	}
 	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
-	if state != nil {
-		slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "gameID", state.ID)
+	if err != nil {
+		return nil, err
 	}
+
+	slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "game", state.String())
 	return state, err
 }
 
@@ -159,7 +161,7 @@ type MoveResult struct {
 	Move  chess.HistMove
 }
 
-func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
+func (services *GamePlayService) MakeGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameID", gameID, "move", move)
 
@@ -170,10 +172,12 @@ func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.G
 		if state.EndState.IsEnded() {
 			return ErrFinishedGame{GameID: gameID}
 		}
-		currPlayer := state.CurrPlayer()
-		if !currPlayer.Present || currPlayer.ID != player.ID {
+		if currPlayer := state.CurrPlayer(); !currPlayer.Present || currPlayer.ID != player.ID {
 			return ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
 		}
+		//if time.Now().After(state.ClockTimeout()) {
+		//	return ErrTimeout{GameID: gameID}
+		//}
 
 		// perform move validations then move
 		state.Game.EnsurePieceMoves()
@@ -212,6 +216,8 @@ func (services *GamePlayService) NewGameMove(ctx context.Context, gameID model.G
 			ReplayMode:   state.Mode,
 			ReplayResult: result,
 			ReplayCause:  model.Checkmate,
+			InitialBoard: chess.InitialBoard(),
+			Moves:        state.Game.Moves,
 		})
 		return serrors.New("push finished game event", err)
 	}
@@ -244,7 +250,7 @@ func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID mod
 			}
 			state.UndoID = player.ID
 		case model.UndoAccept:
-			if state.UndoID == 0 {
+			if state.UndoID == model.EmptyUndoID {
 				return ErrNoUndo
 			}
 			if state.UndoID != player.ID {
@@ -256,7 +262,7 @@ func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID mod
 				return ErrUndoNoop
 			}
 		case model.UndoReject:
-			if state.UndoID == 0 {
+			if state.UndoID == model.EmptyUndoID {
 				return ErrNoUndo
 			}
 			state.UndoState = model.UndoState{}
@@ -267,7 +273,8 @@ func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID mod
 	if err != nil {
 		return nil, err
 	}
-	slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "gameID", gameID, "gameID", state.ID)
+
+	slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "game", state.String())
 	return state, nil
 }
 
@@ -316,6 +323,8 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 			ReplayMode:   state.Mode,
 			ReplayResult: result,
 			ReplayCause:  model.Forfeit,
+			InitialBoard: chess.InitialBoard(),
+			Moves:        state.Game.Moves,
 		})
 		return serrors.New("push finished game event", err)
 	}
@@ -324,6 +333,15 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 		return model.NotEnded, err
 	}
 
-	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "gameID", gameID, "gameID", state.ID)
+	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "game", state.String())
 	return state.EndState, nil
+}
+
+func produceUpdtGameMetadata(ctx context.Context, pipe producers.RedisXAdder, state *model.ChessState) error {
+	return producers.ProduceUpdtGameMetadata(ctx, pipe, model.UpdtGameMetadataEvent{
+		GameID:      state.ID,
+		WhitePlayer: opt.Option[int64]{Value: state.WhitePlayer.ID, Present: state.WhitePlayer.Present},
+		BlackPlayer: opt.Option[int64]{Value: state.BlackPlayer.ID, Present: state.BlackPlayer.Present},
+		Mode:        state.Mode,
+	})
 }

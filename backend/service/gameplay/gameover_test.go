@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
+	"hexchess-svc/service/gamestate"
 	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/testutil"
 	"math"
@@ -30,6 +31,7 @@ func setupGameoverTest(t alog.TestLogger) (*GameOverService, itest.TestInfra) {
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 		pubsub.NewSyncBroadcaster(infra.Redis),
+		gamestate.NewChessRepoService(infra.Redis),
 	)
 
 	return services, infra
@@ -52,7 +54,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "InsertFinishedGame",
 			event: model.FinishGameEvent{
 				GameID:       newGameID,
-				Board:        chess.NewEmptyBoard(true),
+				InitialBoard: chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
 				WhitePlayer:  testUser0.ID, // winner
 				BlackPlayer:  testUser1.ID, // loser
@@ -74,9 +76,9 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 		{
 			name: "inserting already inserted finished game",
 			event: model.FinishGameEvent{
-				GameID: model.GameID(itest.FirstReplayGameID),
-				Board:  chess.NewEmptyBoard(true),
-				Moves:  []chess.HistMove{},
+				GameID:       model.GameID(itest.FirstReplayGameID),
+				InitialBoard: chess.NewEmptyBoard(true),
+				Moves:        []chess.HistMove{},
 				// used only for validation
 				WhitePlayer: testUser0.ID,
 				BlackPlayer: testUser1.ID,
@@ -91,7 +93,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			name: "inserting a game with a guest",
 			event: model.FinishGameEvent{
 				GameID:       newGameIDGuest,
-				Board:        chess.NewEmptyBoard(true),
+				InitialBoard: chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
 				WhitePlayer:  testUser0.ID, // non-guest winner
 				BlackPlayer:  -10,          // guest loser
@@ -108,7 +110,7 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 			services, testinfra := setupGameoverTest(t)
 			defer testinfra.Close()
 
-			_, err := services.InsertFinishedGame(ctx, tt.event)
+			_, err := services.HandleFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
 
 			modeLbZSet := cache.FmtLeaderboardZSet(tt.event.ReplayMode.String())
@@ -305,7 +307,7 @@ func TestInsertGameResult(t *testing.T) {
 			services, testinfra := setupGameoverTest(t)
 			defer testinfra.Close()
 
-			changeSet, err := services.insertGameResult(ctx, tt.resultInput)
+			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
 			userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{

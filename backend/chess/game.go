@@ -22,15 +22,6 @@ type Game struct {
 	PinTable         [Files][MaxRanks][]Hex
 }
 
-type SerializeableGame struct {
-	Board Board      `json:"board"`
-	Moves []HistMove `json:"moves"`
-}
-
-// func (g *Game) MarshalJSON() ([]byte, error) {
-// 	return json.Marshal(SerializeableGame{Board: g.Board, Moves: g.Moves})
-// }
-
 func NewStartGame(initial ...Place) Game {
 	return Game{Board: NewStartBoard(initial...)}
 }
@@ -165,7 +156,11 @@ func (g *Game) NewMove(move Move) HistMove {
 	g.WhiteMoves = nil
 	g.BlackMoves = nil
 
-	return HistMove{PieceMove: annotMove.PieceMove, Promotion: annotMove.Promotion, Notation: annotMove.String()}
+	return HistMove{
+		PieceMove: annotMove.PieceMove,
+		Promotion: annotMove.Promotion,
+		Notation:  annotMove.String(),
+	}
 }
 
 func (g *Game) ValidateMove(move Move) error {

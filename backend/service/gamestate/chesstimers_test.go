@@ -83,10 +83,10 @@ func TestTryExpireTimers(t *testing.T) {
 
 	wantMessages := []map[string]any{
 		{
-			"data": fmt.Sprintf("{\"id\":\"%s\"}", gameID1),
+			"data": fmt.Sprintf("{\"id\":\"%s\",\"replayCause\":\"TIMEOUT\"}", gameID1),
 		},
 		{
-			"data": fmt.Sprintf("{\"id\":\"%s\"}", gameID2),
+			"data": fmt.Sprintf("{\"id\":\"%s\",\"replayCause\":\"TIMEOUT\"}", gameID2),
 		},
 	}
 	assert.Equal(t, wantMessages, messages)

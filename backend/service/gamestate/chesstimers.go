@@ -30,10 +30,10 @@ func (services *TimerService) TryExpireTimers(ctx context.Context, expireBeforeT
 
 	expireBefore := strconv.Itoa(int(expireBeforeTime.UnixMilli()))
 
-	cmd := cache.ZDequeueXAdd.Run(ctx, services.redis.PrimaryClient, services.zDequeueXAddKeys, expireBefore)
+	cmd := cache.PollGameTimers.Run(ctx, services.redis.PrimaryClient, services.zDequeueXAddKeys, expireBefore)
 	keys, err := cmd.Result()
 	if err != nil {
-		return nil, serrors.New("executing zdequeue xadd script", err,
+		return nil, serrors.New("executing poll game timers script", err,
 			"expireBefore", expireBefore, "zDequeueXAddKeys", services.zDequeueXAddKeys)
 	}
 

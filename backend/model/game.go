@@ -60,7 +60,7 @@ func (gameID GameID) Partition() rune {
 
 type FinishGameEvent struct {
 	GameID       GameID           `json:"id"`
-	Board        chess.Board      `json:"board"`
+	InitialBoard chess.Board      `json:"initialBoard"`
 	Moves        []chess.HistMove `json:"moves"`
 	WhitePlayer  int64            `json:"whitePlayer"`
 	BlackPlayer  int64            `json:"blackPlayer"`

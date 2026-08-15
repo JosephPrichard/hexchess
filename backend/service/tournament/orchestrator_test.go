@@ -281,6 +281,8 @@ func leafError(err error) error {
 	}
 }
 
+var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard", "StartTime")
+
 func TestProgressTournament_ThenGetChessStates(t *testing.T) {
 	services, testinfra := setupOrchestratorTest(t)
 	defer testinfra.Close()
@@ -306,7 +308,7 @@ func TestProgressTournament_ThenGetChessStates(t *testing.T) {
 		chessState, err := gamestate.NewChessRepoService(testinfra.Redis).GetChessState(ctx, id)
 		require.NoError(t, err)
 
-		testutil.Equal(t, wantGames[id], chessState, cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard"))
+		testutil.Equal(t, wantGames[id], chessState, cmpOptsChessState)
 	}
 }
 

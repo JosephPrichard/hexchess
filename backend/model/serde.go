@@ -137,19 +137,19 @@ func SerializeBoard(board *chess.Board) *pb.ChessBoard {
 
 // HistMove
 
-func DeserializeHistMove(pbHm *pb.HistMove) chess.HistMove {
-	if pbHm == nil {
+func DeserializeHistMove(pbHistMove *pb.HistMove) chess.HistMove {
+	if pbHistMove == nil {
 		return chess.HistMove{}
 	}
 	return chess.HistMove{
 		PieceMove: chess.PieceMove{
-			Piece: chess.Piece(pbHm.Piece),
-			From:  chess.Hex{File: uint32(pbHm.FromFile), Rank: uint32(pbHm.FromRank)},
-			To:    chess.Hex{File: uint32(pbHm.ToFile), Rank: uint32(pbHm.ToRank)},
+			Piece: chess.Piece(pbHistMove.Piece),
+			From:  chess.Hex{File: pbHistMove.FromFile, Rank: pbHistMove.FromRank},
+			To:    chess.Hex{File: pbHistMove.ToFile, Rank: pbHistMove.ToRank},
 		},
-		Notation:   pbHm.Notation,
-		WhiteTimer: time.Duration(pbHm.WhiteTimerMs) * time.Millisecond,
-		BlackTimer: time.Duration(pbHm.BlackTimerMs) * time.Millisecond,
+		Notation:   pbHistMove.Notation,
+		WhiteTimer: time.Duration(pbHistMove.WhiteTimerMs) * time.Millisecond,
+		BlackTimer: time.Duration(pbHistMove.BlackTimerMs) * time.Millisecond,
 	}
 }
 
@@ -164,16 +164,16 @@ func DeserializeHistMoveList(pbMoves []*pb.HistMove) []chess.HistMove {
 	return moves
 }
 
-func SerializeHistMove(hm chess.HistMove) *pb.HistMove {
+func SerializeHistMove(histMove chess.HistMove) *pb.HistMove {
 	return &pb.HistMove{
-		Piece:        uint32(hm.Piece),
-		FromFile:     hm.From.File,
-		FromRank:     hm.From.Rank,
-		ToFile:       hm.To.File,
-		ToRank:       hm.To.Rank,
-		Notation:     hm.Notation,
-		WhiteTimerMs: hm.WhiteTimer.Milliseconds(),
-		BlackTimerMs: hm.BlackTimer.Milliseconds(),
+		Piece:        uint32(histMove.Piece),
+		FromFile:     histMove.From.File,
+		FromRank:     histMove.From.Rank,
+		ToFile:       histMove.To.File,
+		ToRank:       histMove.To.Rank,
+		Notation:     histMove.Notation,
+		WhiteTimerMs: histMove.WhiteTimer.Milliseconds(),
+		BlackTimerMs: histMove.BlackTimer.Milliseconds(),
 	}
 }
 
@@ -350,6 +350,7 @@ func DeserializeChessState(pbChess *pb.ChessState) (*ChessState, error) {
 		BlackPlayer:  DeserializePlayer(pbChess.BlackPlayer),
 		FirstColor:   firstColor,
 		Mode:         mode,
+		StartTime:    time.UnixMilli(pbChess.StartTimeMs),
 	}, nil
 }
 
@@ -361,6 +362,9 @@ func SerializeChessState(state *ChessState) *pb.ChessState {
 	if state == nil {
 		return nil
 	}
+
+	startTimeMs := state.StartTime.UnixMilli()
+
 	return &pb.ChessState{
 		Id:           state.ID.String(),
 		Game:         SerializeGame(&state.Game),
@@ -371,6 +375,7 @@ func SerializeChessState(state *ChessState) *pb.ChessState {
 		InitialBoard: SerializeBoard(&state.InitialBoard),
 		UndoId:       state.UndoID,
 		EndState:     SerializeEndKind(state.EndState),
+		StartTimeMs:  startTimeMs,
 	}
 }
 

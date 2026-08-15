@@ -1,11 +1,14 @@
 package model
 
 import (
+	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/bytedance/sonic"
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
+
+var chessStateCmpOpts = cmpopts.IgnoreFields(ChessState{}, "StartTime")
 
 func TestChessSerializer(t *testing.T) {
 	input1 := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
@@ -34,7 +37,7 @@ func TestChessSerializer(t *testing.T) {
 				t.Fatalf("deserialize state: %v", err)
 			}
 			// t.Logf("deserialized state: %v, board: %v", output, output.Game.Board.String())
-			assert.Equal(t, tt.state, output)
+			testutil.Equal(t, tt.state, output, chessStateCmpOpts)
 		})
 	}
 }

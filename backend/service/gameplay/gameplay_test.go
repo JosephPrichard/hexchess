@@ -55,6 +55,8 @@ func setChessStates(t *testing.T, redis cache.Redis, games ...*model.ChessState)
 	}
 }
 
+var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "StartTime")
+
 func TestJoinGame(t *testing.T) {
 	services, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
@@ -111,8 +113,8 @@ func TestJoinGame(t *testing.T) {
 			updatedState, err := services.JoinGame(ctx, tt.gameID, tt.joinPlayer)
 
 			assert.Equal(t, tt.wantErr, err)
-			testutil.Equal(t, tt.wantGame, updatedState)
-			assertRedisChess(t, testinfra.Redis, tt.wantGame)
+			testutil.Equal(t, tt.wantGame, updatedState, cmpOptsChessState)
+			assertRedisChess(t, testinfra.Redis, tt.wantGame, cmpOptsChessState)
 		})
 	}
 }
@@ -272,9 +274,9 @@ func TestAttemptUndo(t *testing.T) {
 
 				assert.Equal(t, subTest.wantErr, err)
 
-				cmptOpts := cmpopts.IgnoreFields(model.ChessState{}, "Game")
-				testutil.Equal(t, subTest.wantGame, updatedState, cmptOpts)
-				assertRedisChess(t, testinfra.Redis, updatedState, cmptOpts)
+				cmpOpts := cmpopts.IgnoreFields(model.ChessState{}, "Game", "StartTime")
+				testutil.Equal(t, subTest.wantGame, updatedState, cmpOpts)
+				assertRedisChess(t, testinfra.Redis, updatedState, cmpOpts)
 			}
 		})
 	}
@@ -410,12 +412,12 @@ func TestNewMove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
 
-			moveResult, err := services.NewGameMove(ctx, tt.stateID, tt.player, tt.move)
+			moveResult, err := services.MakeGameMove(ctx, tt.stateID, tt.player, tt.move)
 
 			assert.Equal(t, tt.wantErr, err)
-			assertRedisChess(t, testinfra.Redis, tt.wantGame)
+			assertRedisChess(t, testinfra.Redis, tt.wantGame, cmpOptsChessState)
 			if tt.wantErr == nil {
-				testutil.Equal(t, tt.wantGame, moveResult.State)
+				testutil.Equal(t, tt.wantGame, moveResult.State, cmpOptsChessState)
 			}
 		})
 	}
@@ -454,7 +456,7 @@ func TestForfeit(t *testing.T) {
 		wantGame := mutateGame(abortGame, func(s *model.ChessState) {
 			s.EndState = model.Aborted
 		})
-		assertRedisChess(t, testinfra.Redis, wantGame)
+		assertRedisChess(t, testinfra.Redis, wantGame, cmpOptsChessState)
 	})
 
 	t.Run("Forfeit", func(t *testing.T) {
@@ -467,7 +469,7 @@ func TestForfeit(t *testing.T) {
 		wantGame := mutateGame(forfeitGame, func(s *model.ChessState) {
 			s.EndState = model.Finished
 		})
-		assertRedisChess(t, testinfra.Redis, wantGame)
+		assertRedisChess(t, testinfra.Redis, wantGame, cmpOptsChessState)
 	})
 }
 

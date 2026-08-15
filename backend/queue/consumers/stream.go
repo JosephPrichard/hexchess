@@ -85,6 +85,7 @@ func NewFinishedGameWorker(
 			redis,
 			producers.NewRiverProducer(riverClient),
 			broadcaster,
+			gamestate.NewChessRepoService(redis),
 		),
 		replay:      replay.NewReplayService(database),
 		broadcaster: broadcaster,
@@ -100,7 +101,7 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
 
 	// step 1: insert the finished game into the system of record
-	result, err := w.services.InsertFinishedGame(ctx, event)
+	result, err := w.services.HandleFinishedGame(ctx, event)
 	if err != nil {
 		return serrors.New("insert finished game failed", err)
 	}

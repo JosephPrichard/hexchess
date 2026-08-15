@@ -4,11 +4,14 @@ import (
 	"errors"
 	"hexchess-svc/chess"
 	"hexchess-svc/utils/opt"
+	"time"
 )
 
 type UndoState struct {
 	UndoID int64 `json:"undoID"`
 }
+
+const EmptyUndoID = 0
 
 type EndKind int
 
@@ -25,21 +28,14 @@ func (kind EndKind) IsEnded() bool {
 type ChessState struct {
 	UndoState
 	ID           GameID      `json:"id"`
+	StartTime    time.Time   `json:"startTime"`
 	WhitePlayer  PlayerState `json:"whitePlayer"`
 	BlackPlayer  PlayerState `json:"blackPlayer"`
 	FirstColor   GameColor   `json:"firstColor"`
 	Mode         GameMode    `json:"mode"`
-	EndState     EndKind
-	InitialBoard chess.Board
-	Game         chess.Game
-}
-
-func (state *ChessState) HasBothPlayers() bool {
-	return state.WhitePlayer.Present && state.BlackPlayer.Present
-}
-
-func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
-	return state.WhitePlayer.IsSame(player) || state.BlackPlayer.IsSame(player)
+	EndState     EndKind     `json:"endState"`
+	InitialBoard chess.Board `json:"-"`
+	Game         chess.Game  `json:"-"`
 }
 
 type ChessMeta struct {
@@ -72,15 +68,16 @@ func NewChessStateValue(s StateSetup) ChessState {
 		game = *s.Game
 	}
 	return ChessState{
-		InitialBoard: board,
-		Game:         game,
 		UndoState:    s.UndoState,
 		ID:           s.ID,
+		StartTime:    time.Now(),
 		FirstColor:   s.FirstColor,
 		Mode:         s.Mode,
 		WhitePlayer:  s.White,
 		BlackPlayer:  s.Black,
 		EndState:     s.EndState,
+		InitialBoard: board,
+		Game:         game,
 	}
 }
 
@@ -90,6 +87,36 @@ func NewChessState(s StateSetup) *ChessState {
 }
 
 var ErrNoMoveUndo = errors.New("no move to undo")
+
+func (state *ChessState) String() string {
+	if state != nil {
+		return state.ID.String()
+	}
+	return "<nil>"
+}
+
+func (state *ChessState) HasBothPlayers() bool {
+	return state.WhitePlayer.Present && state.BlackPlayer.Present
+}
+
+func (state *ChessState) IsEitherPlayer(player PlayerState) bool {
+	return state.WhitePlayer.IsSame(player) || state.BlackPlayer.IsSame(player)
+}
+
+func (state *ChessState) ClockTimeout() time.Time {
+	//clockTime := state.Mode.TotalTime()
+	//
+	//for i, move := range state.Game.Moves {
+	//	if i%2 == 0 && state.Game.Board.IsWhiteTurn {
+	//		incr := state.Mode.TimeIncrement()
+	//
+	//		clockTime += incr
+	//	}
+	//}
+	//
+	//return state.StartTime.Add(clockTime)
+	return time.Time{}
+}
 
 func (state *ChessState) Undo() error {
 	if len(state.Game.Moves) == 0 {

@@ -15,40 +15,40 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, finishedGame model.FinishGameEvent) error {
-	bytes, err := sonic.Marshal(finishedGame)
+func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event model.FinishGameEvent) error {
+	bytes, err := sonic.Marshal(event)
 	if err != nil {
 		return serrors.New("marshal finish game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
-		Stream: cache.FmtGameStreamKey(cache.Constants.FinishGameStreamKey, finishedGame.GameID),
+		Stream: cache.FmtGameStreamKey(cache.Constants.FinishGameStreamKey, event.GameID),
 		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.New("xadd finished game event", err, "finishedGame", finishedGame)
+		return serrors.New("xadd finished game event", err, "finishedGame", event)
 	}
 
-	slog.InfoContext(ctx, "produced finished game event", "msgID", msgID, "gameID", finishedGame.GameID, "streamKey", xArgs.Stream)
+	slog.InfoContext(ctx, "produced finished game event", "msgID", msgID, "gameID", event.GameID, "streamKey", xArgs.Stream)
 	return nil
 }
 
-func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, gameUpdt model.UpdtGameMetadataEvent) error {
-	bytes, err := sonic.Marshal(gameUpdt)
+func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, event model.UpdtGameMetadataEvent) error {
+	bytes, err := sonic.Marshal(event)
 	if err != nil {
 		return serrors.New("marshal update game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
-		Stream: cache.FmtGameStreamKey(cache.Constants.UpdtGameMetaStreamKey, gameUpdt.GameID),
+		Stream: cache.FmtGameStreamKey(cache.Constants.UpdtGameMetaStreamKey, event.GameID),
 		Values: map[string]any{"data": string(bytes)},
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.New("xadd update game event", err, "gameUpdt", gameUpdt)
+		return serrors.New("xadd update game event", err, "gameUpdt", event)
 	}
 
-	slog.InfoContext(ctx, "produced update game event", "msgID", msgID, "gameUpdt", gameUpdt, "streamKey", xArgs.Stream)
+	slog.InfoContext(ctx, "produced update game event", "msgID", msgID, "gameUpdt", event, "streamKey", xArgs.Stream)
 	return nil
 }

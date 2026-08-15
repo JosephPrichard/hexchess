@@ -6,7 +6,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-//go:embed scripts/ZDEQUEUE_XADD.lua
-var zDequeueXAddScript string
+//go:embed scripts/POLL_GAME_TIMERS.lua
+var pollGameTimers string
 
-var ZDequeueXAdd = redis.NewScript(zDequeueXAddScript)
+var PollGameTimers = redis.NewScript(pollGameTimers)

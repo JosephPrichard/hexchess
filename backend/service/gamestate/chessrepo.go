@@ -70,7 +70,7 @@ type RedisChessSetter interface {
 	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
 }
 
-func (services *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error {
+func (services *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) error {
 	defer perf.WithContext(ctx).Log()
 
 	bytes, err := model.MarshalChessState(state)
@@ -81,12 +81,13 @@ func (services *ChessRepoService) SetChessStatePiped(ctx context.Context, setter
 	gameKey := cache.FmtGameKey(id)
 	setter.Set(ctx, gameKey, bytes, 0)
 
-	if false {
+	timerScore := float64(timer.UnixMilli())
+	if timerScore != 0 {
 		gameTimersKey := cache.FmtGameTimersZSet(id.Partition())
-		setter.ZAdd(ctx, gameTimersKey)
+		setter.ZAdd(ctx, gameTimersKey, redis.Z{Score: timerScore, Member: id.String()})
 	}
 
-	slog.InfoContext(ctx, "set chess state", "key", gameKey, "updtTime", updtTime)
+	slog.InfoContext(ctx, "set chess state", "key", gameKey, "timer", timer, "timerScore", timerScore)
 	return nil
 }
 
