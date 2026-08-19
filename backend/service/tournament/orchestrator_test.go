@@ -26,9 +26,9 @@ func setupOrchestratorTest(t alog.TestLogger) (*TournamentOrchestrator, itest.Te
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewTournamentOrchestrator(
-		NewTournamentService(infra.Database, infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
-		userSvc.NewUserService(infra.Database),
-		gameplay.NewGameplayService(infra.Redis, gamestate.NewChessRepoService(infra.Redis)),
+		NewUpdateTournamentService(infra.Database, infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
+		userSvc.NewUserCRUDService(infra.Database),
+		gameplay.NewGameCreateService(infra.Redis, gamestate.NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
 	)
 

@@ -1,4 +1,4 @@
-package gamestate
+package generators
 
 import (
 	"errors"

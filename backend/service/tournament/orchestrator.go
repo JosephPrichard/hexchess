@@ -13,7 +13,7 @@ import (
 )
 
 type TournamentOrchestrator struct {
-	tournament  *TournamentService
+	tournament  *UpdateTournamentService
 	user        UserGetter
 	gameplay    GameCreator
 	broadcaster pubsub.Broadcaster
@@ -28,7 +28,7 @@ type GameCreator interface {
 }
 
 func NewTournamentOrchestrator(
-	tournament *TournamentService,
+	tournament *UpdateTournamentService,
 	user UserGetter,
 	gameplay GameCreator,
 	broadcaster pubsub.Broadcaster,

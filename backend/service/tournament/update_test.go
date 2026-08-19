@@ -18,10 +18,10 @@ import (
 	"time"
 )
 
-func setupTest(t alog.TestLogger) (*TournamentService, itest.TestInfra) {
+func setupUpdateTest(t alog.TestLogger) (*UpdateTournamentService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewTournamentService(
+	services := NewUpdateTournamentService(
 		infra.Database,
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
@@ -31,7 +31,7 @@ func setupTest(t alog.TestLogger) (*TournamentService, itest.TestInfra) {
 }
 
 func TestCreateTournament(t *testing.T) {
-	services, testinfra := setupTest(t)
+	services, testinfra := setupUpdateTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
@@ -68,7 +68,7 @@ func TestCreateTournament(t *testing.T) {
 }
 
 func TestBeginTournamentCountdown(t *testing.T) {
-	services, testinfra := setupTest(t)
+	services, testinfra := setupUpdateTest(t)
 	defer testinfra.Close()
 
 	tests := []struct {
@@ -136,7 +136,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(query.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
-	services, testinfra := setupTest(t)
+	services, testinfra := setupUpdateTest(t)
 	defer testinfra.Close()
 
 	tests := []struct {

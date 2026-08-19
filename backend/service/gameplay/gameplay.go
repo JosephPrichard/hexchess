@@ -4,16 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"errors"
-	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
+	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/service/gamestate"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
-	"time"
-
-	"hexchess-svc/model"
 	"log/slog"
 	"math/big"
 
@@ -22,86 +19,15 @@ import (
 
 type GamePlayService struct {
 	redis      cache.Redis
-	chessState ChessStateMutator
+	chessState ChessUpdater
 }
 
-type ChessStateMutator interface {
-	SetChessStatePiped(ctx context.Context, setter gamestate.RedisChessSetter, id model.GameID, state *model.ChessState, updtTime time.Time) error
+type ChessUpdater interface {
 	UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update gamestate.ChessUpdateFn, commit gamestate.ChessCommitFn) (*model.ChessState, error)
 }
 
-func NewGameplayService(redis cache.Redis, chessState ChessStateMutator) *GamePlayService {
+func NewGameplayService(redis cache.Redis, chessState ChessUpdater) *GamePlayService {
 	return &GamePlayService{redis: redis, chessState: chessState}
-}
-
-var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")
-
-type ErrStartedGame struct {
-	GameID model.GameID
-}
-
-func (e ErrStartedGame) Error() string {
-	return fmt.Sprintf("does not have both players (gameId=%s)", e.GameID)
-}
-
-type ErrFinishedGame struct {
-	GameID model.GameID
-}
-
-func (e ErrFinishedGame) Error() string {
-	return fmt.Sprintf("attempted on ended game gameId=%s", e.GameID)
-}
-
-type ErrTurn struct {
-	GameID   model.GameID
-	PlayerID int64
-	CurrID   int64
-}
-
-func (e ErrTurn) Error() string {
-	return fmt.Sprintf("invalid turn (player=%d, curr=%d, game=%s)", e.PlayerID, e.CurrID, e.GameID)
-}
-
-type ErrTimeout struct {
-	GameID model.GameID
-}
-
-func (e ErrTimeout) Error() string {
-	return fmt.Sprintf("game timer has expired (game=%s)", e.GameID)
-}
-
-type ErrInvalidMove struct {
-	GameID    model.GameID
-	PlayerID  int64
-	Violation error
-}
-
-func (e ErrInvalidMove) Error() string {
-	return fmt.Sprintf("invalid move (violation=%v, player=%d, game=%s)", e.Violation, e.PlayerID, e.GameID)
-}
-
-func (services *GamePlayService) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
-	gameID := model.NewGameID()
-	err := services.SetupGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
-	return gameID, err
-}
-
-func (services *GamePlayService) SetupGame(ctx context.Context, setup model.StateSetup) error {
-	gameID := setup.ID
-
-	state := model.NewChessState(setup)
-	state.Game.InitPieceMoves()
-
-	commit := func(pipe redis.Pipeliner) error {
-		now := time.Now()
-		if err := services.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
-			return serrors.New("set chess state", err, "gameID", gameID)
-		}
-		return produceUpdtGameMetadata(ctx, pipe, state)
-	}
-
-	_, err := services.redis.PrimaryClient.TxPipelined(ctx, commit)
-	return err
 }
 
 func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {

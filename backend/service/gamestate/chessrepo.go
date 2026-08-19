@@ -25,7 +25,6 @@ func (services *ChessRepoService) IsGameAccessible(ctx context.Context, id model
 	defer perf.WithContext(ctx).Log()
 
 	gameKey := cache.FmtGameKey(id)
-
 	exists, err := services.redis.PrimaryClient.Exists(ctx, gameKey).Result()
 
 	return err == nil && exists == 1

@@ -35,6 +35,13 @@ func mapTournamentByIdRow(tournament query.SelectTournamentByIDRow) model.Tourna
 	}
 }
 
+func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int {
+	if ruleset == model.TournamentKnockout {
+		return KnockoutParticipantsAtRound(int(rounds), 1)
+	}
+	return -1
+}
+
 func mapTourneyParticipantFromRow(participant query.SelectParticipantsWithUserByTournamentIDRow) model.Participant {
 	return leaderboard.MapLeaderboardUser(query.SelectUserWithEloByIDRow{
 		ID:         participant.UserID,

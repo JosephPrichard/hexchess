@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupReplayTest(t alog.TestLogger) (*ReplayService, itest.TestInfra) {
+func setupReplayTest(t alog.TestLogger) (*ReplayCRUDService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewReplayService(infra.Database)
+	services := NewReplayCRUDService(infra.Database)
 
 	return services, infra
 }

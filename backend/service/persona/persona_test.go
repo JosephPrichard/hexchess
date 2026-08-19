@@ -17,7 +17,7 @@ func setupPersonaServices(t alog.TestLogger) (*PersonaService, itest.TestInfra) 
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewPersonaService(
-		user.NewUserService(infra.Database),
+		user.NewUserCRUDService(infra.Database),
 		leaderboard.NewLeaderboardService(infra.Redis, infra.Querier()),
 		replay.NewSearchService(infra.Database),
 	)

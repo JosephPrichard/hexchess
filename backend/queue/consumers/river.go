@@ -95,13 +95,13 @@ func NewAdvanceTournamentWorker(
 ) *AdvanceTournamentWorker {
 	return &AdvanceTournamentWorker{
 		orchestrator: tournament.NewTournamentOrchestrator(
-			tournament.NewTournamentService(
+			tournament.NewUpdateTournamentService(
 				database,
 				redis,
 				producers.NewRiverProducer(riverClient),
 			),
-			user.NewUserService(database),
-			gameplay.NewGameplayService(
+			user.NewUserCRUDService(database),
+			gameplay.NewGameCreateService(
 				redis,
 				gamestate.NewChessRepoService(redis),
 			),

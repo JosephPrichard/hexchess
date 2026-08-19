@@ -23,10 +23,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger) (*ChallengeService, itest.TestInfra) {
+func setupTest(t alog.TestLogger) (*ChallengeCRUDService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewChallengeService(infra.Database, entropy.RealSource{})
+	services := NewChallengeCRUDService(infra.Database, entropy.RealSource{})
 
 	return services, infra
 }

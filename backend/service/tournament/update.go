@@ -8,186 +8,33 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutator"
 	"hexchess-svc/database/query"
-	"hexchess-svc/service/leaderboard"
-	"hexchess-svc/utils/opt"
-	"hexchess-svc/utils/perf"
-	"strconv"
-
 	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
 	"log/slog"
-	"math"
 	"time"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/redis/go-redis/v9"
-	"golang.org/x/sync/errgroup"
 )
 
-var ErrTournamentNotFound = fmt.Errorf("tournament does not exist")
-
-type TournamentService struct {
+type UpdateTournamentService struct {
 	database.Database
 	redis    cache.Redis
 	producer AdvanceTournamentProducer
-}
-
-type ParticipantRankGetter interface {
-	GetUsersLeaderboardRank(ctx context.Context, userIDs []int64, mode model.GameMode) (map[int64]int64, error)
 }
 
 type AdvanceTournamentProducer interface {
 	ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
 }
 
-func NewTournamentService(database database.Database, redis cache.Redis, producer AdvanceTournamentProducer) *TournamentService {
-	return &TournamentService{Database: database, redis: redis, producer: producer}
-}
-
-func (services *TournamentService) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error) {
-	defer perf.WithContext(ctx).Log()
-
-	var tournamentRow query.SelectTournamentByIDRow
-	var matchRows []query.SelectReplayMatchesByTournamentIDRow
-	var participantRows []query.SelectParticipantsWithUserByTournamentIDRow
-
-	eg, egCtx := errgroup.WithContext(ctx)
-
-	eg.Go(func() (err error) {
-		tournamentRow, err = services.Querier().SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		if err != nil {
-			return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
-		}
-		return nil
-	})
-
-	eg.Go(func() (err error) {
-		participantRows, err = services.Querier().SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		if err != nil {
-			return serrors.New("select participants by tournament key", err, "tournamentKey", tournamentKey)
-		}
-		return nil
-	})
-
-	eg.Go(func() (err error) {
-		matchRows, err = services.Querier().SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		if err != nil {
-			return serrors.New("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
-		}
-		return nil
-	})
-
-	if err := eg.Wait(); err != nil {
-		if database.IsErrNoRows(err) {
-			return model.FullTournament{}, ErrTournamentNotFound
-		} else {
-			return model.FullTournament{}, err
-		}
-	}
-
-	slog.InfoContext(ctx, "selected tournament", "tournament", tournamentRow, "matchRows", matchRows, "participantRows", participantRows)
-
-	tournament := mapFullTournament(tournamentRow, matchRows, participantRows)
-
-	userLdbRanksMap, err := services.getParticipantsRank(ctx, tournament.Participants, tournament.Mode)
-	if err != nil {
-		return model.FullTournament{}, serrors.New("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
-	}
-	for i := range tournament.Participants {
-		tournament.Participants[i].Rank = userLdbRanksMap[tournament.Participants[i].ID]
-	}
-
-	slog.InfoContext(ctx, "retrieved full tournament", "tournament", tournament)
-	return tournament, nil
-}
-
-func (services *TournamentService) getParticipantsRank(ctx context.Context, participants []model.Participant, mode model.GameMode) (map[int64]int64, error) {
-	type getExec struct {
-		userID int64
-		cmd    *redis.IntCmd
-	}
-
-	pipeline := services.redis.PrimaryClient.Pipeline()
-
-	var getExecs []getExec
-	for _, participant := range participants {
-		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
-		getExecs = append(getExecs, getExec{
-			userID: participant.ID,
-			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(participant.ID))),
-		})
-	}
-
-	if err := cache.PipelineExec(ctx, pipeline); err != nil {
-		return nil, err
-	}
-
-	leaderboardRanks := make(map[int64]int64)
-	for _, exec := range getExecs {
-		rank, err := exec.cmd.Result()
-		if errors.Is(redis.Nil, err) {
-			// skip populating this rank if we cannot retrieve it (stays at zero value)
-			continue
-		}
-		if err != nil {
-			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
-		}
-		leaderboardRanks[exec.userID] = leaderboard.MapLeaderboardRank(rank)
-	}
-
-	slog.InfoContext(ctx, "retrieved leaderboard ranks", "leaderboardRanks", leaderboardRanks, "mode", mode)
-	return leaderboardRanks, nil
-}
-
-func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int {
-	if ruleset == model.TournamentKnockout {
-		return KnockoutParticipantsAtRound(int(rounds), 1)
-	}
-	return -1
-}
-
-func (services *TournamentService) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) ([]model.Tournament, error) {
-	defer perf.WithContext(ctx).Log()
-
-	if !afterID.Present {
-		afterID.Value = int64(math.MaxInt64)
-	}
-
-	var tournaments []model.Tournament
-
-	if participantID.Present {
-		tournamentRows, err := services.Querier().SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
-			UserID:  participantID.Value,
-			AfterID: afterID.Value,
-			PerPage: perPage,
-		})
-		if err != nil {
-			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
-		}
-		tournaments = mapTournamentRows(tournamentRows, func(t query.SelectTournamentsByParticipantRow) model.Tournament {
-			return mapTournamentByIdRow(query.SelectTournamentByIDRow(t))
-		})
-	} else {
-		tournamentRows, err := services.Querier().SelectTournaments(ctx, query.SelectTournamentsParams{
-			AfterID: afterID.Value,
-			PerPage: perPage,
-		})
-		if err != nil {
-			return nil, serrors.New("select tournaments after id", err, "afterID", afterID)
-		}
-		tournaments = mapTournamentRows(tournamentRows, func(t query.SelectTournamentsRow) model.Tournament {
-			return mapTournamentByIdRow(query.SelectTournamentByIDRow(t))
-		})
-	}
-
-	slog.InfoContext(ctx, "selected tournaments", "tournaments", tournaments)
-	return tournaments, nil
+func NewUpdateTournamentService(database database.Database, redis cache.Redis, producer AdvanceTournamentProducer) *UpdateTournamentService {
+	return &UpdateTournamentService{Database: database, redis: redis, producer: producer}
 }
 
 type TournamentInst struct {
@@ -207,7 +54,7 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 
 var InsertionStatus = model.TournamentLobby.String()
 
-func (services *TournamentService) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
+func (services *UpdateTournamentService) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
@@ -244,7 +91,7 @@ func (services *TournamentService) CreateTournament(ctx context.Context, inst To
 	return tournamentID, nil
 }
 
-func (services *TournamentService) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
+func (services *UpdateTournamentService) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
 	deletedIDs, err := services.Mutator().DeleteTournamentParticipant(ctx, mutator.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
@@ -271,13 +118,6 @@ func (e MatchInvariantError) Error() string {
 	return fmt.Sprintf("tournament %s state is invalid: %v", e.TournamentKey, e.Err)
 }
 
-var (
-	ErrTournamentNotLobby           = fmt.Errorf("tournament is not in lobby status")
-	ErrTooManyParticipants          = fmt.Errorf("tournament is full")
-	ErrTournamentAlreadyJoined      = fmt.Errorf("user is already a participant of this tournament")
-	ErrInvalidTournamentParticipant = fmt.Errorf("tournament participant is invalid")
-)
-
 type JoinTournamentInst struct {
 	TournamentKey uuid.UUID
 	JoiningUserID int64
@@ -289,7 +129,7 @@ type JoinTournamentEvent struct {
 	Mode          model.GameMode
 }
 
-func (services *TournamentService) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
+func (services *UpdateTournamentService) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var result JoinTournamentEvent
@@ -347,16 +187,11 @@ func (services *TournamentService) JoinTournament(ctx context.Context, inst Join
 	return result, err
 }
 
-var (
-	ErrTournamentCountdownPermissions   = errors.New("only the creating user can begin the tournament countdown")
-	ErrInvalidCountdownTournamentStatus = fmt.Errorf("tournament must be in LOBBY status to begin the countdown")
-)
-
 type BeginTourneyCountdown struct {
 	TournamentKey uuid.UUID
 }
 
-func (services *TournamentService) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
+func (services *UpdateTournamentService) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var tourneyCountdown BeginTourneyCountdown
@@ -422,11 +257,9 @@ func (e TournamentStatusAssertionError) Error() string {
 	return fmt.Sprintf("tournament state is invalid: expected %v, got %v", e.Expected, e.Got)
 }
 
-var ErrEmptyMatchesTournament = errors.New("tournament has no matches")
-
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (services *TournamentService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
+func (services *UpdateTournamentService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var matchesToCreate []model.MatchCreation
@@ -597,8 +430,6 @@ func insertCreatedMatches(
 
 	return nil
 }
-
-var ErrMatchRoundCount = errors.New("tournament has an invalid completed match count in round")
 
 func insertTournamentMatches(ctx context.Context, query database.QuerierMutator, tournamentKey pgtype.UUID, response MatchmakingOutput) error {
 	shouldUpdateWinnerID := response.WinnerID != WinnerIDNone

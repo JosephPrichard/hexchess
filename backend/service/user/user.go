@@ -27,12 +27,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type UserService struct {
+type UserCRUDService struct {
 	database.Database
 }
 
-func NewUserService(database database.Database) *UserService {
-	return &UserService{Database: database}
+func NewUserCRUDService(database database.Database) *UserCRUDService {
+	return &UserCRUDService{Database: database}
 }
 
 type RankedUser struct {
@@ -50,7 +50,7 @@ type Inst struct {
 	JoinedOn time.Time
 }
 
-func (services *UserService) InsertUser(ctx context.Context, inst Inst) (model.User, error) {
+func (services *UserCRUDService) InsertUser(ctx context.Context, inst Inst) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if inst.JoinedOn.IsZero() {
@@ -82,7 +82,7 @@ func (services *UserService) InsertUser(ctx context.Context, inst Inst) (model.U
 	return user, nil
 }
 
-func (services *UserService) BatchInsertUsers(ctx context.Context, insts []Inst) ([]model.User, error) {
+func (services *UserCRUDService) BatchInsertUsers(ctx context.Context, insts []Inst) ([]model.User, error) {
 	batches := make([]mutator.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
@@ -150,7 +150,7 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func (services *UserService) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
+func (services *UserCRUDService) VerifyUser(ctx context.Context, username string, inputPassword string) (VerifiedUser, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var user VerifiedUser
@@ -216,7 +216,7 @@ type GoogleUserInst struct {
 	JoinedOn time.Time
 }
 
-func (services *UserService) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
+func (services *UserCRUDService) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (VerifiedUser, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var verifiedUser VerifiedUser
@@ -269,7 +269,7 @@ type UpdtUserParams struct {
 	Country  string
 }
 
-func (services *UserService) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error) {
+func (services *UserCRUDService) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
@@ -291,7 +291,7 @@ func (services *UserService) UpdateUser(ctx context.Context, id int64, updt Updt
 	return user, err
 }
 
-func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
+func (services *UserCRUDService) UpdateUserPassword(ctx context.Context, id int64, newPassword string) error {
 	defer perf.WithContext(ctx).Log()
 
 	hash, err := hashPassword(newPassword)
@@ -307,7 +307,7 @@ func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, n
 	return err
 }
 
-func (services *UserService) GetUserByID(ctx context.Context, id int64) (model.User, error) {
+func (services *UserCRUDService) GetUserByID(ctx context.Context, id int64) (model.User, error) {
 	defer perf.WithContext(ctx).Log()
 
 	userRow, err := services.Querier().SelectUserByID(ctx, id)
@@ -325,7 +325,7 @@ func Average[T constraints.Integer | constraints.Float](currAvg T, currCount int
 	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
 }
 
-func (services *UserService) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
+func (services *UserCRUDService) GetUserStats(ctx context.Context, id int64) (model.UserStats, error) {
 	defer perf.WithContext(ctx).Log()
 
 	modeEloRows, err := services.Querier().SelectUserElosByID(ctx, id)
@@ -367,7 +367,7 @@ func (services *UserService) GetUserStats(ctx context.Context, id int64) (model.
 	return stats, nil
 }
 
-func (services *UserService) SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
+func (services *UserCRUDService) SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
 	userRows, err := services.Querier().SelectUsersByIDs(ctx, ids)
 
 	var users []model.User

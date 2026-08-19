@@ -69,7 +69,7 @@ func StartRedisConsumers(database database.Database, redis cache.Redis, broadcas
 
 type FinishedGameWorker struct {
 	services    *gameplay.GameOverService
-	replay      *replay.ReplayService
+	replay      *replay.ReplayCRUDService
 	broadcaster pubsub.Broadcaster
 }
 
@@ -87,7 +87,7 @@ func NewFinishedGameWorker(
 			broadcaster,
 			gamestate.NewChessRepoService(redis),
 		),
-		replay:      replay.NewReplayService(database),
+		replay:      replay.NewReplayCRUDService(database),
 		broadcaster: broadcaster,
 	}
 }
