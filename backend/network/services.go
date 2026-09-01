@@ -21,9 +21,9 @@ import (
 )
 
 type Services struct {
-	*user.UserCRUDService
-	*challenge.ChallengeCRUDService
-	*replay.ReplayCRUDService
+	*user.UserService
+	*challenge.ChallengeService
+	*replay.ReplayService
 	*replay.ReplaySearchService
 	*leaderboard.LeaderboardService
 	*gamestate.ChessMetaService
@@ -37,7 +37,7 @@ type Services struct {
 	*gameplay.ChatService
 	*tournament.UpdateTournamentService
 	*tournament.RetrieveTournamentService
-	*tournament.TournamentBroadcaster
+	*tournament.TournamentNotificationService
 	*persona.PersonaService
 	*session.AuthTokenService
 }
@@ -63,10 +63,10 @@ func NewAPIServices(setup SetupAPIServices) Services {
 
 	riverProducer := producers.NewRiverProducer(setup.RiverClient)
 
-	userService := user.NewUserCRUDService(setup.Database)
-	replayService := replay.NewReplayCRUDService(setup.Database)
+	userService := user.NewUserService(setup.Database)
+	replayService := replay.NewReplayService(setup.Database)
 	replaySearchService := replay.NewSearchService(setup.Database)
-	challengeService := challenge.NewChallengeCRUDService(setup.Database, setup.Entropy)
+	challengeService := challenge.NewChallengeService(setup.Database, setup.Entropy)
 
 	leaderboardService := leaderboard.NewLeaderboardService(setup.Redis, setup.Database.Querier())
 
@@ -92,24 +92,24 @@ func NewAPIServices(setup SetupAPIServices) Services {
 	authTokenService := session.NewAuthTokenService(setup.SDKs)
 
 	return Services{
-		UserCRUDService:           userService,
-		ReplayCRUDService:         replayService,
-		ReplaySearchService:       replaySearchService,
-		ChallengeCRUDService:      challengeService,
-		LeaderboardService:        leaderboardService,
-		ChessMetaService:          chessMetaService,
-		ChessRepoService:          chessRepoService,
-		GamePlayService:           gameplayService,
-		GameCreateService:         gameCreateService,
-		OrphanService:             orphanService,
-		ProfileService:            profileService,
-		SessionService:            sessionService,
-		UpdateTournamentService:   updateTournamentService,
-		RetrieveTournamentService: retrieveTournamentService,
-		TournamentBroadcaster:     tournamentBroadcaster,
-		ActiveUserService:         activeUserService,
-		ChatService:               chatService,
-		PersonaService:            participantService,
-		AuthTokenService:          authTokenService,
+		UserService:                   userService,
+		ReplayService:                 replayService,
+		ReplaySearchService:           replaySearchService,
+		ChallengeService:              challengeService,
+		LeaderboardService:            leaderboardService,
+		ChessMetaService:              chessMetaService,
+		ChessRepoService:              chessRepoService,
+		GamePlayService:               gameplayService,
+		GameCreateService:             gameCreateService,
+		OrphanService:                 orphanService,
+		ProfileService:                profileService,
+		SessionService:                sessionService,
+		UpdateTournamentService:       updateTournamentService,
+		RetrieveTournamentService:     retrieveTournamentService,
+		TournamentNotificationService: tournamentBroadcaster,
+		ActiveUserService:             activeUserService,
+		ChatService:                   chatService,
+		PersonaService:                participantService,
+		AuthTokenService:              authTokenService,
 	}
 }

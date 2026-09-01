@@ -133,9 +133,9 @@ func main() {
 
 type Services struct {
 	leaderboard *leaderboard.LeaderboardService
-	user        *user.UserCRUDService
-	challenge   *challenge.ChallengeCRUDService
-	replay      *replay.ReplayCRUDService
+	user        *user.UserService
+	challenge   *challenge.ChallengeService
+	replay      *replay.ReplayService
 	gameover    *gameplay.GameOverService
 }
 
@@ -144,8 +144,8 @@ func newServices(
 	databaseClient database.Database,
 ) Services {
 	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
-	userSvc := user.NewUserCRUDService(databaseClient)
-	challengeSvc := challenge.NewChallengeCRUDService(databaseClient, entropy.RealSource{})
+	userSvc := user.NewUserService(databaseClient)
+	challengeSvc := challenge.NewChallengeService(databaseClient, entropy.RealSource{})
 	gameoverSvc := gameplay.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil)
 	return Services{
 		leaderboard: leaderboardSvc,
@@ -155,7 +155,7 @@ func newServices(
 	}
 }
 
-func seedUsers(ctx context.Context, userSvc *user.UserCRUDService) {
+func seedUsers(ctx context.Context, userSvc *user.UserService) {
 	defer perf.New().Log()
 
 	if _, err := userSvc.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
@@ -217,7 +217,7 @@ func generateMode() model.GameMode {
 	}
 }
 
-func seedChallenges(ctx context.Context, services *challenge.ChallengeCRUDService) error {
+func seedChallenges(ctx context.Context, services *challenge.ChallengeService) error {
 	defer perf.New().Log()
 	return services.BatchInsertChallenges(ctx, generateChallengeInsts())
 }

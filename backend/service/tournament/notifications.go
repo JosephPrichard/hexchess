@@ -7,9 +7,12 @@ import (
 	"log/slog"
 )
 
-type TournamentBroadcaster struct {
-	leaderboard LeaderboardGetter
+type TournamentNotificationService struct {
+	// infra deps
 	broadcaster pubsub.Broadcaster
+
+	// service deps
+	leaderboard LeaderboardGetter
 }
 
 type LeaderboardGetter interface {
@@ -19,11 +22,11 @@ type LeaderboardGetter interface {
 func NewTournamentBroadcaster(
 	leaderboard LeaderboardGetter,
 	broadcaster pubsub.Broadcaster,
-) *TournamentBroadcaster {
-	return &TournamentBroadcaster{leaderboard: leaderboard, broadcaster: broadcaster}
+) *TournamentNotificationService {
+	return &TournamentNotificationService{leaderboard: leaderboard, broadcaster: broadcaster}
 }
 
-func (services *TournamentBroadcaster) BroadcastTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
+func (services *TournamentNotificationService) BroadcastTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
 	leaderboardUser, err := services.leaderboard.GetLeaderboardUser(ctx, playerID, event.Mode)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)

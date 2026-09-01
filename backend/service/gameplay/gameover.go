@@ -27,11 +27,14 @@ import (
 )
 
 type GameOverService struct {
+	// infra deps
 	database.Database
 	redis       cache.Redis
 	broadcaster pubsub.Broadcaster
-	producer    AdvanceTournamentProducer
-	chessState  ChessStateGetter
+
+	// service deps
+	producer   AdvanceTournamentProducer
+	chessState ChessStateGetter
 }
 
 type ChessStateGetter interface {

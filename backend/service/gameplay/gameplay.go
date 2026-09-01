@@ -18,7 +18,10 @@ import (
 )
 
 type GamePlayService struct {
-	redis      cache.Redis
+	// infra deps
+	redis cache.Redis
+
+	// service deps
 	chessState ChessUpdater
 }
 

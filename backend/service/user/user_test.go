@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupUserTest(t alog.TestLogger) (*UserCRUDService, itest.TestInfra) {
+func setupUserTest(t alog.TestLogger) (*UserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewUserCRUDService(infra.Database)
+	services := NewUserService(infra.Database)
 
 	return services, infra
 }

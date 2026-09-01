@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
-	"hexchess-svc/queue/producers"
 	"hexchess-svc/service/gameplay"
 	"hexchess-svc/service/gamestate"
 	"hexchess-svc/service/tournament"
@@ -39,7 +38,6 @@ func StartRiverConsumers(
 	database database.Database,
 	redis cache.Redis,
 	broadcaster pubsub.Broadcaster,
-	riverClient database.RiverClientAPI,
 ) {
 	ctx := context.Background()
 
@@ -52,7 +50,7 @@ func StartRiverConsumers(
 		ErrorHandler: &defaultErrorHandler{},
 	}
 
-	river.AddWorker(riverConfig.Workers, NewAdvanceTournamentWorker(database, redis, broadcaster, riverClient))
+	river.AddWorker(riverConfig.Workers, NewAdvanceTournamentWorker(database, redis, broadcaster))
 
 	riverConsumerClient, err := river.NewClient(riverpgxv5.New(pgxPool), riverConfig)
 	if err != nil {
@@ -84,23 +82,18 @@ func (*defaultErrorHandler) HandlePanic(ctx context.Context, job *rivertype.JobR
 
 type AdvanceTournamentWorker struct {
 	river.WorkerDefaults[queue.AdvanceTournamentJob]
-	orchestrator *tournament.TournamentOrchestrator
+	orchestrator *tournament.TournamentAdvanceService
 }
 
 func NewAdvanceTournamentWorker(
 	database database.Database,
 	redis cache.Redis,
 	broadcaster pubsub.Broadcaster,
-	riverClient database.RiverClientAPI,
 ) *AdvanceTournamentWorker {
 	return &AdvanceTournamentWorker{
-		orchestrator: tournament.NewTournamentOrchestrator(
-			tournament.NewUpdateTournamentService(
-				database,
-				redis,
-				producers.NewRiverProducer(riverClient),
-			),
-			user.NewUserCRUDService(database),
+		orchestrator: tournament.NewTournamentAdvanceService(
+			database,
+			user.NewUserService(database),
 			gameplay.NewGameCreateService(
 				redis,
 				gamestate.NewChessRepoService(redis),
@@ -113,7 +106,7 @@ func NewAdvanceTournamentWorker(
 func (w *AdvanceTournamentWorker) Work(ctx context.Context, job *river.Job[queue.AdvanceTournamentJob]) error {
 	slog.InfoContext(ctx, "begin tournament advance event", "job", job.Args)
 
-	gameIDs, err := w.orchestrator.ProgressTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
+	gameIDs, err := w.orchestrator.AdvanceTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
 	if errutil.IsType[tournament.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
 	} else if err != nil {

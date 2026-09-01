@@ -104,8 +104,7 @@ func (services *RetrieveTournamentService) getParticipantsRank(ctx context.Conte
 		rank, err := exec.cmd.Result()
 		if errors.Is(redis.Nil, err) {
 			continue
-		}
-		if err != nil {
+		} else if err != nil {
 			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
 		}
 		leaderboardRanks[exec.userID] = leaderboard.MapLeaderboardRank(rank)

@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/queue/producers"
 	"hexchess-svc/service/gameplay"
 	"hexchess-svc/service/gamestate"
 	userSvc "hexchess-svc/service/user"
@@ -22,12 +21,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupOrchestratorTest(t alog.TestLogger) (*TournamentOrchestrator, itest.TestInfra) {
+func setupAdvanceTest(t alog.TestLogger) (*TournamentAdvanceService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewTournamentOrchestrator(
-		NewUpdateTournamentService(infra.Database, infra.Redis, producers.NewRiverProducer(&producers.NoopRiverClient{})),
-		userSvc.NewUserCRUDService(infra.Database),
+	services := NewTournamentAdvanceService(
+		infra.Database,
+		userSvc.NewUserService(infra.Database),
 		gameplay.NewGameCreateService(infra.Redis, gamestate.NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
 	)
@@ -245,7 +244,7 @@ func TestProgressTournament_StoresMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupOrchestratorTest(t)
+			services, testinfra := setupAdvanceTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
@@ -254,7 +253,7 @@ func TestProgressTournament_StoresMatches(t *testing.T) {
 			if eventID == uuid.Nil {
 				eventID = uuid.New()
 			}
-			_, err := services.ProgressTournament(ctx, tt.tournamentKey, eventID)
+			_, err := services.AdvanceTournament(ctx, tt.tournamentKey, eventID)
 
 			assert.Equal(t, tt.wantErr, leafError(err))
 
@@ -284,12 +283,12 @@ func leafError(err error) error {
 var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard", "StartTime")
 
 func TestProgressTournament_ThenGetChessStates(t *testing.T) {
-	services, testinfra := setupOrchestratorTest(t)
+	services, testinfra := setupAdvanceTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
 	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
-	gameIDs, err := services.ProgressTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
+	gameIDs, err := services.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
 	require.NoError(t, err)
 
 	wantGameIDs := []model.GameID{itest.TestEventID_TournamentCreation_GameID}
@@ -315,14 +314,14 @@ func TestProgressTournament_ThenGetChessStates(t *testing.T) {
 var cmpOptsMatchCreation = cmpopts.IgnoreFields(model.MatchCreation{}, "GameID")
 
 func TestProgressTournament_InsertsEvent(t *testing.T) {
-	services, testinfra := setupOrchestratorTest(t)
+	services, testinfra := setupAdvanceTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
 	eventID := uuid.New()
 
-	_, err := services.ProgressTournament(ctx, tournamentKey, eventID)
+	_, err := services.AdvanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
 
 	eventData, err := testinfra.Querier().SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})

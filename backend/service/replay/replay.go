@@ -18,20 +18,20 @@ import (
 
 var ErrNoReplay = errors.New("replay not found")
 
-type ReplayCRUDService struct {
+type ReplayService struct {
 	database.Database
 }
 
-func NewReplayCRUDService(database database.Database) *ReplayCRUDService {
-	return &ReplayCRUDService{Database: database}
+func NewReplayService(database database.Database) *ReplayService {
+	return &ReplayService{Database: database}
 }
 
-func (services *ReplayCRUDService) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
+func (services *ReplayService) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
 	row, err := services.Querier().SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, query.SelectReplayByIDRow(row), err)
 }
 
-func (services *ReplayCRUDService) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
+func (services *ReplayService) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
 	row, err := services.Querier().SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
@@ -83,7 +83,7 @@ func mapReplayByIDRow(row query.SelectReplayByIDRow) model.Replay {
 	}
 }
 
-func (services *ReplayCRUDService) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
+func (services *ReplayService) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
 	row, err := services.Querier().SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
 		return nil, serrors.New("select replay move histories", err, "replayID", replayID)
@@ -117,7 +117,7 @@ type RetrieveEloHistoryResp struct {
 
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains payload for all modes) plus all modes (ReplayModes)
-func (services *ReplayCRUDService) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (RetrieveEloHistoryResp, error) {
+func (services *ReplayService) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (RetrieveEloHistoryResp, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if params.TimeUntil.IsZero() {
