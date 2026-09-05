@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupOrphanTest(t alog.TestLogger) (*OrphanService, itest.TestInfra) {
+func setupOrphanTest(t slogutil.TestLogger) (*OrphanService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewOrphanService(infra.AWS, infra.Querier())

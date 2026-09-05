@@ -6,8 +6,8 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -21,15 +21,15 @@ func main() {
 
 	slog.Info("begin consumer app")
 
-	// step 1: parse CLI inputs for static input data
+	// parse CLI inputs for static input data
 	ctx := context.Background()
 
 	cfg := config.Load()
 
-	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	shutdown := slogutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	// step 2: connect to backend infrastructure and prepare cleanup
+	// connect to backend infrastructure and prepare cleanup
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL, // excludes opt read pool argument since all operations in this service involve mixed read-write operations
 		ActiveProfile: cfg.Profile,
@@ -55,11 +55,21 @@ func main() {
 	})
 	defer redisClient.Close()
 
-	// step 3: start background consumers and PPROF server
+	// start background consumers and PPROF server
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
-	consumers.StartRedisConsumers(databaseClient, redisClient, broadcaster, riverProducerClient)
-	consumers.StartRiverConsumers(riverPool, databaseClient, redisClient, broadcaster, riverProducerClient)
+	consumers.StartRedisConsumers(consumers.RedisConsumerConfig{
+		Database:    databaseClient,
+		Redis:       redisClient,
+		Broadcaster: broadcaster,
+		RiverClient: riverProducerClient,
+	})
+	consumers.StartRiverConsumers(consumers.RiverConsumerConfig{
+		PGXPool:     riverPool,
+		Database:    databaseClient,
+		Redis:       redisClient,
+		Broadcaster: broadcaster,
+	})
 
 	slog.Info("finished initializing consumers", "timeTaken", time.Since(startTime).String())
 

@@ -7,8 +7,8 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
@@ -22,15 +22,15 @@ func main() {
 
 	slog.Info("begin api app")
 
-	// step 1: parse CLI inputs for static input data
+	// parse CLI inputs for static input data
 	ctx := context.Background()
 
 	cfg := config.Load()
 
-	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	shutdown := slogutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	// step 2: connect to backend infrastructure and prepare cleanup
+	// connect to backend infrastructure and prepare cleanup
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ReadDsn:       cfg.DbReadURL, // provides read pool for increased performance
@@ -67,7 +67,7 @@ func main() {
 	broadcasters := pubsub.NewLocalBroadcasters()
 	broadcasters.Listen(redisClient)
 
-	// step 4: start API server and PPROF "sidecar" background task
+	// start API server and PPROF "sidecar" background task
 	mux := network.NewServeMux(network.ServeMuxSetup{
 		Database:       databaseClient,
 		RiverClient:    riverClient,
@@ -93,6 +93,6 @@ func main() {
 		}
 	}()
 	if err := http.ListenAndServe(":"+cfg.ServerPort, mux); err != nil {
-		alog.Fatal("failed while serving", err)
+		slogutil.Fatal("failed while serving", err)
 	}
 }

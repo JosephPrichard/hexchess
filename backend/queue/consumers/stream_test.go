@@ -43,8 +43,8 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		GameID:       newGameID,
 		InitialBoard: chess.NewEmptyBoard(true),
 		Moves:        []chess.HistMove{},
-		WhitePlayer:  whiteUser0.ID, // winner
-		BlackPlayer:  blackUser1.ID, // loser
+		WhiteID:      whiteUser0.ID, // winner
+		BlackID:      blackUser1.ID, // loser
 		ReplayMode:   model.ModeCorrespondence1,
 		ReplayCause:  model.Checkmate,
 		ReplayResult: model.WhiteWin,

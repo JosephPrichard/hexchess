@@ -14,8 +14,8 @@ import (
 	"sort"
 	"strconv"
 
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/slogutil"
 
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"
@@ -88,7 +88,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	strUserID := strconv.Itoa(int(userID))
 	ranks := make(map[string]LbRank)
 
-	// step 1: fetch and read ranks for each mode in a single pipeline
+	// fetch and read ranks for each mode in a single pipeline
 	pipeline := services.redis.PrimaryClient.Pipeline()
 	getExecs := make([]getExec, 0, len(modes))
 
@@ -116,7 +116,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 		ranks[exec.mode] = LbRank{Rank: MapLeaderboardRank(rankScore.Rank), Score: rankScore.Score}
 	}
 
-	// step 2: lazily initialize then fetch ranks for modes which were not retrieved in the calls above
+	// lazily initialize then fetch ranks for modes which were not retrieved in the calls above
 	pipeline = services.redis.PrimaryClient.Pipeline()
 	var addExecs []addExec
 
@@ -195,7 +195,7 @@ func (services *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode
 	offset := (page - 1) * perPage
 
 	leaderboard, err := services.getLeaderboard(ctx, mode, offset, perPage)
-	alog.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
+	slogutil.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
 	return leaderboard, err
 }
 

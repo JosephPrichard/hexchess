@@ -62,8 +62,8 @@ type FinishGameEvent struct {
 	GameID       GameID           `json:"id"`
 	InitialBoard chess.Board      `json:"initialBoard"`
 	Moves        []chess.HistMove `json:"moves"`
-	WhitePlayer  int64            `json:"whitePlayer"`
-	BlackPlayer  int64            `json:"blackPlayer"`
+	WhiteID      int64            `json:"whiteID"`
+	BlackID      int64            `json:"blackID"`
 	ReplayMode   GameMode         `json:"mode"`
 	ReplayResult ReplayResult     `json:"replayResult"`
 	ReplayCause  ReplayCause      `json:"replayCause"`

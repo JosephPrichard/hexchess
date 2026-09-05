@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"runtime/debug"
 	"sync"
@@ -102,7 +102,7 @@ func (consumer *StreamConsumer) ConsumePartition(partitionKey string) {
 			consumer.cancel()
 		}
 
-		ctx := context.WithValue(consumer.ctx, alog.Trace, uuid.NewString())
+		ctx := context.WithValue(consumer.ctx, slogutil.Trace, uuid.NewString())
 
 		xArgs := &redis.XReadGroupArgs{
 			Group:    consumer.consumerGroup,

@@ -44,7 +44,7 @@ func run() error {
 	awsRegion := os.Getenv("AWS_REGION")
 	profile := os.Getenv("ACTIVE_PROFILE")
 
-	// step 1: parse configuration
+	// parse configuration
 	poolCfg, err := pgxpool.ParseConfig(dbURL)
 	if err != nil {
 		return fmt.Errorf("parse postgres config: %s", err)
@@ -53,7 +53,7 @@ func run() error {
 	// note(Joseph): password should NOT be here or else...
 	slog.Info("parsed connection config", "connString", poolCfg.ConnConfig.ConnString())
 
-	// step 2: override password with aws token
+	// override password with aws token
 	if profile != "" && profile != "local" {
 		slog.Info("retrieving RDS token")
 
@@ -78,7 +78,7 @@ func run() error {
 		}
 	}
 
-	// step 3: connect and execute migrations
+	// connect and execute migrations
 	slog.Info("begin applying migrations")
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)

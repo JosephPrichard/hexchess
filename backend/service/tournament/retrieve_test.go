@@ -3,8 +3,8 @@ package tournament
 import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/opt"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupRetrieveTest(t alog.TestLogger) (*RetrieveTournamentService, itest.TestInfra) {
+func setupRetrieveTest(t slogutil.TestLogger) (*RetrieveTournamentService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewRetrieveTournamentService(

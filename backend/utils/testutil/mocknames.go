@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"reflect"
 
 	"github.com/google/uuid"
@@ -16,7 +16,7 @@ func NewTestNames[T any](d T) *T {
 		reflectNames = reflectNames.Elem()
 	}
 	if reflectNames.Kind() != reflect.Struct {
-		alog.Fatal("reflectNames is not a struct", nil)
+		slogutil.Fatal("reflectNames is not a struct", nil)
 	}
 
 	for _, field := range reflectNames.Fields() {

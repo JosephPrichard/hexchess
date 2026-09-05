@@ -14,8 +14,8 @@ import (
 	"runtime/debug"
 	"time"
 
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/slogutil"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -226,7 +226,7 @@ func NewHealthCheck(config HealthConfig) func(*chi.Mux) {
 			health.WithChecks(healthChecks...),
 		)
 		if err != nil {
-			alog.Fatal("failed to create health check handler", err)
+			slogutil.Fatal("failed to create health check handler", err)
 		}
 
 		mux.Get("/healthcheck", func(w http.ResponseWriter, r *http.Request) {

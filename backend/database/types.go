@@ -14,7 +14,6 @@ import (
 type Database struct {
 	writePool *pgxpool.Pool
 	readPool  *pgxpool.Pool
-	testTxn   pgx.Tx
 
 	querierMutator QuerierMutator
 	querier        query.Querier

@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupReplayTest(t alog.TestLogger) (*ReplayService, itest.TestInfra) {
+func setupReplayTest(t slogutil.TestLogger) (*ReplayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewReplayService(infra.Database)
@@ -90,7 +90,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 			services, testinfra := setupReplayTest(t)
 			defer testinfra.Close()
 
-			ctx := context.WithValue(t.Context(), alog.Trace, test.name)
+			ctx := context.WithValue(t.Context(), slogutil.Trace, test.name)
 
 			resp, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)

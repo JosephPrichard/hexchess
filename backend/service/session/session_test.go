@@ -2,7 +2,7 @@ package session
 
 import (
 	"hexchess-svc/model"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"testing"
 	"time"
 
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger) (*SessionService, itest.TestInfra) {
+func setupTest(t slogutil.TestLogger) (*SessionService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewSessionService(infra.Redis)

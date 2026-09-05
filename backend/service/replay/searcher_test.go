@@ -3,15 +3,15 @@ package replay
 import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/opt"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func setupSearcherTest(t alog.TestLogger) (*ReplaySearchService, itest.TestInfra) {
+func setupSearcherTest(t slogutil.TestLogger) (*ReplaySearchService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewSearchService(infra.Database)

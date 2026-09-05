@@ -21,8 +21,8 @@ import (
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/slogutil"
 	"log"
 	"log/slog"
 	"math/rand"
@@ -56,21 +56,21 @@ const (
 
 func main() {
 	start := time.Now()
-	ctx := context.WithValue(context.Background(), alog.Trace, "seed-databases-script")
+	ctx := context.WithValue(context.Background(), slogutil.Trace, "seed-databases-script")
 
-	// step 1: parse input flags and config from script input
+	// parse input flags and config from script input
 	cfg := config.Load()
 
 	// parse: input data parameters to generate seeded data backend
 	t, err := time.Parse(time.DateOnly, *initialTimeGamesRaw)
 	if err != nil {
-		alog.Fatal("failed to parse date", err, "initialTimeGameResults", *initialTimeGamesRaw)
+		slogutil.Fatal("failed to parse date", err, "initialTimeGameResults", *initialTimeGamesRaw)
 	}
 	initialTimeGames = t
 
 	d, err := time.ParseDuration(*gameDurationOffsetRaw)
 	if err != nil {
-		alog.Fatal("failed to parse duration", err, "gameDurationOffset", *gameDurationOffsetRaw)
+		slogutil.Fatal("failed to parse duration", err, "gameDurationOffset", *gameDurationOffsetRaw)
 	}
 	gameDurationOffset = d
 
@@ -81,8 +81,8 @@ func main() {
 		log.Fatalf("challenges count is too large, must be at most %d", maxChallengesCount)
 	}
 
-	// step 2: connect to backend infrastructure and prepare cleanup
-	shutdown := alog.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
+	// connect to backend infrastructure and prepare cleanup
+	shutdown := slogutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
 	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
@@ -99,10 +99,10 @@ func main() {
 	defer redisClient.Close()
 
 	if err := redisClient.PrimaryClient.FlushAll(ctx).Err(); err != nil {
-		alog.Fatal("flush rdb", err)
+		slogutil.Fatal("flush rdb", err)
 	}
 
-	// step 3: execute the test seed script and measure results
+	// execute the test seed script and measure results
 	services := newServices(redisClient, databaseClient)
 
 	// root node in the foreign key hierarchy tree
@@ -120,12 +120,12 @@ func main() {
 	})
 
 	if err := eg.Wait(); err != nil {
-		alog.Fatal("failed to seed user dependent rows", err)
+		slogutil.Fatal("failed to seed user dependent rows", err)
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
 	if err := services.leaderboard.SyncLeaderboard(ctx); err != nil {
-		alog.Fatal("jobs leaderboard", err)
+		slogutil.Fatal("jobs leaderboard", err)
 	}
 
 	slog.Info("finished seeding databases", "timeTaken", time.Since(start).String())
@@ -159,7 +159,7 @@ func seedUsers(ctx context.Context, userSvc *user.UserService) {
 	defer perf.New().Log()
 
 	if _, err := userSvc.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
-		alog.Fatal("insert users", err)
+		slogutil.Fatal("insert users", err)
 	}
 }
 
@@ -193,7 +193,7 @@ func generateUserID(useListedIDs map[int64]struct{}) int64 {
 			return userID
 		}
 	}
-	alog.Fatal("generate user id (all are uselisted)", nil)
+	slogutil.Fatal("generate user id (all are uselisted)", nil)
 	return 0
 }
 
@@ -315,8 +315,8 @@ func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService,
 				GameID:       model.NewGameID(),
 				InitialBoard: chess.InitialBoard(),
 				Moves:        moveSeq,
-				WhitePlayer:  inst.WhiteID,
-				BlackPlayer:  inst.BlackID,
+				WhiteID:      inst.WhiteID,
+				BlackID:      inst.BlackID,
 				ReplayCause:  inst.ReplayCause,
 				ReplayResult: inst.ReplayResult,
 				ReplayMode:   mode,

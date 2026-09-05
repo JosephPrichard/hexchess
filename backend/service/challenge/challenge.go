@@ -15,7 +15,7 @@ import (
 	"log/slog"
 	"time"
 
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -116,7 +116,7 @@ func (services *ChallengeService) BatchInsertChallenges(ctx context.Context, ins
 	})
 	err := errors.Join(insertErrs...)
 
-	alog.Log(ctx, "batch inserted challenges", err)
+	slogutil.Log(ctx, "batch inserted challenges", err)
 	return err
 }
 
@@ -208,7 +208,7 @@ func (services *ChallengeService) DeleteExpiredChallenges(ctx context.Context, u
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
-	alog.Log(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", beforeTime)
+	slogutil.Log(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", beforeTime)
 	return nil
 }
 

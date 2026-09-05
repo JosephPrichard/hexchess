@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"testing"
 	"time"
 
@@ -17,7 +17,7 @@ import (
 
 var testPartitionKey = model.GameIDPartitions()[0]
 
-func setupTimersTest(t alog.TestLogger) (*TimerService, itest.TestInfra) {
+func setupTimersTest(t slogutil.TestLogger) (*TimerService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChessTimerService(infra.Redis, testPartitionKey)

@@ -140,8 +140,8 @@ func (services *GamePlayService) MakeGameMove(ctx context.Context, gameID model.
 
 		err := producers.ProduceFinishGame(ctx, pipe, model.FinishGameEvent{
 			GameID:       gameID,
-			WhitePlayer:  state.WhitePlayer.ID,
-			BlackPlayer:  state.BlackPlayer.ID,
+			WhiteID:      state.WhitePlayer.ID,
+			BlackID:      state.BlackPlayer.ID,
 			ReplayMode:   state.Mode,
 			ReplayResult: result,
 			ReplayCause:  model.Checkmate,
@@ -247,8 +247,8 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 
 		err := producers.ProduceFinishGame(ctx, pipe, model.FinishGameEvent{
 			GameID:       gameID,
-			WhitePlayer:  state.WhitePlayer.ID,
-			BlackPlayer:  state.BlackPlayer.ID,
+			WhiteID:      state.WhitePlayer.ID,
+			BlackID:      state.BlackPlayer.ID,
 			ReplayMode:   state.Mode,
 			ReplayResult: result,
 			ReplayCause:  model.Forfeit,

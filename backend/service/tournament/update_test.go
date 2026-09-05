@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-func setupUpdateTest(t alog.TestLogger) (*UpdateTournamentService, itest.TestInfra) {
+func setupUpdateTest(t slogutil.TestLogger) (*UpdateTournamentService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewUpdateTournamentService(

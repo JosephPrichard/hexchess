@@ -7,9 +7,9 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/service/gameplay"
 	"hexchess-svc/service/gamestate"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
 	"time"
@@ -40,7 +40,7 @@ type websocketError struct {
 const GameplayChanBufCap = 10
 
 func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
-	// step 1: initialize static data
+	// initialize static data
 	ctx := r.Context()
 
 	query := r.URL.Query()
@@ -50,7 +50,7 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 	subChan := make(chan message, GameplayChanBufCap)
 	errChan := make(chan websocketError)
 
-	// step 2: initialize websocket connection
+	// initialize websocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to upgrade ws connection", "error", err)
@@ -63,7 +63,7 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 		defer conn.Close()                                           // send close signal to reader
 	}
 
-	// step 3: initialize connection state (begin listening, get session data, etc.)
+	// initialize connection state (begin listening, get session data, etc.)
 	server.broadcasters.Games.Subscribe(gameID, subChan)
 
 	player, err := server.handleGameInit(ctx, gameID, sessionID, conn)
@@ -71,7 +71,7 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 		writeGameError(ctx, conn, GameError{GameID: gameID, Error: err})
 	}
 
-	// step 4: start input reader (close signal received from client)
+	// start input reader (close signal received from client)
 	go func() {
 		readCtx := GameSocketContext{
 			Context: context.WithoutCancel(ctx),
@@ -149,7 +149,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	if wsErr == ErrWsFatal {
 		level = slog.LevelError
 	}
-	alog.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", output.MessageID)
+	slogutil.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", output.MessageID)
 
 	bytes, err := model.MarshalGameOutputError(model.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
 	if err != nil {
@@ -200,7 +200,7 @@ func (server *Server) handleGameMessage(ctx GameSocketContext, input message) {
 		return
 	}
 
-	ctx.Context = context.WithValue(ctx.Context, alog.MessageID, pbInput.MessageId)
+	ctx.Context = context.WithValue(ctx.Context, slogutil.MessageID, pbInput.MessageId)
 
 	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 

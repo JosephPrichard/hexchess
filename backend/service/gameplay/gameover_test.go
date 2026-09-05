@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/service/gamestate"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"math"
 	"strconv"
@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameoverTest(t alog.TestLogger) (*GameOverService, itest.TestInfra) {
+func setupGameoverTest(t slogutil.TestLogger) (*GameOverService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewGameoverService(
@@ -56,8 +56,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID:       newGameID,
 				InitialBoard: chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
-				WhitePlayer:  testUser0.ID, // winner
-				BlackPlayer:  testUser1.ID, // loser
+				WhiteID:      testUser0.ID, // winner
+				BlackID:      testUser1.ID, // loser
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Checkmate,
 				ReplayResult: model.WhiteWin,
@@ -80,8 +80,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				InitialBoard: chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
 				// used only for validation
-				WhitePlayer: testUser0.ID,
-				BlackPlayer: testUser1.ID,
+				WhiteID: testUser0.ID,
+				BlackID: testUser1.ID,
 				// enum fields are ignored on a noop insertion.
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Forfeit,
@@ -95,8 +95,8 @@ func TestInsertFinishedGameEvent(t *testing.T) {
 				GameID:       newGameIDGuest,
 				InitialBoard: chess.NewEmptyBoard(true),
 				Moves:        []chess.HistMove{},
-				WhitePlayer:  testUser0.ID, // non-guest winner
-				BlackPlayer:  -10,          // guest loser
+				WhiteID:      testUser0.ID, // non-guest winner
+				BlackID:      -10,          // guest loser
 				ReplayMode:   model.ModeCorrespondence1,
 				ReplayCause:  model.Forfeit,
 				ReplayResult: model.BlackWin,
@@ -132,14 +132,14 @@ func TestInsertGameResult(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		resultInput  GameResult
+		resultInput  model.FinishGameEvent
 		wantUserElos []query.SelectUserModeElosByIDsRow
 		wantReplay   query.Replay
 		wantChange   GameResultChangeSet
 	}{
 		{
 			name: "draw by stalemate",
-			resultInput: GameResult{
+			resultInput: model.FinishGameEvent{
 				GameID:       "game1",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
@@ -172,7 +172,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			name: "white wins by checkmate",
-			resultInput: GameResult{
+			resultInput: model.FinishGameEvent{
 				GameID:       "game2",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
@@ -209,7 +209,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			name: "black wins by forfeit",
-			resultInput: GameResult{
+			resultInput: model.FinishGameEvent{
 				GameID:       "game3",
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
@@ -246,7 +246,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			name: "inserting already persisted game result",
-			resultInput: GameResult{
+			resultInput: model.FinishGameEvent{
 				GameID:       model.GameID(itest.FirstReplayGameID),
 				WhiteID:      testUser0.ID,
 				BlackID:      testUser1.ID,
@@ -275,7 +275,7 @@ func TestInsertGameResult(t *testing.T) {
 		},
 		{
 			name: "game insert with guest players",
-			resultInput: GameResult{
+			resultInput: model.FinishGameEvent{
 				GameID:       "game4",
 				WhiteID:      -10,
 				BlackID:      -20,

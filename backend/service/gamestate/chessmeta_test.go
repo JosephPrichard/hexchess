@@ -5,9 +5,9 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/opt"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameMetadataTest(t alog.TestLogger) (*ChessMetaService, itest.TestInfra) {
+func setupGameMetadataTest(t slogutil.TestLogger) (*ChessMetaService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChessMetaService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(infra.Redis))

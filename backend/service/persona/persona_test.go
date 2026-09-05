@@ -6,14 +6,14 @@ import (
 	"hexchess-svc/service/leaderboard"
 	"hexchess-svc/service/replay"
 	"hexchess-svc/service/user"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func setupPersonaServices(t alog.TestLogger) (*PersonaService, itest.TestInfra) {
+func setupPersonaServices(t slogutil.TestLogger) (*PersonaService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewPersonaService(

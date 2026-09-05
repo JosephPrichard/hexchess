@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"
 
@@ -167,10 +167,10 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	}
 
 	if err := redisCache.PrimaryHealthCheck(ctx); err != nil {
-		alog.Fatal("execute redis primary startup cmd", err)
+		slogutil.Fatal("execute redis primary startup cmd", err)
 	}
 	if err := redisCache.PubsubHealthCheck(ctx); err != nil {
-		alog.Fatal("execute redis pubsub startup cmd", err)
+		slogutil.Fatal("execute redis pubsub startup cmd", err)
 	}
 
 	slog.Info("connected to redis node(s) successfully", "primaryClientKind", fmt.Sprintf("%T", redisClientClient))

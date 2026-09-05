@@ -26,45 +26,51 @@ var (
 	GameConsumerPartitions     = model.GameIDPartitions()
 )
 
-type RedisConsumerSetup struct {
-	Redis       cache.Redis
+type RedisConsumerConfig struct {
 	Database    database.Database
+	Redis       cache.Redis
 	Broadcaster pubsub.Broadcaster
 	RiverClient database.RiverClientAPI
 }
 
-func StartRedisConsumers(database database.Database, redis cache.Redis, broadcaster pubsub.Broadcaster, riverClient database.RiverClientAPI) {
-	finishGameWorker := NewFinishedGameWorker(database, redis, riverClient, broadcaster)
-	updtGameWorker := NewUpdtGameMetadataWorker(database, entropy.RealSource{}, broadcaster)
+func StartRedisConsumers(config RedisConsumerConfig) {
+	slog.Info("start redis consumers", "config", config)
 
-	redisClient := redis.ConsumerClient
-	metricQuerier := database.QuerierMutator()
+	finishGameWorker := NewFinishedGameWorker(config.Database, config.Redis, config.RiverClient, config.Broadcaster)
+	updtGameWorker := NewUpdtGameMetadataWorker(config.Database, entropy.RealSource{}, config.Broadcaster)
 
-	finishGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     cache.Constants.FinishGameStreamKey,
-		ConsumerGroup: cache.Constants.FinishGameConsumerGroup,
-		PollCount:     8,
-		PartitionKeys: GameConsumerPartitions,
+	redisClient := config.Redis.ConsumerClient
+	metricQuerier := config.Database.QuerierMutator()
 
-		Redis:          redisClient,
-		MetricsQuerier: metricQuerier,
+	streamConfigs := []StreamConfig{
+		{
+			StreamKey:     cache.Constants.FinishGameStreamKey,
+			ConsumerGroup: cache.Constants.FinishGameConsumerGroup,
+			PollCount:     8,
+			PartitionKeys: GameConsumerPartitions,
 
-		ConsumeFn: finishGameWorker.Handle,
-	})
-	go finishGameConsumer.Consume()
+			Redis:          redisClient,
+			MetricsQuerier: metricQuerier,
 
-	updtGameConsumer := NewStreamConsumer(StreamConfig{
-		StreamKey:     cache.Constants.UpdtGameMetaStreamKey,
-		ConsumerGroup: cache.Constants.UpdtGameMetaConsumerGroup,
-		PollCount:     8,
-		PartitionKeys: GameConsumerPartitions,
+			ConsumeFn: finishGameWorker.Handle,
+		},
+		{
+			StreamKey:     cache.Constants.UpdtGameMetaStreamKey,
+			ConsumerGroup: cache.Constants.UpdtGameMetaConsumerGroup,
+			PollCount:     8,
+			PartitionKeys: GameConsumerPartitions,
 
-		Redis:          redisClient,
-		MetricsQuerier: metricQuerier,
+			Redis:          redisClient,
+			MetricsQuerier: metricQuerier,
 
-		ConsumeFn: updtGameWorker.Handle,
-	})
-	go updtGameConsumer.Consume()
+			ConsumeFn: updtGameWorker.Handle,
+		},
+	}
+
+	for _, config := range streamConfigs {
+		consumer := NewStreamConsumer(config)
+		go consumer.Consume()
+	}
 }
 
 type FinishedGameWorker struct {
@@ -100,13 +106,13 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 
 	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
 
-	// step 1: insert the finished game into the system of record
+	// insert the finished game into the system of record
 	result, err := w.services.HandleFinishedGame(ctx, event)
 	if err != nil {
 		return serrors.New("insert finished game failed", err)
 	}
 
-	// step 2: notify any subscribers of the game that replay has been created (game has ended)
+	// notify any subscribers of the game that replay has been created (game has ended)
 	// note(Joseph): replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
 	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
 	if err != nil {

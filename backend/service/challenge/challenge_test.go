@@ -13,7 +13,7 @@ import (
 	"hexchess-svc/database"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 
 	"github.com/jackc/pgx/v5"
@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger) (*ChallengeService, itest.TestInfra) {
+func setupTest(t slogutil.TestLogger) (*ChallengeService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChallengeService(infra.Database, entropy.RealSource{})
@@ -68,7 +68,7 @@ func TestInsertChallenge(t *testing.T) {
 			services, testinfra := setupTest(t)
 			defer testinfra.Close()
 
-			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
+			ctx := context.WithValue(t.Context(), slogutil.Trace, tt.name)
 
 			_, err := services.InsertChallenge(ctx, Inst{
 				ChallengerID: tt.challengerID,

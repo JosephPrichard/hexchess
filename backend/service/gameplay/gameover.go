@@ -59,31 +59,16 @@ type FinishedGameResult struct {
 func (services *GameOverService) HandleFinishedGame(ctx context.Context, event model.FinishGameEvent) (FinishedGameResult, error) {
 	defer perf.WithContext(ctx).Log()
 
-	// step 1: backfill event data in situations where it is not provided
 	if err := services.backfillEvent(ctx, &event); err != nil {
 		return FinishedGameResult{}, serrors.New("backfill finish game event", err, "event", event)
 	}
 
-	insertedTime := time.Now()
-	if !event.InsertedTime.IsZero() {
-		insertedTime = time.Now()
-	}
-
-	// step 2: persist game result into system of record
-	changeSet, err := services.InsertGameResult(ctx, GameResult{
-		GameID:       event.GameID,
-		WhiteID:      event.WhitePlayer,
-		BlackID:      event.BlackPlayer,
-		ReplayCause:  event.ReplayCause,
-		ReplayResult: event.ReplayResult,
-		ReplayMode:   event.ReplayMode,
-		InsertedTime: insertedTime,
-	})
+	changeSet, err := services.InsertGameResult(ctx, event)
 	if err != nil {
 		return FinishedGameResult{}, serrors.New("insert finish game tx", err)
 	}
 
-	// step 3: persist history of a finished game (move and board data)
+	// persist history of a finished game (move and board data)
 	moveHistBlob, err := model.MarshalMoveHistory(chess.MoveHistory{InitialBoard: event.InitialBoard, MoveSeq: event.Moves})
 	if err != nil {
 		return FinishedGameResult{}, serrors.New("marshal move histories", err)
@@ -93,25 +78,11 @@ func (services *GameOverService) HandleFinishedGame(ctx context.Context, event m
 		return FinishedGameResult{}, serrors.New("insert replay move histories", err)
 	}
 
-	// step 4: publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
-	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
-	tournamentKey, err := services.Querier().SelectTournamentByGameID(ctx, event.GameID.String())
-	switch {
-	case database.IsErrNoRows(err):
-		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", event.GameID)
-	case err != nil:
-		return FinishedGameResult{}, serrors.New("select tournament by game id", err, "gameID", event.GameID)
-	default:
-		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
-		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
-		if err := services.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
-			TournamentKey: tournamentKey.Bytes,
-		}); err != nil {
-			return FinishedGameResult{}, serrors.New("publish scheduled tournament event", err)
-		}
+	if err := services.publishTournamentEvent(ctx, event); err != nil {
+		return FinishedGameResult{}, err
 	}
 
-	// step 5: write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
+	// write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
 	// note(Joseph): this operation is NOT idempotent, so it MUST be the last operation. once completed, we expect to ack immediately
 	if err := services.updateLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
@@ -140,11 +111,32 @@ func (services *GameOverService) backfillEvent(ctx context.Context, event *model
 
 		// invariant: critical data should be already provided
 		event.ReplayMode = state.Mode
-		event.BlackPlayer = state.BlackPlayer.ID
-		event.WhitePlayer = state.WhitePlayer.ID
+		event.BlackID = state.BlackPlayer.ID
+		event.WhiteID = state.WhitePlayer.ID
 		event.InitialBoard = state.Game.Board
 		event.InitialBoard = state.InitialBoard
 		event.Moves = state.Game.Moves
+	}
+	return nil
+}
+
+func (services *GameOverService) publishTournamentEvent(ctx context.Context, event model.FinishGameEvent) error {
+	// publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
+	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
+	tournamentKey, err := services.Querier().SelectTournamentByGameID(ctx, event.GameID.String())
+	switch {
+	case database.IsErrNoRows(err):
+		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", event.GameID)
+	case err != nil:
+		return serrors.New("select tournament by game id", err, "gameID", event.GameID)
+	default:
+		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
+		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
+		if err := services.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
+			TournamentKey: tournamentKey.Bytes,
+		}); err != nil {
+			return serrors.New("publish scheduled tournament event", err)
+		}
 	}
 	return nil
 }
@@ -210,8 +202,10 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
-func (services *GameOverService) InsertGameResult(ctx context.Context, result GameResult) (GameResultChangeSet, error) {
+func (services *GameOverService) InsertGameResult(ctx context.Context, event model.FinishGameEvent) (GameResultChangeSet, error) {
 	defer perf.WithContext(ctx).Log()
+
+	result := createGameResult(event)
 
 	var changeSet GameResultChangeSet
 
@@ -224,7 +218,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, _ pgx.Tx, querier database.QuerierMutator) error {
-			// step 1: use game ID as an idempotency key to prevent saving the same game result on retry
+			// use game ID as an idempotency key to prevent saving the same game result on retry
 			userIDs := []int64{result.WhiteID, result.BlackID}
 
 			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID.String())
@@ -236,7 +230,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 				return serrors.New("select has replay with gameID", err)
 			}
 
-			// step 2: select the current state of stats for each game participant
+			// select the current state of stats for each game participant
 			// selects are sorted by userID to prevent deadlocks
 			slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
 
@@ -248,7 +242,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 				return serrors.New("select users elo", err, "userIDs", userIDs)
 			}
 
-			// step 3: compute and update the next state of stats for each game participant
+			// compute and update the next state of stats for each game participant
 			var updts []mutator.UpsertUserEloParams
 			changeSet, updts = createInsertGameResultChangeSet(result, userElos)
 
@@ -265,7 +259,7 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 				return err
 			}
 
-			// step 4: insert the new replay, which acts both the record and the idempotency key for this operation
+			// insert the new replay, which acts both the record and the idempotency key for this operation
 			replayInst := createInsertReplayParams(result, changeSet)
 			replayID, err := querier.InsertReplay(ctx, replayInst)
 			if err != nil {
@@ -280,6 +274,22 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, result Ga
 	})
 
 	return changeSet, err
+}
+
+func createGameResult(event model.FinishGameEvent) GameResult {
+	insertedTime := time.Now()
+	if !event.InsertedTime.IsZero() {
+		insertedTime = time.Now()
+	}
+	return GameResult{
+		GameID:       event.GameID,
+		WhiteID:      event.WhiteID,
+		BlackID:      event.BlackID,
+		ReplayCause:  event.ReplayCause,
+		ReplayResult: event.ReplayResult,
+		ReplayMode:   event.ReplayMode,
+		InsertedTime: insertedTime,
+	}
 }
 
 func createInsertReplayParams(result GameResult, changeSet GameResultChangeSet) mutator.InsertReplayParams {

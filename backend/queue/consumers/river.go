@@ -10,8 +10,8 @@ import (
 	"hexchess-svc/service/gamestate"
 	"hexchess-svc/service/tournament"
 	"hexchess-svc/service/user"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"runtime/debug"
 
@@ -21,25 +21,17 @@ import (
 	"github.com/riverqueue/river/rivertype"
 )
 
-type RiverConsumerSetup struct {
-	PgxPool     *pgxpool.Pool
-	RiverConfig *river.Config
-
+type RiverConsumerConfig struct {
+	PGXPool     *pgxpool.Pool
 	Database    database.Database
 	Redis       cache.Redis
 	Broadcaster pubsub.Broadcaster
-	RiverClient database.RiverClientAPI
 }
 
 const RiverQueueMaxWorkers = 100
 
-func StartRiverConsumers(
-	pgxPool *pgxpool.Pool,
-	database database.Database,
-	redis cache.Redis,
-	broadcaster pubsub.Broadcaster,
-) {
-	ctx := context.Background()
+func StartRiverConsumers(config RiverConsumerConfig) {
+	slog.Info("start redis consumers", "config", config)
 
 	riverConfig := &river.Config{
 		Logger:  slog.Default(),
@@ -49,15 +41,14 @@ func StartRiverConsumers(
 		},
 		ErrorHandler: &defaultErrorHandler{},
 	}
+	river.AddWorker(riverConfig.Workers, NewAdvanceTournamentWorker(config.Database, config.Redis, config.Broadcaster))
 
-	river.AddWorker(riverConfig.Workers, NewAdvanceTournamentWorker(database, redis, broadcaster))
-
-	riverConsumerClient, err := river.NewClient(riverpgxv5.New(pgxPool), riverConfig)
+	riverConsumerClient, err := river.NewClient(riverpgxv5.New(config.PGXPool), riverConfig)
 	if err != nil {
-		alog.Fatal("create river queue client", err)
+		slogutil.Fatal("create river queue client", err)
 	}
-	if err := riverConsumerClient.Start(ctx); err != nil {
-		alog.Fatal("start river client consumers", err)
+	if err := riverConsumerClient.Start(context.Background()); err != nil {
+		slogutil.Fatal("start river client consumers", err)
 	}
 
 	slog.Info("start river consumers")

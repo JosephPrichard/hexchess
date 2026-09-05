@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupRepoTest(t alog.TestLogger) (*ChessRepoService, itest.TestInfra) {
+func setupRepoTest(t slogutil.TestLogger) (*ChessRepoService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewChessRepoService(infra.Redis)

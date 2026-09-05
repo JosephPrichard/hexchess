@@ -6,8 +6,8 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"time"
 
@@ -37,7 +37,7 @@ func (i TestInfra) Close() {
 	i.Database.Close()
 }
 
-func SetupIntegrationTest(t alog.TestLogger) TestInfra {
+func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 	ctx := t.Context()
 
 	pgPool := createPool(t)
@@ -67,7 +67,7 @@ func SetupIntegrationTest(t alog.TestLogger) TestInfra {
 	return infra
 }
 
-func createPool(t alog.TestLogger) *pgxpool.Pool {
+func createPool(t slogutil.TestLogger) *pgxpool.Pool {
 	ctx := t.Context()
 	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPass, dbAddr, dbName)
 
@@ -78,8 +78,8 @@ func createPool(t alog.TestLogger) *pgxpool.Pool {
 	return pgPool
 }
 
-func setupDbPreconditions(t alog.TestLogger, pool *pgxpool.Pool) {
-	ctx := context.WithValue(context.Background(), alog.Trace, "insert-testing-data")
+func setupDbPreconditions(t slogutil.TestLogger, pool *pgxpool.Pool) {
+	ctx := context.WithValue(context.Background(), slogutil.Trace, "insert-testing-data")
 
 	if err := dropSchema(ctx, pool); err != nil {
 		t.Fatalf("failed to drop schema: %v", err)
@@ -102,7 +102,7 @@ func createSchema(ctx context.Context, pool *pgxpool.Pool) error {
 	return err
 }
 
-func setupRedisPreconditions(t alog.TestLogger) {
+func setupRedisPreconditions(t slogutil.TestLogger) {
 	pool := &redigo.Pool{
 		MaxIdle:     8,
 		IdleTimeout: 240 * time.Second,

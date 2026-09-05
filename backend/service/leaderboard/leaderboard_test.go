@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func setupTest(t alog.TestLogger) (*LeaderboardService, itest.TestInfra) {
+func setupTest(t slogutil.TestLogger) (*LeaderboardService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewLeaderboardService(infra.Redis, infra.Querier())
@@ -162,7 +162,7 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 			services, testinfra := setupTest(t)
 			defer testinfra.Close()
 
-			ctx := context.WithValue(t.Context(), alog.Trace, tt.name)
+			ctx := context.WithValue(t.Context(), slogutil.Trace, tt.name)
 
 			leaderboard, missingIDs, err := services.GetFullLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
 

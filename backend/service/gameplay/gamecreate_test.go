@@ -4,13 +4,13 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/service/gamestate"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func setupCreateTest(t alog.TestLogger) (*GameCreateService, itest.TestInfra) {
+func setupCreateTest(t slogutil.TestLogger) (*GameCreateService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewGameCreateService(

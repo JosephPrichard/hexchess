@@ -51,13 +51,13 @@ func NewTournamentAdvanceService(
 func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
 	defer perf.WithContext(ctx).Log()
 
-	// step 1: progress tournament on the database
+	// progress tournament on the database
 	matches, err := services.ProgressTournament(ctx, tournamentKey, eventID)
 	if err != nil {
 		return nil, serrors.New("advance tournament", err, "tournamentKey", tournamentKey)
 	}
 
-	// step 2: create playable games correlated with the committed matches
+	// create playable games correlated with the committed matches
 	userDataMap, err := services.constructMatchDataMap(ctx, matches)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 		return nil, err
 	}
 
-	// step 3: notify tournament participants that tournament has been progressed with new matches
+	// notify tournament participants that tournament has been progressed with new matches
 	// TODO: we need to select FullMatch information and broadcast that
 	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
 		Key:  tournamentKey.String(),

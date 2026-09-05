@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
 	"time"
@@ -19,7 +19,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 			if trace == "" {
 				trace = uuid.NewString()
 			}
-			r = r.WithContext(context.WithValue(r.Context(), alog.Trace, trace))
+			r = r.WithContext(context.WithValue(r.Context(), slogutil.Trace, trace))
 
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -46,7 +46,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := ServiceViewFromErr(err)
 			writeJSON(w, resp.Status, resp)
 
-			alog.Error(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err,
+			slogutil.Error(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err,
 				"path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
 		} else {
 			slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
@@ -86,7 +86,7 @@ func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
 			resp := ServiceViewFromErr(err)
 
-			alog.Error(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
+			slogutil.Error(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
 
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
 		}

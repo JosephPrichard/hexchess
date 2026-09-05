@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/service/gameplay"
 	"hexchess-svc/service/gamestate"
 	userSvc "hexchess-svc/service/user"
-	"hexchess-svc/utils/alog"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupAdvanceTest(t alog.TestLogger) (*TournamentAdvanceService, itest.TestInfra) {
+func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvanceService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
 	services := NewTournamentAdvanceService(

@@ -2,8 +2,8 @@ package database
 
 import (
 	"context"
-	"hexchess-svc/utils/alog"
 	"hexchess-svc/utils/config"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"
 
@@ -28,7 +28,7 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 
 	poolCfg, err := pgxpool.ParseConfig(cfg.Dsn)
 	if err != nil {
-		alog.Fatal("parse postgres config", err, "config", cfg)
+		slogutil.Fatal("parse postgres config", err, "config", cfg)
 	}
 
 	poolCfg.ConnConfig.ConnectTimeout = 10 * time.Second
@@ -39,10 +39,10 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		alog.Fatal("create postgres pool", err, "config", cfg)
+		slogutil.Fatal("create postgres pool", err, "config", cfg)
 	}
 	if _, err = pool.Exec(ctx, cfg.InitQuery); err != nil {
-		alog.Fatal("execute postgres startup query", err, "config", cfg)
+		slogutil.Fatal("execute postgres startup query", err, "config", cfg)
 	}
 
 	slog.Info("connected to database successfully", "config", cfg)
@@ -81,7 +81,7 @@ func NewRiverClient(ctx context.Context, cfg PoolConfig) RiverClientAPI {
 func NewRiverClientFromPool(pool *pgxpool.Pool) RiverClientAPI {
 	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {
-		alog.Fatal("create river queue client", err)
+		slogutil.Fatal("create river queue client", err)
 	}
 	return riverProducerClient
 }
