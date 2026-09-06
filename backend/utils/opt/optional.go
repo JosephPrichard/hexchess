@@ -33,13 +33,6 @@ func (o *Option[T]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (o Option[T]) OrElse(def T) T {
-	if o.Present {
-		return o.Value
-	}
-	return def
-}
-
 func New[T any](v T, b bool) Option[T] {
 	return Option[T]{Value: v, Present: b}
 }

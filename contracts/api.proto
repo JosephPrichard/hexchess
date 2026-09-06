@@ -1,0 +1,41 @@
+// Contract for GRPC server APIs within Hexchess
+
+syntax = "proto3";
+option go_package = "hexchess-svc/rpc";
+
+package api;
+
+service MatchmakerService {
+  rpc MatchmakingStream (stream MatchmakingRequest) returns (stream MatchmakingResponse);
+}
+
+message MatchmakingRequest {
+  oneof value {
+      MatchmakingBeginRequest begin = 1;
+      MatchmakingConfirmRequest confirm = 2;
+  }
+}
+
+message MatchmakingBeginRequest {
+  int64  user_id = 1;
+  double user_elo = 2;
+  string mode = 3;
+}
+
+message MatchmakingConfirmRequest {
+  bool accept = 1;
+}
+
+message MatchmakingResponse {
+  oneof value {
+    MatchmakingProposalResponse begin = 1;
+    MatchmakingConfirmResponse confirm = 2;
+  }
+}
+
+message MatchmakingProposalResponse {
+  int64 user_one_id = 1;
+  int64 user_two_id = 2;
+}
+
+message MatchmakingConfirmResponse {}

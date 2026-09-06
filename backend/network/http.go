@@ -1,107 +1,235 @@
 package network
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
+	"hexchess-svc/cache"
+	"hexchess-svc/chess"
+	"hexchess-svc/cloud"
+	"hexchess-svc/database"
+	"hexchess-svc/pubsub"
+	"hexchess-svc/queue/producers"
+	"hexchess-svc/service/challenge"
+	"hexchess-svc/service/file"
+	"hexchess-svc/service/gameplay"
+	"hexchess-svc/service/gamestate"
+	"hexchess-svc/service/leaderboard"
+	"hexchess-svc/service/persona"
+	"hexchess-svc/service/replay"
+	"hexchess-svc/service/session"
+	"hexchess-svc/service/tournament"
+	"hexchess-svc/service/user"
+	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/entropy"
 	"log/slog"
 	"net/http"
 
-	"github.com/bytedance/sonic"
-	// "github.com/bytedance/sonic"
-	"github.com/go-playground/locales/en"
-	ut "github.com/go-playground/universal-translator"
-	"github.com/go-playground/validator/v10"
-	enTranslations "github.com/go-playground/validator/v10/translations/en"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
-const defaultPaginationCount = 25
+type HttpServer struct {
+	services      HttpServices
+	broadcasters  *pubsub.LocalBroadcasters
+	broadcaster   pubsub.Broadcaster
+	dispatcher    async.Dispatcher
+	entropy       entropy.Generator
+	authenticator HttpAuthenticator
+	staticData    StaticData
+}
 
-func LevelFromStatus(status int) slog.Level {
-	level := slog.LevelInfo
-	if status == http.StatusInternalServerError {
-		level = slog.LevelError
-	} else if status < 200 || status >= 300 {
-		level = slog.LevelWarn
+type HttpServices struct {
+	*user.UserService
+	*challenge.ChallengeService
+	*replay.ReplayService
+	*replay.ReplaySearchService
+	*leaderboard.LeaderboardService
+	*gamestate.ChessMetaService
+	*gamestate.ChessRepoService
+	*gameplay.GamePlayService
+	*gameplay.GameCreateService
+	*file.OrphanService
+	*file.ProfileService
+	*session.SessionService
+	*user.ActiveUserService
+	*gameplay.ChatService
+	*tournament.UpdateTournamentService
+	*tournament.RetrieveTournamentService
+	*tournament.TournamentNotificationService
+	*persona.PersonaService
+	*session.AuthTokenService
+}
+
+type HttpServerConfig struct {
+	Database       database.Database
+	RiverClient    database.RiverClientAPI
+	Redis          cache.Redis
+	Broadcaster    pubsub.Broadcaster
+	AWS            cloud.AWSClient
+	SDKs           cloud.SDKs
+	Entropy        entropy.Generator
+	Dispatcher     async.Dispatcher
+	Broadcasters   *pubsub.LocalBroadcasters
+	AllowedOrigins string
+}
+
+func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
+	r := chi.NewRouter()
+
+	r.Use(middleware.Recoverer)
+	r.Use(RouteMiddleware(config.AllowedOrigins))
+
+	if config.Entropy == nil {
+		config.Entropy = entropy.RealSource{}
 	}
-	return level
+	if config.Dispatcher == nil {
+		config.Dispatcher = async.AsyncDispatcher{}
+	}
+
+	server := NewHttpServer(HttpServerConfig{
+		Database:       config.Database,
+		RiverClient:    config.RiverClient,
+		Redis:          config.Redis,
+		Broadcaster:    config.Broadcaster,
+		AWS:            config.AWS,
+		SDKs:           config.SDKs,
+		Entropy:        config.Entropy,
+		Dispatcher:     config.Dispatcher,
+		Broadcasters:   config.Broadcasters,
+		AllowedOrigins: config.AllowedOrigins,
+	})
+
+	r.Post("/api/register", Rest(server.HandleRegister))
+	r.Post("/api/login", Rest(server.HandleLogin))
+	r.Post("/api/login/google", Rest(server.HandleGoogleLogin))
+	r.Post("/api/logout", Rest(server.HandleLogout))
+	r.Post("/api/session/temp", Rest(server.HandleCreateTempSession))
+	r.Post("/api/session/refresh", Rest(server.HandleRefreshSession))
+	r.Post("/api/users/password", Rest(server.HandleUpdatePassword))
+	r.Post("/api/users", Rest(server.HandleUpdateUser))
+	r.Post("/api/games/create", Rest(server.HandleCreateGame))
+	r.Post("/api/challenges/update", Rest(server.HandleUpdateChallenge))
+	r.Post("/api/challenges/create", Rest(server.HandleCreateChallenge))
+	r.Post("/api/users/profile-pics", Rest(server.HandleUploadProfilePic))
+
+	r.Get("/api/players", Rest(server.HandleGetPersona))
+	r.Get("/api/players/self", Rest(server.HandleGetSelf))
+	r.Get("/api/players/search", Rest(server.HandleSearchPlayers))
+	r.Get("/api/players/activity", Rest(server.HandleUserActivityCheck))
+	r.Get("/api/leaderboard", Rest(server.HandleGetLeaderboard))
+	r.Get("/api/challenges", Rest(server.HandleGetChallenges))
+	r.Get("/api/challenges/count", Rest(server.HandleCountUserChallenges))
+	r.Get("/api/replays", Rest(server.HandleSearchReplays))
+	r.Get("/api/replay", Rest(server.HandleGetReplay))
+	r.Get("/api/replay/elo-histories", Rest(server.HandleGetEloHistories))
+	r.Get("/api/replay/move-list", Rest(server.HandleGetMoveReplay))
+	r.Get("/api/game/rooms", Rest(server.HandleGetGameMetadata))
+	r.Get("/api/game/rooms/chats", Rest(server.HandleGetGameChats))
+	r.Get("/api/game/rooms/exists", Rest(server.HandleGameExistence))
+	r.Get("/api/users/profile-pics", Rest(server.HandleGetProfilePic))
+	r.Get("/api/tournament", Rest(server.HandleGetTournament))
+	r.Get("/api/tournaments", Rest(server.HandleGetTournaments))
+
+	r.Get("/api/events/count", SSE(server.HandleCountEvents))
+	r.Get("/api/events/user", SSE(server.HandleUserEvents))
+	r.Get("/api/events/active", SSE(server.HandleActiveConn))
+	r.Get("/api/events/tournament", SSE(server.HandleTournamentEvents))
+
+	r.Get("/api/initial-board", Json(chess.InitialBoard()))
+	r.Get("/api/countries", Json(server.staticData.countryList))
+
+	r.Get("/api/ws/game", server.HandleGameWebSocket)
+	r.Get("/api/info", info)
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL.String())
+		writeJSON(w, http.StatusNotFound, ServiceResp{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
+	})
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	var handlers []string
+	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		handlers = append(handlers, fmt.Sprintf("%s %s", method, route))
+		return nil
+	})
+	slog.Info("initialized serve mux", "handlers", handlers)
+
+	return r
 }
 
-var trans ut.Translator
-
-func init() {
-	locale := en.New()
-	uni := ut.New(locale, locale)
-	trans, _ = uni.GetTranslator("en")
-
-	validate = validator.New()
-	if err := enTranslations.RegisterDefaultTranslations(validate, trans); err != nil {
-		panic(fmt.Sprintf("register translations: %v", err))
+func NewHttpServer(config HttpServerConfig) HttpServer {
+	return HttpServer{
+		services:     NewHttpServices(config),
+		broadcaster:  config.Broadcaster,
+		broadcasters: config.Broadcasters,
+		dispatcher:   config.Dispatcher,
+		entropy:      config.Entropy,
+		authenticator: HttpAuthenticator{
+			services: session.NewSessionService(config.Redis),
+		},
+		staticData: NewStaticData(),
 	}
 }
 
-func decodeJson[Body any](r *http.Request, body *Body) error {
-	defer r.Body.Close()
-
-	// note(Joseph): sonic.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
-
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		return err
+func NewHttpServices(setup HttpServerConfig) HttpServices {
+	if setup.Entropy == nil {
+		setup.Entropy = entropy.RealSource{}
 	}
-	return sonic.Unmarshal(bodyBytes, body)
-}
-
-func parseJSON[Body any](r *http.Request, body *Body) error {
-	if err := decodeJson(r, body); err != nil {
-		return ErrHttpInvalidJSON
+	if setup.Dispatcher == nil {
+		setup.Dispatcher = async.AsyncDispatcher{}
 	}
-	return doValidation(body)
-}
 
-func mapJSON[Body any, Output any](r *http.Request, parse func(Body) (Output, error)) (o Output, _ error) {
-	var body Body
-	if err := decodeJson(r, &body); err != nil {
-		return o, err
-	}
-	return parse(body)
-}
+	riverProducer := producers.NewRiverProducer(setup.RiverClient)
 
-type ServiceResp struct {
-	Status  int                 `json:"status"`
-	Message string              `json:"message,omitempty"`
-	Error   string              `json:"error,omitempty"`
-	Errors  map[string]OneError `json:"errors,omitempty"`
-}
+	userService := user.NewUserService(setup.Database)
+	replayService := replay.NewReplayService(setup.Database)
+	replaySearchService := replay.NewSearchService(setup.Database)
+	challengeService := challenge.NewChallengeService(setup.Database, setup.Entropy)
 
-type OneError struct {
-	Message string `json:"message"`
-	Error   string `json:"error"`
-}
+	leaderboardService := leaderboard.NewLeaderboardService(setup.Redis, setup.Database.Querier())
 
-func writeJSON[V any](w http.ResponseWriter, status int, data V) {
-	v, err := json.Marshal(data)
-	if err != nil {
-		slog.Error("failed to marshal json response", "Err", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if _, err := w.Write(v); err != nil {
-		slog.Error("failed to write json response", "Err", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-	}
-}
+	chessMetaService := gamestate.NewChessMetaService(setup.Database, setup.Entropy, setup.Broadcaster)
+	chessRepoService := gamestate.NewChessRepoService(setup.Redis)
+	gameplayService := gameplay.NewGameplayService(setup.Redis, chessRepoService)
+	gameCreateService := gameplay.NewGameCreateService(setup.Redis, chessRepoService)
 
-func writeServiceResp(w http.ResponseWriter, view ServiceResp) {
-	writeJSON(w, view.Status, view)
-}
+	orphanService := file.NewOrphanService(setup.AWS, setup.Database.Querier())
+	profileService := file.NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
 
-func writeBytes(w http.ResponseWriter, status int, b []byte) {
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.WriteHeader(status)
-	if _, err := w.Write(b); err != nil {
-		slog.Error("internal server error", "Err", err)
+	sessionService := session.NewSessionService(setup.Redis)
+
+	updateTournamentService := tournament.NewUpdateTournamentService(setup.Database, setup.Redis, riverProducer)
+	retrieveTournamentService := tournament.NewRetrieveTournamentService(setup.Database.Querier(), setup.Redis)
+	tournamentBroadcaster := tournament.NewTournamentBroadcaster(leaderboardService, setup.Broadcaster)
+
+	activeUserService := user.NewActiveUserService(setup.Redis, setup.Broadcaster)
+	chatService := gameplay.NewChatService(setup.Redis, setup.Database.Querier(), setup.Entropy)
+
+	participantService := persona.NewPersonaService(userService, leaderboardService, replaySearchService)
+
+	authTokenService := session.NewAuthTokenService(setup.SDKs)
+
+	return HttpServices{
+		UserService:                   userService,
+		ReplayService:                 replayService,
+		ReplaySearchService:           replaySearchService,
+		ChallengeService:              challengeService,
+		LeaderboardService:            leaderboardService,
+		ChessMetaService:              chessMetaService,
+		ChessRepoService:              chessRepoService,
+		GamePlayService:               gameplayService,
+		GameCreateService:             gameCreateService,
+		OrphanService:                 orphanService,
+		ProfileService:                profileService,
+		SessionService:                sessionService,
+		UpdateTournamentService:       updateTournamentService,
+		RetrieveTournamentService:     retrieveTournamentService,
+		TournamentNotificationService: tournamentBroadcaster,
+		ActiveUserService:             activeUserService,
+		ChatService:                   chatService,
+		PersonaService:                participantService,
+		AuthTokenService:              authTokenService,
 	}
 }

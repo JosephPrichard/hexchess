@@ -8,10 +8,10 @@ import (
 )
 
 type TournamentNotificationService struct {
-	// infra deps
+	// infra dependencies
 	broadcaster pubsub.Broadcaster
 
-	// service deps
+	// service dependencies
 	leaderboard LeaderboardGetter
 }
 
@@ -26,7 +26,7 @@ func NewTournamentBroadcaster(
 	return &TournamentNotificationService{leaderboard: leaderboard, broadcaster: broadcaster}
 }
 
-func (services *TournamentNotificationService) BroadcastTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
+func (services *TournamentNotificationService) NotifyTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
 	leaderboardUser, err := services.leaderboard.GetLeaderboardUser(ctx, playerID, event.Mode)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)

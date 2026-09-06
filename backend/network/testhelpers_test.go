@@ -36,7 +36,7 @@ func setupMuxTest(t slogutil.TestLogger, mocks *serviceMocks) (http.Handler, ite
 
 	broadcaster := pubsub.NewSyncBroadcaster(infra.Redis)
 
-	h := NewServeMux(ServeMuxSetup{
+	h := NewServeMux(HttpServerConfig{
 		Database:    infra.Database,
 		Redis:       infra.Redis,
 		AWS:         infra.AWS,
@@ -64,7 +64,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 	createTestSessions(t, testinfra.Redis)
 	createTestChessStates(t, testinfra.Redis)
 
-	testServer := httptest.NewServer(NewServeMux(ServeMuxSetup{
+	testServer := httptest.NewServer(NewServeMux(HttpServerConfig{
 		Database:     testinfra.Database,
 		Redis:        testinfra.Redis,
 		Broadcasters: localBroadcasters,
@@ -106,7 +106,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
 	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
 
-	testServer := httptest.NewServer(NewServeMux(ServeMuxSetup{
+	testServer := httptest.NewServer(NewServeMux(HttpServerConfig{
 		Database:     testinfra.Database,
 		Redis:        testinfra.Redis,
 		Entropy:      &entropy.StableSource{},

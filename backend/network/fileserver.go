@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleUploadProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -35,7 +35,7 @@ func (server *Server) HandleUploadProfilePic(w http.ResponseWriter, r *http.Requ
 	return nil
 }
 
-func (server *Server) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetProfilePic(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	userID := r.URL.Query().Get("userId")
 

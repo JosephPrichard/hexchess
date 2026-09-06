@@ -100,13 +100,16 @@ func (services *RetrieveTournamentService) getParticipantsRank(ctx context.Conte
 	}
 
 	leaderboardRanks := make(map[int64]int64)
+
 	for _, exec := range getExecs {
 		rank, err := exec.cmd.Result()
+
 		if errors.Is(redis.Nil, err) {
 			continue
 		} else if err != nil {
 			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
 		}
+
 		leaderboardRanks[exec.userID] = leaderboard.MapLeaderboardRank(rank)
 	}
 
@@ -132,9 +135,7 @@ func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, p
 		if err != nil {
 			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
 		}
-		tournaments = mapTournamentRows(tournamentRows, func(t query.SelectTournamentsByParticipantRow) model.Tournament {
-			return mapTournamentByIdRow(query.SelectTournamentByIDRow(t))
-		})
+		tournaments = mapTournamentsByParticipantRows(tournamentRows)
 	} else {
 		tournamentRows, err := services.querier.SelectTournaments(ctx, query.SelectTournamentsParams{
 			AfterID: afterID.Value,
@@ -143,9 +144,7 @@ func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, p
 		if err != nil {
 			return nil, serrors.New("select tournaments after id", err, "afterID", afterID)
 		}
-		tournaments = mapTournamentRows(tournamentRows, func(t query.SelectTournamentsRow) model.Tournament {
-			return mapTournamentByIdRow(query.SelectTournamentByIDRow(t))
-		})
+		tournaments = mapTournamentsRows(tournamentRows)
 	}
 
 	slog.InfoContext(ctx, "selected tournaments", "tournaments", tournaments)

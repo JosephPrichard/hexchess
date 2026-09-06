@@ -71,7 +71,7 @@ func issueTempSession(sessionPlayer model.PlayerState, w http.ResponseWriter) ([
 	return sessions, tempSessionID
 }
 
-type Authenticator struct {
+type HttpAuthenticator struct {
 	services *session.SessionService
 }
 
@@ -80,7 +80,7 @@ type Session struct {
 	Token  string
 }
 
-func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Session, error) {
+func (auth *HttpAuthenticator) GetSession(ctx context.Context, r *http.Request) (Session, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return Session{}, session.ErrSessionNotFound
@@ -90,7 +90,7 @@ func (auth *Authenticator) GetSession(ctx context.Context, r *http.Request) (Ses
 	return Session{Player: player, Token: sessionToken}, serrors.New("get session player", err)
 }
 
-func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+func (auth *HttpAuthenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
 	sess, err := auth.GetSession(ctx, r)
 	if errors.Is(err, session.ErrSessionNotFound) {
 		return model.PlayerState{}, nil
@@ -98,7 +98,7 @@ func (auth *Authenticator) GetSessionOptPlayer(ctx context.Context, r *http.Requ
 	return sess.Player, err
 }
 
-func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+func (auth *HttpAuthenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
 	sess, err := auth.GetSession(ctx, r)
 	if err != nil {
 		return model.PlayerState{}, err
@@ -106,7 +106,7 @@ func (auth *Authenticator) GetSessionPlayer(ctx context.Context, r *http.Request
 	return sess.Player, err
 }
 
-func (auth *Authenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
+func (auth *HttpAuthenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
 	sessionToken := NewSessionID()
 	if err := auth.services.SetSessions(ctx, session.SessionInst{
 		SessionID: sessionToken,

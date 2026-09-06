@@ -104,9 +104,14 @@ func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int
 func (services *ChessMetaService) getGameMetadata(
 	ctx context.Context, userID opt.Option[int64], afterOrdering opt.Option[int64], count opt.Option[int32],
 ) ([]model.ChessMeta, error) {
+	afterOrderingDB := int64(math.MaxInt64)
+	if afterOrdering.Present {
+		afterOrderingDB = afterOrdering.Value
+	}
+
 	rows, err := services.Querier().SelectGameMetas(ctx, query.SelectGameMetasParams{
 		ParticipantID: database.MapOptInt8(userID),
-		AfterOrdering: afterOrdering.OrElse(math.MaxInt64),
+		AfterOrdering: afterOrderingDB,
 		PerPage:       database.MapOptInt4(count),
 	})
 	if err != nil {

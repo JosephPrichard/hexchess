@@ -39,7 +39,7 @@ type websocketError struct {
 // must be higher than the number of messages broadcasted in initialization for tests to be deterministic
 const GameplayChanBufCap = 10
 
-func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
+func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Request) {
 	// initialize static data
 	ctx := r.Context()
 
@@ -57,8 +57,8 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	close := func() {
-		// note(Joseph): both close operations are idempotent.
+	cleanup := func() {
+		// both close operations are idempotent
 		defer server.broadcasters.Games.Unsubscribe(gameID, subChan) // send close signal to writer
 		defer conn.Close()                                           // send close signal to reader
 	}
@@ -79,7 +79,7 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 			Player:  player,
 			ErrChan: errChan,
 		}
-		defer close()
+		defer cleanup()
 		for {
 			_, input, err := conn.ReadMessage()
 			if err != nil {
@@ -93,7 +93,7 @@ func (server *Server) HandleGameWs(w http.ResponseWriter, r *http.Request) {
 
 	// step 5: start output writer (close signal received from server)
 	go func() {
-		defer close()
+		defer cleanup()
 		for {
 			select {
 			case wsErr := <-errChan:
@@ -146,7 +146,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	}
 
 	level := slog.LevelWarn
-	if wsErr == ErrWsFatal {
+	if errors.Is(wsErr, ErrWsFatal) {
 		level = slog.LevelError
 	}
 	slogutil.Error(ctx, level, "failed to handle ws message", err, "wsErr", wsErr, "messageID", output.MessageID)
@@ -159,7 +159,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	writeMessage(ctx, conn, bytes)
 }
 
-func (server *Server) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
+func (server *HttpServer) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
 	player, err = server.services.GetSession(ctx, sessionID)
 	if err != nil {
 		return player, serrors.New("get session in game init phase", err)
@@ -193,7 +193,7 @@ func (err WsMessageTypeError) Error() string {
 	return fmt.Sprintf("message type %T is invalid: %+v ", err.pbInput, err.pbInput.GetValue())
 }
 
-func (server *Server) handleGameMessage(ctx GameSocketContext, input message) {
+func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input message) {
 	var pbInput pb.GameInput
 	if err := pbInput.UnmarshalVT(input); err != nil {
 		ctx.ErrChan <- websocketError{value: err}
@@ -224,7 +224,7 @@ func (server *Server) handleGameMessage(ctx GameSocketContext, input message) {
 	}
 }
 
-func (server *Server) handleGameForfeit(ctx GameSocketContext, messageID string) error {
+func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID string) error {
 	endState, err := server.services.EndGame(ctx, ctx.GameID, ctx.Player)
 	if err != nil {
 		return serrors.New("forfeit game", err, "gameID", ctx.GameID)
@@ -239,7 +239,7 @@ func (server *Server) handleGameForfeit(ctx GameSocketContext, messageID string)
 	return nil
 }
 
-func (server *Server) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
+func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
 	moveResult, err := server.services.MakeGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return serrors.New("make move on game", err, "gameID", ctx.GameID)
@@ -256,7 +256,7 @@ func (server *Server) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInpu
 	return nil
 }
 
-func (server *Server) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput, messageID string) error {
+func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput, messageID string) error {
 	chat := model.Chat{
 		ID:      uuid.NewString(),
 		Player:  ctx.Player,
@@ -273,7 +273,7 @@ func (server *Server) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInpu
 	return nil
 }
 
-func (server *Server) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, messageID string) error {
+func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, messageID string) error {
 	undoKind, err := model.DeserializeUndoInput(pbInput)
 	if err != nil {
 		return err

@@ -68,7 +68,7 @@ func main() {
 	broadcasters.Listen(redisClient)
 
 	// start API server and PPROF "sidecar" background task
-	mux := network.NewServeMux(network.ServeMuxSetup{
+	mux := network.NewServeMux(network.HttpServerConfig{
 		Database:       databaseClient,
 		RiverClient:    riverClient,
 		Redis:          redisClient,

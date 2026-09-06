@@ -22,11 +22,11 @@ import (
 )
 
 type TournamentAdvanceService struct {
-	// infra deps
+	// infra dependencies
 	database.Database
 	broadcaster pubsub.Broadcaster
 
-	// service deps
+	// service dependencies
 	user     UserGetter
 	gameplay GameCreator
 }

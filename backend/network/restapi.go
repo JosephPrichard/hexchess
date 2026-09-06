@@ -26,7 +26,7 @@ type RegisterBody struct {
 	ConfirmPassword string `json:"confirmPassword"`
 }
 
-func (server *Server) HandleRegister(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	var body RegisterBody
@@ -64,7 +64,7 @@ func (server *Server) HandleRegister(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
-func (server *Server) handleLoginSession(ctx context.Context, w http.ResponseWriter, user userSvc.VerifiedUser) error {
+func (server *HttpServer) handleLoginSession(ctx context.Context, w http.ResponseWriter, user userSvc.VerifiedUser) error {
 	t, err := server.authenticator.SetSessionPlayer(ctx, w, model.NewPlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ type LoginBody struct {
 	Password string `json:"password"`
 }
 
-func (server *Server) HandleLogin(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleLogin(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	var body LoginBody
@@ -104,7 +104,7 @@ type GoogleLoginBody struct {
 	Token string `json:"token"`
 }
 
-func (server *Server) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGoogleLogin(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	var body GoogleLoginBody
@@ -134,7 +134,7 @@ type UpdatePasswordBody struct {
 	ConfirmNewPassword string `json:"confirmNewPassword"`
 }
 
-func (server *Server) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleUpdatePassword(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -171,7 +171,7 @@ type UpdateUserBody struct {
 	NewBio      string `json:"newBio" validate:"omitempty,max=500"`
 }
 
-func (server *Server) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleUpdateUser(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -205,7 +205,7 @@ type TempSessionResp struct {
 	SessionID string `json:"sessionId"`
 }
 
-func (server *Server) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleCreateTempSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	session, err := server.authenticator.GetSessionOptPlayer(ctx, r)
@@ -228,7 +228,7 @@ type RefreshResp struct {
 	Session *SessionView `json:"session,omitempty"`
 }
 
-func (server *Server) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleRefreshSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	session, err := server.authenticator.GetSession(ctx, r)
@@ -257,7 +257,7 @@ func (server *Server) HandleRefreshSession(w http.ResponseWriter, r *http.Reques
 	return nil
 }
 
-func (server *Server) HandleLogout(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleLogout(w http.ResponseWriter, r *http.Request) error {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
 		return serrors.New("get cookie", err, "cookieKey", CookieKey)
@@ -273,7 +273,7 @@ func (server *Server) HandleLogout(w http.ResponseWriter, r *http.Request) error
 	return nil
 }
 
-func (server *Server) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetSelf(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -304,7 +304,7 @@ type LeaderboardResp struct {
 	UserList   []model.LbdUser `json:"userList"`
 }
 
-func (server *Server) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetLeaderboard(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseLeaderboardQuery(r.URL.Query())
@@ -333,7 +333,7 @@ type GetPersonaResp struct {
 	model.Persona
 }
 
-func (server *Server) HandleGetPersona(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetPersona(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	userIDStr := r.URL.Query().Get("id")
@@ -361,7 +361,7 @@ type SearchPlayersResp struct {
 	UserList []model.LbdUser `json:"userList"`
 }
 
-func (server *Server) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleSearchPlayers(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	queryCtx := queryParseCtx{Values: r.URL.Query(), RespErr: &BadRequestError{}}
@@ -390,7 +390,7 @@ type UpdateChallengeResp struct {
 	GameID model.GameID `json:"challengeID"`
 }
 
-func (server *Server) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleUpdateChallenge(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -428,7 +428,7 @@ type CreateChallengeBody struct {
 	Mode         string `json:"mode"`
 }
 
-func (server *Server) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleCreateChallenge(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -469,7 +469,7 @@ const (
 	ReceivedParticipantTarget = "received"
 )
 
-func (server *Server) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetChallenges(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	participants := r.URL.Query().Get("participants")
@@ -500,7 +500,7 @@ type CountChallengesResp struct {
 	Count int64 `json:"count"`
 }
 
-func (server *Server) HandleCountUserChallenges(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleCountUserChallenges(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -526,7 +526,7 @@ type CreateGameResp struct {
 	GameID model.GameID `json:"gameId"`
 }
 
-func (server *Server) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleCreateGame(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	body, err := mapJSON(r, parseCreateGameBody)
@@ -549,7 +549,7 @@ const (
 	GameNotExists = "GAME_NOT_EXISTS"
 )
 
-func (server *Server) HandleGameExistence(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGameExistence(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	gameIDStr := r.URL.Query().Get("gameId")
@@ -580,7 +580,7 @@ type ChessMetasResp struct {
 	SelfChessList []ChessMeta `json:"selfChessList"`
 }
 
-func (server *Server) HandleGetGameMetadata(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetGameMetadata(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseChessMetasQuery(r.URL.Query())
@@ -600,7 +600,7 @@ func (server *Server) HandleGetGameMetadata(w http.ResponseWriter, r *http.Reque
 	return nil
 }
 
-func (server *Server) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetGameChats(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	gameIDStr := r.URL.Query().Get("gameId")
 	gameID := model.GameID(gameIDStr)
@@ -623,7 +623,7 @@ type GetReplayResp struct {
 	Replay model.FullReplay `json:"replay"`
 }
 
-func (server *Server) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseReplayQueryBody(r.URL.Query())
@@ -651,7 +651,7 @@ type SearchReplaysResp struct {
 	ReplayList []model.FullReplay `json:"replayList"`
 }
 
-func (server *Server) HandleSearchReplays(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleSearchReplays(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseReplaysQuery(r.URL.Query())
@@ -673,7 +673,7 @@ type EloHistoriesResp struct {
 
 var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", replaySvc.ShortBucketDuration.Seconds())
 
-func (server *Server) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseEloHistoriesQuery(r.URL.Query())
@@ -696,7 +696,7 @@ func (server *Server) HandleGetEloHistories(w http.ResponseWriter, r *http.Reque
 	return nil
 }
 
-func (server *Server) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetMoveReplay(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	replayIDStr := r.URL.Query().Get("replayId")
@@ -728,7 +728,7 @@ type CreateTournamentResp struct {
 	TournamentKey string `json:"tournamentKey"`
 }
 
-func (server *Server) HandleCreateTournament(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -767,7 +767,7 @@ type TournamentKeyBody struct {
 	TournamentKey string `json:"tournamentKey"`
 }
 
-func (server *Server) HandleJoinTournament(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleJoinTournament(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -791,14 +791,14 @@ func (server *Server) HandleJoinTournament(w http.ResponseWriter, r *http.Reques
 	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", tournamentKey)
 
 	server.dispatcher.Go(func() {
-		server.services.BroadcastTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
+		server.services.NotifyTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
 	})
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
-func (server *Server) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleBeginCountdownTournament(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -828,7 +828,7 @@ func (server *Server) HandleBeginCountdownTournament(w http.ResponseWriter, r *h
 
 type GetTournamentResp model.FullTournament
 
-func (server *Server) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetTournament(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
@@ -853,7 +853,7 @@ type GetTournamentsResp struct {
 	Tournaments []model.Tournament `json:"tournaments"`
 }
 
-func (server *Server) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleGetTournaments(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	query, err := parseTournamentsQuery(r.URL.Query())
@@ -871,7 +871,7 @@ func (server *Server) HandleGetTournaments(w http.ResponseWriter, r *http.Reques
 	return nil
 }
 
-func (server *Server) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleLeaveTournament(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 
 	tournamentKey, err := uuid.Parse(r.URL.Query().Get("tournamentKey"))
@@ -897,7 +897,7 @@ type GetUserActivityResp struct {
 	IsUserActive bool `json:"isUserActive"`
 }
 
-func (server *Server) HandleUserActivityCheck(w http.ResponseWriter, r *http.Request) error {
+func (server *HttpServer) HandleUserActivityCheck(w http.ResponseWriter, r *http.Request) error {
 	userID := r.URL.Query().Get("userId")
 
 	isActive := server.services.IsActiveUser(r.Context(), userID)

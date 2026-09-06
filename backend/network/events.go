@@ -23,7 +23,7 @@ const (
 	SSEChanBufCap = 10
 )
 
-func (server *Server) HandleCountEvents(client *SSEClient, _ *http.Request) error {
+func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 	ctx := client.ctx
 
 	activeCount, err := server.services.GetActiveCount(ctx)
@@ -64,7 +64,7 @@ func (server *Server) HandleCountEvents(client *SSEClient, _ *http.Request) erro
 const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
 
 // HandleActiveConn is a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
-func (server *Server) HandleActiveConn(client *SSEClient, r *http.Request) error {
+func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -97,7 +97,7 @@ func (server *Server) HandleActiveConn(client *SSEClient, r *http.Request) error
 	}
 }
 
-func (server *Server) HandleUserEvents(client *SSEClient, r *http.Request) error {
+func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
@@ -136,7 +136,7 @@ func (server *Server) HandleUserEvents(client *SSEClient, r *http.Request) error
 	}
 }
 
-func (server *Server) HandleTournamentEvents(client *SSEClient, r *http.Request) error {
+func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Request) error {
 	ctx := client.ctx
 
 	tournamentKey := r.URL.Query().Get("tournamentKey")

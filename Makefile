@@ -14,6 +14,7 @@ PERF_HTTP_DIR   := $(PERF_DIR)/http/scripts
 
 # Proto output dirs
 SVC_PB_OUT      := $(BACKEND_DIR)/pb
+SVC_GRPC_OUT    := $(BACKEND_DIR)/rpc
 PERF_PB_K6_OUT  := $(PERF_K6_DIR)/pb
 UI_PB_OUT       := src/lib/pb
 
@@ -35,6 +36,7 @@ backend:
 	# SQLc and mockgen
 	cd $(BACKEND_DIR) && go generate ./...
 	# Protoc codegen
+	## PB messages codegen
 	mkdir -p $(SVC_PB_OUT)
 	protoc \
 		-I $(VTPROTO)/include \
@@ -44,7 +46,18 @@ backend:
 		--go-vtproto_out=$(SVC_PB_OUT) \
 		--go-vtproto_opt=paths=source_relative \
 		--go-vtproto_opt=features=marshal+unmarshal+size \
-		$(CONTRACTS_DIR)/messages.proto \
+		$(CONTRACTS_DIR)/messages.proto
+	## GRPC api codegen
+	mkdir -p $(SVC_GRPC_OUT)
+	protoc \
+		-I $(VTPROTO)/include \
+		--go_out=$(SVC_GRPC_OUT) \
+		--go_opt=paths=source_relative \
+		--proto_path $(CONTRACTS_DIR) \
+		--go-vtproto_out=$(SVC_GRPC_OUT) \
+		--go-vtproto_opt=paths=source_relative \
+		--go-vtproto_opt=features=marshal+unmarshal+size+grpc \
+		$(CONTRACTS_DIR)/api.proto
 
 frontend:
     # Protoc codegen

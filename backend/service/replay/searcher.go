@@ -88,13 +88,19 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 		return nil, err
 	}
 
-	afterID := qry.AfterID.OrElse(math.MaxInt64)
-	afterTurnCount := qry.AfterTurnCount.OrElse(math.MaxInt32)
-	afterRating := qry.AfterRating.OrElse(math.MaxFloat64)
+	afterIDDB := int64(math.MaxInt64)
+	afterTurnCountDB := int32(math.MaxInt32)
+	afterRatingDB := math.MaxFloat64
 
-	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	fromDateDays := opt.Option[int32]{Value: toDayEpoch(qry.FromDate.Value), Present: qry.FromDate.Present}
-	toDateDays := opt.Option[int32]{Value: toDayEpoch(qry.ToDate.Value), Present: qry.ToDate.Present}
+	if qry.AfterID.Present {
+		afterIDDB = qry.AfterID.Value
+	}
+	if qry.AfterTurnCount.Present {
+		afterTurnCountDB = int32(qry.AfterRating.Value)
+	}
+	if qry.AfterRating.Present {
+		afterRatingDB = qry.AfterRating.Value
+	}
 
 	params := query.SelectReplaysByQueryParams{
 		PerPage: qry.PerPage,
@@ -108,13 +114,13 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 		Mode:         database.MapOptMode(qry.Mode),
 		Result:       database.MapOptResult(qry.Result),
 		Cause:        database.MapOptCause(qry.Cause),
-		FromDateDays: database.MapOptInt4(fromDateDays),
-		ToDateDays:   database.MapOptInt4(toDateDays),
+		FromDateDays: database.MapOptInt4(toDayEpoch(qry.FromDate)),
+		ToDateDays:   database.MapOptInt4(toDayEpoch(qry.ToDate)),
 
 		// search cursor used for pagination, afterID is always provided on a cursor search, rating and turnCount are only provided with sort
-		AfterID:        afterID,
-		AfterRating:    pgtype.Float8{Float64: afterRating, Valid: true},
-		AfterTurnCount: afterTurnCount,
+		AfterID:        afterIDDB,
+		AfterRating:    pgtype.Float8{Float64: afterRatingDB, Valid: true},
+		AfterTurnCount: afterTurnCountDB,
 
 		// sort determines the 'ORDER BY' in the SQL query
 		SortKey: qry.Sort.String(),
@@ -133,8 +139,9 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 	return replays, nil
 }
 
-func toDayEpoch(time time.Time) int32 {
-	return int32(time.Unix() / 86400)
+func toDayEpoch(optTime opt.Option[time.Time]) opt.Option[int32] {
+	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
+	return opt.Option[int32]{Value: int32(optTime.Value.Unix() / 86400), Present: optTime.Present}
 }
 
 type IDByNameRequest struct {

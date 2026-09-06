@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-func mapTournamentByIdRow(tournament query.SelectTournamentByIDRow) model.Tournament {
+func mapTournamentRow(tournament query.SelectTournamentByIDRow) model.Tournament {
 	ruleset := enum.Expect(tournament.Ruleset, model.TournamentRulesetEnums)
 	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
 	mode := enum.Expect(tournament.Mode, model.GameModeEnums)
@@ -33,6 +33,22 @@ func mapTournamentByIdRow(tournament query.SelectTournamentByIDRow) model.Tourna
 		Ruleset:            ruleset,
 		Mode:               mode,
 	}
+}
+
+func mapTournamentsByParticipantRows(tournamentRows []query.SelectTournamentsByParticipantRow) []model.Tournament {
+	var tournaments []model.Tournament
+	for _, row := range tournamentRows {
+		tournaments = append(tournaments, mapTournamentRow(query.SelectTournamentByIDRow(row)))
+	}
+	return tournaments
+}
+
+func mapTournamentsRows(tournamentRows []query.SelectTournamentsRow) []model.Tournament {
+	var tournaments []model.Tournament
+	for _, row := range tournamentRows {
+		tournaments = append(tournaments, mapTournamentRow(query.SelectTournamentByIDRow(row)))
+	}
+	return tournaments
 }
 
 func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int {
@@ -95,8 +111,12 @@ func mapTourneyMatchFromRow(match query.SelectReplayMatchesByTournamentIDRow) mo
 	}
 }
 
-func mapFullTournament(tournamentRow query.SelectTournamentByIDRow, matchRows []query.SelectReplayMatchesByTournamentIDRow, participantRows []query.SelectParticipantsWithUserByTournamentIDRow) model.FullTournament {
-	tournament := mapTournamentByIdRow(tournamentRow)
+func mapFullTournament(
+	tournamentRow query.SelectTournamentByIDRow,
+	matchRows []query.SelectReplayMatchesByTournamentIDRow,
+	participantRows []query.SelectParticipantsWithUserByTournamentIDRow,
+) model.FullTournament {
+	tournament := mapTournamentRow(tournamentRow)
 
 	participants := make([]model.Participant, 0, len(participantRows))
 	for _, row := range participantRows {
@@ -109,19 +129,6 @@ func mapFullTournament(tournamentRow query.SelectTournamentByIDRow, matchRows []
 	}
 
 	return model.FullTournament{Tournament: tournament, Participants: participants, Matches: matches}
-}
-
-func mapTournamentRows[Row interface {
-	query.SelectTournamentsRow | query.SelectTournamentsByParticipantRow
-}](
-	tournamentRows []Row,
-	fn func(tournament Row) model.Tournament,
-) []model.Tournament {
-	var tournaments []model.Tournament
-	for _, row := range tournamentRows {
-		tournaments = append(tournaments, fn(row))
-	}
-	return tournaments
 }
 
 func mapParticipantInsertErr(err error) error {

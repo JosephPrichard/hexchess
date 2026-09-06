@@ -44,12 +44,6 @@ func (db *Database) ReadHealthcheckFunc() health.CheckFunc {
 }
 
 func (db *Database) Close() {
-	if db.testTxn != nil {
-		// a fake postgres instance is running with a transaction, clean it up
-		if err := db.testTxn.Rollback(context.Background()); err != nil {
-			slog.Error("failed to rollback testing txn", "error", err)
-		}
-	}
 	if db.writePool != nil {
 		db.writePool.Close()
 	}

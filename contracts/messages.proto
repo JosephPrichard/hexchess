@@ -1,3 +1,5 @@
+// Contract for data and messages for information exchange within Hexchess
+
 syntax = "proto3";
 option go_package = "hexchess-svc/pb";
 
