@@ -31,13 +31,18 @@ func main() {
 	defer shutdown()
 
 	// connect to backend infrastructure and prepare cleanup
-	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
+	databasePools := database.NewDatabasePools(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ReadDsn:       cfg.DbReadURL, // provides read pool for increased performance
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
 	})
+
+	databaseClient := database.NewDatabase(databasePools)
 	defer databaseClient.Close()
+
+	riverClient := database.NewRiverClient(databasePools.Write)
+	defer riverClient.Stop(ctx)
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   cfg.RedisPrimaryNodes,
@@ -45,13 +50,6 @@ func main() {
 		ActiveProfile: cfg.Profile,
 	})
 	defer redisClient.Close()
-
-	riverClient := database.NewRiverClient(ctx, database.PoolConfig{
-		Dsn:           cfg.DbURL,
-		ActiveProfile: cfg.Profile,
-		AwsRegion:     cfg.AwsRegion,
-	})
-	defer riverClient.Stop(ctx)
 
 	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		ActiveProfile: cfg.Profile,

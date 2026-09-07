@@ -49,6 +49,11 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 	return pool
 }
 
+type DatabasePools struct {
+	Write *pgxpool.Pool
+	Read  *pgxpool.Pool
+}
+
 type DatabaseConfig struct {
 	ReadWriteDsn  string         `json:"readWriteDsn"`  // (required) parseable configuration in either KV pair or postgres URL format. see pgxpool documentation.
 	ReadDsn       string         `json:"readDsn"`       // (opt) dsn for the read replicas of the postgres backend, reuses the read write pool if left empty
@@ -56,7 +61,7 @@ type DatabaseConfig struct {
 	AwsRegion     string         `json:"awsRegion"`     // (opt) AWS region database is in, if AWS authentication is on
 }
 
-func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
+func NewDatabasePools(ctx context.Context, cfg DatabaseConfig) DatabasePools {
 	writePool := NewDatabasePool(ctx, PoolConfig{Dsn: cfg.ReadWriteDsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.AwsRegion})
 
 	var readPool *pgxpool.Pool
@@ -66,19 +71,14 @@ func NewDatabase(ctx context.Context, cfg DatabaseConfig) Database {
 		readPool = writePool
 	}
 
-	return Database{writePool: writePool, readPool: readPool}
+	return DatabasePools{Write: writePool, Read: readPool}
 }
 
-func NewDatabaseFromPool(pool *pgxpool.Pool) Database {
-	return Database{writePool: pool, readPool: pool}
+func NewDatabase(pools DatabasePools) Database {
+	return Database{pools: pools}
 }
 
-func NewRiverClient(ctx context.Context, cfg PoolConfig) RiverClientAPI {
-	pool := NewDatabasePool(ctx, PoolConfig{Dsn: cfg.Dsn, ActiveProfile: cfg.ActiveProfile, AwsRegion: cfg.AwsRegion})
-	return NewRiverClientFromPool(pool)
-}
-
-func NewRiverClientFromPool(pool *pgxpool.Pool) RiverClientAPI {
+func NewRiverClient(pool *pgxpool.Pool) RiverClientAPI {
 	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
 	if err != nil {
 		slogutil.Fatal("create river queue client", err)

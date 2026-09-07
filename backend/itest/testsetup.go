@@ -44,7 +44,7 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 
 	var infra TestInfra
 
-	infra.Database = database.NewDatabaseFromPool(pgPool)
+	infra.Database = database.NewDatabase(database.DatabasePools{Read: pgPool, Write: pgPool})
 
 	infra.Redis = cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   []string{redisAddr},

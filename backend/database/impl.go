@@ -19,7 +19,7 @@ func (db *Database) QuerierMutator() QuerierMutator {
 	if db.querierMutator != nil {
 		return db.querierMutator
 	}
-	db.querierMutator = NewPoolQuerier(db.writePool)
+	db.querierMutator = NewPoolQuerier(db.pools.Write)
 	return db.querierMutator
 }
 
@@ -31,24 +31,24 @@ func (db *Database) Querier() query.Querier {
 	if db.querier != nil {
 		return db.querier
 	}
-	db.querier = NewPoolQuerier(db.readPool)
+	db.querier = NewPoolQuerier(db.pools.Read)
 	return db.querier
 }
 
 func (db *Database) HealthcheckFunc() health.CheckFunc {
-	return NewHealthcheck(db.writePool)
+	return NewHealthcheck(db.pools.Write)
 }
 
 func (db *Database) ReadHealthcheckFunc() health.CheckFunc {
-	return NewHealthcheck(db.readPool)
+	return NewHealthcheck(db.pools.Read)
 }
 
 func (db *Database) Close() {
-	if db.writePool != nil {
-		db.writePool.Close()
+	if db.pools.Write != nil {
+		db.pools.Write.Close()
 	}
-	if db.readPool != nil {
-		db.readPool.Close()
+	if db.pools.Read != nil {
+		db.pools.Read.Close()
 	}
 }
 
@@ -63,7 +63,7 @@ func execTx(ctx context.Context, db *Database, args TxArgs) error {
 
 	var err error
 	for i := range args.RetryCount {
-		err = execTxnOnce(ctx, db.writePool, args)
+		err = execTxnOnce(ctx, db.pools.Write, args)
 
 		if isSerializationFailure(err) {
 			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)

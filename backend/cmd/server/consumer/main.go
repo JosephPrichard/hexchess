@@ -30,21 +30,16 @@ func main() {
 	defer shutdown()
 
 	// connect to backend infrastructure and prepare cleanup
-	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
+	databasePools := database.NewDatabasePools(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL, // excludes opt read pool argument since all operations in this service involve mixed read-write operations
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
 	})
+
+	databaseClient := database.NewDatabase(databasePools)
 	defer databaseClient.Close()
 
-	riverPool := database.NewDatabasePool(ctx, database.PoolConfig{
-		Dsn:           cfg.DbURL,
-		ActiveProfile: cfg.Profile,
-		AwsRegion:     cfg.AwsRegion,
-	})
-	defer riverPool.Close()
-
-	riverProducerClient := database.NewRiverClientFromPool(riverPool)
+	riverProducerClient := database.NewRiverClient(databasePools.Write)
 	defer riverProducerClient.Stop(ctx)
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
@@ -65,7 +60,7 @@ func main() {
 		RiverClient: riverProducerClient,
 	})
 	consumers.StartRiverConsumers(consumers.RiverConsumerConfig{
-		PGXPool:     riverPool,
+		PGXPool:     databasePools.Write,
 		Database:    databaseClient,
 		Redis:       redisClient,
 		Broadcaster: broadcaster,

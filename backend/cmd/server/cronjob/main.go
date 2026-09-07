@@ -37,11 +37,13 @@ func main() {
 	shutdown := slogutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
+	databasePools := database.NewDatabasePools(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
 	})
+
+	databaseClient := database.NewDatabase(databasePools)
 	defer databaseClient.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
