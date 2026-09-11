@@ -64,7 +64,6 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
-
 	for i, match := range matches {
 		eg.Go(func() error {
 			return services.setupGame(egCtx, i, match, userDataMap)
@@ -111,51 +110,55 @@ func (services *TournamentAdvanceService) ProgressTournament(ctx context.Context
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, _ pgx.Tx, query database.QuerierMutator) error {
-			previousEvent, err := selectPreviousAdvanceEvent(ctx, query, eventID)
-			if err != nil {
-				return serrors.New("select previous advance tournament event", err, "eventID", eventID)
-			}
-			if previousEvent != nil {
-				matchesToCreate = previousEvent.Creations
-				return nil
-			}
-
-			tournament, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-			if err != nil {
-				return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
-			}
-			status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
-
-			var matchmaking MatchmakingOutput
-
-			switch status {
-			case model.TournamentScheduled:
-				output, err := advanceScheduledTournament(ctx, query, tournament)
-				if err != nil {
-					return serrors.New("advance scheduled tournament", err)
-				}
-				matchmaking = output
-			case model.TournamentInProgress:
-				output, err := advanceInProgressTournament(ctx, query, tournament)
-				if err != nil {
-					return serrors.New("advance in progress tournament", err)
-				}
-				matchmaking = output
-			default:
-				return NewMatchInvariantError(tournamentKey, TournamentStatusAssertionError{Got: status, Expected: ExpectedAdvanceTournamentStatus})
-			}
-
-			if err := insertCreatedMatches(ctx, query, eventID, tournamentKey, matchmaking); err != nil {
-				return err
-			}
-
-			matchesToCreate = matchmaking.NextMatches
-			slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchesToCreate", matchesToCreate)
-			return nil
+			return progressTournament(ctx, query, tournamentKey, eventID, &matchesToCreate)
 		},
 	})
 
 	return matchesToCreate, err
+}
+
+func progressTournament(ctx context.Context, query database.QuerierMutator, tournamentKey uuid.UUID, eventID uuid.UUID, matchesToCreate *[]model.MatchCreation) error {
+	previousEvent, err := selectPreviousAdvanceEvent(ctx, query, eventID)
+	if err != nil {
+		return serrors.New("select previous advance tournament event", err, "eventID", eventID)
+	}
+	if previousEvent != nil {
+		*matchesToCreate = previousEvent.Creations
+		return nil
+	}
+
+	tournament, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+	if err != nil {
+		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
+	}
+	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
+
+	var matchmaking MatchmakingOutput
+
+	switch status {
+	case model.TournamentScheduled:
+		output, err := advanceScheduledTournament(ctx, query, tournament)
+		if err != nil {
+			return serrors.New("advance scheduled tournament", err)
+		}
+		matchmaking = output
+	case model.TournamentInProgress:
+		output, err := advanceInProgressTournament(ctx, query, tournament)
+		if err != nil {
+			return serrors.New("advance in progress tournament", err)
+		}
+		matchmaking = output
+	default:
+		return NewMatchInvariantError(tournamentKey, TournamentStatusAssertionError{Got: status, Expected: ExpectedAdvanceTournamentStatus})
+	}
+
+	if err := insertCreatedMatches(ctx, query, eventID, tournamentKey, matchmaking); err != nil {
+		return err
+	}
+
+	*matchesToCreate = matchmaking.NextMatches
+	slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchesToCreate", matchesToCreate)
+	return nil
 }
 
 func selectPreviousAdvanceEvent(ctx context.Context, query database.QuerierMutator, eventID uuid.UUID) (*model.MatchCreations, error) {

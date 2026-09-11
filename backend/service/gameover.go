@@ -130,7 +130,7 @@ func (services *GameOverService) publishTournamentEvent(ctx context.Context, eve
 		return serrors.New("select tournament by game id", err, "gameID", event.GameID)
 	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
-		// if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
+		// note(Joseph): if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
 		if err := services.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
 			TournamentKey: tournamentKey.Bytes,
 		}); err != nil {
@@ -204,7 +204,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 func (services *GameOverService) InsertGameResult(ctx context.Context, event model.FinishGameEvent) (GameResultChangeSet, error) {
 	defer perf.WithContext(ctx).Log()
 
-	result := createGameResult(event)
+	gameResult := createGameResult(event)
 
 	var changeSet GameResultChangeSet
 
@@ -217,62 +217,66 @@ func (services *GameOverService) InsertGameResult(ctx context.Context, event mod
 		Isolation:  pgx.RepeatableRead,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, _ pgx.Tx, querier database.QuerierMutator) error {
-			// use game ID as an idempotency key to prevent saving the same game result on retry
-			userIDs := []int64{result.WhiteID, result.BlackID}
-
-			existingReplayID, err := querier.SelectReplayIDByGameID(ctx, result.GameID.String())
-			if err == nil {
-				// returning existing state makes this operation idempotent
-				changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
-				return nil
-			} else if !database.IsErrNoRows(err) {
-				return serrors.New("select has replay with gameID", err)
-			}
-
-			// select the current state of stats for each game participant
-			// selects are sorted by userID to prevent deadlocks
-			slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
-
-			userElos, err := querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
-				ID:   userIDs,
-				Mode: query.ModeEnum(result.ReplayMode.String()),
-			})
-			if err != nil {
-				return serrors.New("select users elo", err, "userIDs", userIDs)
-			}
-
-			// compute and update the next state of stats for each game participant
-			var updts []mutator.UpsertUserEloParams
-			changeSet, updts = createInsertGameResultChangeSet(result, userElos)
-
-			// updates are sorted by userID to prevent deadlocks
-			slices.SortFunc(updts, func(left, right mutator.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
-
-			var batchUpsertErrs []error
-			querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
-				if err != nil {
-					batchUpsertErrs = append(batchUpsertErrs, serrors.New("batch upserting elo", err, "batch", i, "updt", updts[i]))
-				}
-			})
-			if err := errors.Join(batchUpsertErrs...); err != nil {
-				return err
-			}
-
-			// insert the new replay, which acts both the record and the idempotency key for this operation
-			replayInst := createInsertReplayParams(result, changeSet)
-			replayID, err := querier.InsertReplay(ctx, replayInst)
-			if err != nil {
-				return serrors.New("insert replay for result", err, "result", result)
-			}
-
-			changeSet.ReplayID = replayID
-
-			slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet, "replayInst", replayInst)
-			return nil
+			return insertGameResult(ctx, querier, gameResult, &changeSet)
 		},
 	})
 
 	return changeSet, err
+}
+
+func insertGameResult(ctx context.Context, querier database.QuerierMutator, gameResult GameResult, changeSet *GameResultChangeSet) error {
+	// use game ID as an idempotency key to prevent saving the same game result on retry
+	userIDs := []int64{gameResult.WhiteID, gameResult.BlackID}
+
+	existingReplayID, err := querier.SelectReplayIDByGameID(ctx, gameResult.GameID.String())
+	if err == nil {
+		// returning existing state makes this operation idempotent
+		*changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
+		return nil
+	} else if !database.IsErrNoRows(err) {
+		return serrors.New("select has replay with gameID", err)
+	}
+
+	// select the current state of stats for each game participant
+	// selects are sorted by userID to prevent deadlocks
+	slices.SortFunc(userIDs, func(left, right int64) int { return cmp.Compare(left, right) })
+
+	userElos, err := querier.SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
+		ID:   userIDs,
+		Mode: query.ModeEnum(gameResult.ReplayMode.String()),
+	})
+	if err != nil {
+		return serrors.New("select users elo", err, "userIDs", userIDs)
+	}
+
+	// compute and update the next state of stats for each game participant
+	var updts []mutator.UpsertUserEloParams
+	*changeSet, updts = createInsertGameResultChangeSet(gameResult, userElos)
+
+	// updates are sorted by userID to prevent deadlocks
+	slices.SortFunc(updts, func(left, right mutator.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
+
+	var batchUpsertErrs []error
+	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
+		if err != nil {
+			batchUpsertErrs = append(batchUpsertErrs, serrors.New("batch upserting elo", err, "batch", i, "updt", updts[i]))
+		}
+	})
+	if err := errors.Join(batchUpsertErrs...); err != nil {
+		return err
+	}
+
+	// insert the new replay, which acts both the record and the idempotency key for this operation
+	replayInst := createInsertReplayParams(gameResult, *changeSet)
+	replayID, err := querier.InsertReplay(ctx, replayInst)
+	if err != nil {
+		return serrors.New("insert replay for result", err, "result", gameResult)
+	}
+
+	changeSet.ReplayID = replayID
+
+	slog.InfoContext(ctx, "inserted game result", "changeSet", changeSet, "replayInst", replayInst)
+	return nil
 }
 
 func createGameResult(event model.FinishGameEvent) GameResult {

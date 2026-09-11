@@ -2,6 +2,7 @@ package service
 
 import (
 	"hexchess-svc/model"
+	"slices"
 	"time"
 )
 
@@ -34,36 +35,35 @@ const (
 
 type MatchmakingRequest struct {
 	Kind         MatchRequestKind
-	Mode         model.GameMode
-	UserID       int64
+	MatchmakeID  MatchmakeID
 	UserElo      float64
 	ResponseChan chan MatchResponse
 }
 
-func NewMatchRequestBegin(mode model.GameMode, userID int64, userElo float64, responseChan chan MatchResponse) MatchmakingRequest {
+type MatchmakeID struct {
+	UserID int64
+	Mode   model.GameMode
+}
+
+func NewMatchRequestBegin(matchmakeID MatchmakeID, userElo float64, responseChan chan MatchResponse) MatchmakingRequest {
 	return MatchmakingRequest{
 		Kind:         MatchRequestBegin,
-		Mode:         mode,
-		UserID:       userID,
+		MatchmakeID:  matchmakeID,
 		UserElo:      userElo,
 		ResponseChan: responseChan,
 	}
 }
 
-func NewMatchRequestConfirmation(mode model.GameMode, userID int64) MatchmakingRequest {
-	return MatchmakingRequest{
-		Kind:   MatchRequestBegin,
-		Mode:   mode,
-		UserID: userID,
-	}
+func NewMatchRequestConfirmation(matchmakeID MatchmakeID) MatchmakingRequest {
+	return MatchmakingRequest{Kind: MatchRequestBegin, MatchmakeID: matchmakeID}
 }
 
-func NewMatchRequestCancel() MatchmakingRequest {
-	return MatchmakingRequest{Kind: MatchRequestCancel}
+func NewMatchRequestCancel(matchmakeID MatchmakeID) MatchmakingRequest {
+	return MatchmakingRequest{Kind: MatchRequestCancel, MatchmakeID: matchmakeID}
 }
 
 func (services *MatchmakerService) SendMatchRequest(request MatchmakingRequest) {
-	node := services.modeNodeMap[request.Mode]
+	node := services.modeNodeMap[request.MatchmakeID.Mode]
 	node.requestChan <- request
 }
 
@@ -90,21 +90,19 @@ type runState struct {
 	matchProposals []MatchProposal
 }
 
-type User struct {
-	UserID  int64
-	UserElo float64
-	Ticks   int64 // number ticks the user has remained in the matchmaking pool
-}
-
 type PendingUser struct {
+	UserID       int64
+	UserElo      float64
+	Ticks        int64 // number ticks the user has remained in the matchmaking pool
 	ResponseChan chan MatchResponse
-	User
 }
 
 type MatchProposal struct {
-	ResponseChan chan MatchResponse
-	UserOne      User
-	UserTwo      User
+	ResponseChan  chan MatchResponse
+	UserOne       PendingUser
+	UserOneAccept bool
+	UserTwo       PendingUser
+	UserTwoAccept bool
 }
 
 const TickRate = time.Millisecond * 500
@@ -132,14 +130,54 @@ func tick(state *runState) {
 func handleRequest(state *runState, request MatchmakingRequest) {
 	switch request.Kind {
 	case MatchRequestBegin:
-		state.pendingUsers = append(state.pendingUsers, PendingUser{
-			ResponseChan: request.ResponseChan,
-			User: User{
-				UserID:  request.UserID,
-				UserElo: request.UserElo,
-			},
-		})
+		handleBeginRequest(state, request)
 	case MatchRequestConfirmation:
-
+		handleConfirmRequest(state, request)
+	case MatchRequestCancel:
+		handleCancelRequest(state, request)
 	}
+}
+
+func handleBeginRequest(state *runState, request MatchmakingRequest) {
+	state.pendingUsers = append(state.pendingUsers, PendingUser{
+		ResponseChan: request.ResponseChan,
+		UserID:       request.MatchmakeID.UserID,
+		UserElo:      request.UserElo,
+	})
+}
+
+func handleConfirmRequest(state *runState, request MatchmakingRequest) {
+	proposalIndex := slices.IndexFunc(state.matchProposals, func(user MatchProposal) bool {
+		return user.UserOne.UserID == request.MatchmakeID.UserID || user.UserTwo.UserID == request.MatchmakeID.UserID
+	})
+	matchProposal := &state.matchProposals[proposalIndex]
+
+	switch request.MatchmakeID.UserID {
+	case matchProposal.UserOne.UserID:
+		matchProposal.UserOneAccept = true
+	case matchProposal.UserTwo.UserID:
+		matchProposal.UserTwoAccept = true
+	}
+
+	if matchProposal.UserOneAccept && matchProposal.UserTwoAccept {
+		matchConfirmResponse := MatchResponse{
+			Kind:      MatchResponseConfirmation,
+			UserOneID: matchProposal.UserOne.UserID,
+			UserTwoID: matchProposal.UserTwo.UserID,
+		}
+		matchProposal.UserOne.ResponseChan <- matchConfirmResponse
+		matchProposal.UserTwo.ResponseChan <- matchConfirmResponse
+	}
+}
+
+func handleCancelRequest(state *runState, request MatchmakingRequest) {
+	// note(Joseph): remove any
+	state.pendingUsers = slices.DeleteFunc(state.pendingUsers, func(user PendingUser) bool {
+		return user.UserID == request.MatchmakeID.UserID
+	})
+
+	proposalIndex := slices.IndexFunc(state.matchProposals, func(user MatchProposal) bool {
+		return user.UserOne.UserID == request.MatchmakeID.UserID || user.UserTwo.UserID == request.MatchmakeID.UserID
+	})
+	matchProposal := &state.matchProposals[proposalIndex]
 }

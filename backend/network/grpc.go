@@ -31,7 +31,7 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 
 	defer func() {
 		slog.InfoContext(ctx, "matchmaking stream :: engaging cancellation")
-		state.service.SendMatchRequest(service.NewMatchRequestCancel())
+		state.service.SendMatchRequest(service.NewMatchRequestCancel(state.matchmakeID))
 	}()
 
 	go func() {
@@ -58,12 +58,10 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 }
 
 type MatchmakingStreamState struct {
-	service *service.MatchmakerService
-
+	service      *service.MatchmakerService
 	responseChan chan service.MatchResponse
 
-	userID int64
-	mode   model.GameMode
+	matchmakeID service.MatchmakeID
 }
 
 func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState, request *rpc.MatchmakingRequest) {
@@ -75,12 +73,11 @@ func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState
 			return
 		}
 
-		state.userID = value.Begin.UserId
-		state.mode = inputMode
+		state.matchmakeID = service.MatchmakeID{UserID: value.Begin.UserId, Mode: inputMode}
 
-		state.service.SendMatchRequest(service.NewMatchRequestBegin(state.mode, state.userID, value.Begin.UserElo, state.responseChan))
+		state.service.SendMatchRequest(service.NewMatchRequestBegin(state.matchmakeID, value.Begin.UserElo, state.responseChan))
 	case *rpc.MatchmakingRequest_Confirm:
-		state.service.SendMatchRequest(service.NewMatchRequestConfirmation(state.mode, state.userID))
+		state.service.SendMatchRequest(service.NewMatchRequestConfirmation(state.matchmakeID))
 	}
 }
 

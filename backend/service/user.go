@@ -167,47 +167,47 @@ func (services *UserService) VerifyUser(ctx context.Context, username string, in
 		Isolation:    pgx.Serializable,
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
 		RetryCount:   3,
-		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
-			loginRow, err := query.SelectLoginByName(ctx, username)
-			if database.IsErrNoRows(err) {
-				return ErrUserNotFound
-			} else if err != nil {
-				return serrors.New("select user by login", err, "username", username)
-			}
-
-			isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
-			nextLoginTime := loginRow.LastLoginAttempt.Time.Add(LockoutDuration)
-			isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
-			if isLocked {
-				return ErrTooManyLoginAttempts
-			}
-
-			saltedPassword := inputPassword + loginRow.Salt
-
-			err = bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
-			if err != nil {
-				if err := query.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-					return serrors.New("increment user login attempts", err, "userID", loginRow.ID)
-				}
-				slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", err)
-				return ErrUserNotFound
-			}
-
-			if err := query.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-				return serrors.New("reset user login attempts", err, "userID", loginRow.ID)
-			}
-
-			user = VerifiedUser{
-				ID:       loginRow.ID,
-				Username: loginRow.Username,
-				Country:  loginRow.Country,
-			}
-			slog.InfoContext(ctx, "user login is valid", "user", user)
-			return nil
+		QueryFn: func(ctx context.Context, _ pgx.Tx, query database.QuerierMutator) error {
+			return verifyUser(ctx, query, username, inputPassword, &user)
 		},
 	})
 
 	return user, err
+}
+
+func verifyUser(ctx context.Context, query database.QuerierMutator, username string, inputPassword string, user *VerifiedUser) error {
+	loginRow, err := query.SelectLoginByName(ctx, username)
+	if database.IsErrNoRows(err) {
+		return ErrUserNotFound
+	} else if err != nil {
+		return serrors.New("select user by login", err, "username", username)
+	}
+
+	isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
+	nextLoginTime := loginRow.LastLoginAttempt.Time.Add(LockoutDuration)
+	isLocked := isExceedAttempts && time.Now().Before(nextLoginTime)
+	if isLocked {
+		return ErrTooManyLoginAttempts
+	}
+
+	saltedPassword := inputPassword + loginRow.Salt
+
+	err = bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
+	if err != nil {
+		if err := query.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
+			return serrors.New("increment user login attempts", err, "userID", loginRow.ID)
+		}
+		slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", err)
+		return ErrUserNotFound
+	}
+
+	if err := query.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
+		return serrors.New("reset user login attempts", err, "userID", loginRow.ID)
+	}
+
+	*user = VerifiedUser{ID: loginRow.ID, Username: loginRow.Username, Country: loginRow.Country}
+	slog.InfoContext(ctx, "user login is valid", "user", user)
+	return nil
 }
 
 type GoogleUserInst struct {

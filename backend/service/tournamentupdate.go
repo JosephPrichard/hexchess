@@ -132,7 +132,7 @@ type JoinTournamentEvent struct {
 func (services *UpdateTournamentService) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
 	defer perf.WithContext(ctx).Log()
 
-	var result JoinTournamentEvent
+	var event JoinTournamentEvent
 
 	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -142,49 +142,53 @@ func (services *UpdateTournamentService) JoinTournament(ctx context.Context, ins
 		// P2 will be appended onto P3 rather than P1, even though the validation was run against P1
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
-		QueryFn: func(ctx context.Context, _ pgx.Tx, query database.QuerierMutator) error {
-			tournamentRow, err := query.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
-			if database.IsErrNoRows(err) {
-				return ErrTournamentNotFound
-			} else if err != nil {
-				return serrors.New("select tournament", err, "tournamentKey", inst.TournamentKey)
-			}
-
-			gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
-			status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
-			ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
-
-			if status != model.TournamentLobby {
-				return ErrTournamentNotLobby
-			}
-
-			if ruleset == model.TournamentKnockout {
-				// knockout rulesets use the `TotalRounds` field to decide the maximum number of players
-				maxKnockoutPlayerCount := int32(KnockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
-				isCapacityReached := tournamentRow.ParticipantCount >= maxKnockoutPlayerCount
-				if isCapacityReached {
-					return ErrTooManyParticipants
-				}
-			}
-
-			if dbErr := query.InsertTournamentParticipant(ctx, mutator.InsertTournamentParticipantParams{
-				TournamentKey: pgtype.UUID{Bytes: inst.TournamentKey, Valid: true},
-				UserID:        inst.JoiningUserID,
-				JoinedOn:      pgtype.Timestamptz{Time: inst.InsertionTime, Valid: true},
-			}); dbErr != nil {
-				if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
-					return svcErr
-				}
-				return serrors.New("insert tournament participant", dbErr, "inst", inst)
-			}
-
-			slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
-			result = JoinTournamentEvent{TournamentKey: inst.TournamentKey, Mode: gameMode}
-			return nil
+		QueryFn: func(ctx context.Context, _ pgx.Tx, querier database.QuerierMutator) error {
+			return joinTournament(ctx, querier, inst, &event)
 		},
 	})
 
-	return result, err
+	return event, err
+}
+
+func joinTournament(ctx context.Context, query database.QuerierMutator, inst JoinTournamentInst, event *JoinTournamentEvent) error {
+	tournamentRow, err := query.SelectTournamentWithParticipantCountByID(ctx, pgtype.UUID{Bytes: inst.TournamentKey, Valid: true})
+	if database.IsErrNoRows(err) {
+		return ErrTournamentNotFound
+	} else if err != nil {
+		return serrors.New("select tournament", err, "tournamentKey", inst.TournamentKey)
+	}
+
+	gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
+	status := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
+	ruleset := enum.Expect(tournamentRow.Ruleset, model.TournamentRulesetEnums)
+
+	if status != model.TournamentLobby {
+		return ErrTournamentNotLobby
+	}
+
+	if ruleset == model.TournamentKnockout {
+		// knockout rulesets use the `TotalRounds` field to decide the maximum number of players
+		maxKnockoutPlayerCount := int32(KnockoutParticipantsAtRound(int(tournamentRow.Rounds), 1))
+		isCapacityReached := tournamentRow.ParticipantCount >= maxKnockoutPlayerCount
+		if isCapacityReached {
+			return ErrTooManyParticipants
+		}
+	}
+
+	if dbErr := query.InsertTournamentParticipant(ctx, mutator.InsertTournamentParticipantParams{
+		TournamentKey: pgtype.UUID{Bytes: inst.TournamentKey, Valid: true},
+		UserID:        inst.JoiningUserID,
+		JoinedOn:      pgtype.Timestamptz{Time: inst.InsertionTime, Valid: true},
+	}); dbErr != nil {
+		if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
+			return svcErr
+		}
+		return serrors.New("insert tournament participant", dbErr, "inst", inst)
+	}
+
+	slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
+	*event = JoinTournamentEvent{TournamentKey: inst.TournamentKey, Mode: gameMode}
+	return nil
 }
 
 type BeginTourneyCountdown struct {
@@ -205,45 +209,49 @@ func (services *UpdateTournamentService) BeginTournamentCountdown(ctx context.Co
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
-			tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-			if err != nil {
-				return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
-			}
-
-			tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
-
-			if tournamentStatus != model.TournamentLobby {
-				return ErrInvalidCountdownTournamentStatus
-			}
-			if userID != tournamentRow.CreatedBy {
-				return ErrTournamentCountdownPermissions
-			}
-
-			nextTournamentStatus := model.TournamentScheduled
-			updtTournamentTime := time.Now()
-
-			if err := query.UpdateTournamentStatus(ctx, mutator.UpdateTournamentStatusParams{
-				TournamentKey:      pgtype.UUID{Bytes: tournamentKey, Valid: true},
-				CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
-				Status:             mutator.TournamentStatusEnum(nextTournamentStatus.String()),
-				UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
-			}); err != nil {
-				return serrors.New("update tournament status", err, "tournamentKey", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
-			}
-
-			if err := services.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
-				TournamentKey: tournamentKey,
-				ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
-			}); err != nil {
-				return serrors.New("publish scheduled tournament event", err, "tournamentKey", tournamentKey)
-			}
-
-			slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
-
-			tourneyCountdown = BeginTourneyCountdown{TournamentKey: tournamentKey}
-			return nil
+			return services.beginTournamentCountdown(ctx, txn, query, tournamentKey, userID, &tourneyCountdown)
 		},
 	})
 
 	return tourneyCountdown, err
+}
+
+func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
+	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+	if err != nil {
+		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
+	}
+
+	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
+
+	if tournamentStatus != model.TournamentLobby {
+		return ErrInvalidCountdownTournamentStatus
+	}
+	if userID != tournamentRow.CreatedBy {
+		return ErrTournamentCountdownPermissions
+	}
+
+	nextTournamentStatus := model.TournamentScheduled
+	updtTournamentTime := time.Now()
+
+	if err := query.UpdateTournamentStatus(ctx, mutator.UpdateTournamentStatusParams{
+		TournamentKey:      pgtype.UUID{Bytes: tournamentKey, Valid: true},
+		CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
+		Status:             mutator.TournamentStatusEnum(nextTournamentStatus.String()),
+		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
+	}); err != nil {
+		return serrors.New("update tournament status", err, "tournamentKey", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
+	}
+
+	if err := services.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
+		TournamentKey: tournamentKey,
+		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
+	}); err != nil {
+		return serrors.New("publish advance tournament event", err, "tournamentKey", tournamentKey)
+	}
+
+	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)
+
+	*tourneyCountdown = BeginTourneyCountdown{TournamentKey: tournamentKey}
+	return nil
 }

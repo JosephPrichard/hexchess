@@ -30,8 +30,8 @@ func TestGetPersona(t *testing.T) {
 	require.NoError(t, err)
 
 	wantPersona := model.Persona{
-		User:  itest.TestUser[0],
-		Stats: itest.TestUserStats[0],
+		PendingUser: itest.TestUser[0],
+		Stats:       itest.TestUserStats[0],
 		ReplayList: []model.FullReplay{
 			itest.TestReplays[4],
 			itest.TestReplays[3],

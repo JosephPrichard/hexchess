@@ -84,5 +84,5 @@ func (services *PersonaService) GetPersona(ctx context.Context, userID int64, pe
 	if replayList == nil {
 		replayList = []model.FullReplay{}
 	}
-	return model.Persona{User: userData, Stats: stats, ReplayList: replayList}, nil
+	return model.Persona{PendingUser: userData, Stats: stats, ReplayList: replayList}, nil
 }

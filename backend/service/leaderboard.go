@@ -238,12 +238,12 @@ func (e ExpLdbError) Error() string {
 
 func MapLeaderboardUser(row query.SelectUserWithEloByIDRow) model.LbdUser {
 	return model.LbdUser{
-		User:       model.User{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
-		Elo:        model.DefaultUserElo(row.Elo),
-		HighestElo: model.DefaultUserElo(row.HighestElo),
-		Wins:       row.Wins.Int32,
-		Losses:     row.Losses.Int32,
-		Winrate:    model.CalcUserWinrate(row.Wins.Int32, row.Losses.Int32, row.Draws.Int32),
+		PendingUser: model.User{ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time},
+		Elo:         model.DefaultUserElo(row.Elo),
+		HighestElo:  model.DefaultUserElo(row.HighestElo),
+		Wins:        row.Wins.Int32,
+		Losses:      row.Losses.Int32,
+		Winrate:     model.CalcUserWinrate(row.Wins.Int32, row.Losses.Int32, row.Draws.Int32),
 	}
 }
 
@@ -397,7 +397,7 @@ func (services *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Contex
 		aggr := eloAggrMap[userRow.ID]
 
 		leaderboardUsers = append(leaderboardUsers, model.LbdUser{
-			User: model.User{
+			PendingUser: model.User{
 				ID:       userRow.ID,
 				Username: userRow.Username,
 				Country:  userRow.Country,
