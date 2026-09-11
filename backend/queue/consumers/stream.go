@@ -6,9 +6,7 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/gamestate"
-	"hexchess-svc/service/replay"
+	"hexchess-svc/service"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/serrors"
 
@@ -74,8 +72,8 @@ func StartRedisConsumers(config RedisConsumerConfig) {
 }
 
 type FinishedGameWorker struct {
-	services    *gameplay.GameOverService
-	replay      *replay.ReplayService
+	services    *service.GameOverService
+	replay      *service.ReplayService
 	broadcaster pubsub.Broadcaster
 }
 
@@ -86,14 +84,14 @@ func NewFinishedGameWorker(
 	broadcaster pubsub.Broadcaster,
 ) *FinishedGameWorker {
 	return &FinishedGameWorker{
-		services: gameplay.NewGameoverService(
+		services: service.NewGameoverService(
 			database,
 			redis,
 			producers.NewRiverProducer(riverClient),
 			broadcaster,
-			gamestate.NewChessRepoService(redis),
+			service.NewChessRepoService(redis),
 		),
-		replay:      replay.NewReplayService(database),
+		replay:      service.NewReplayService(database),
 		broadcaster: broadcaster,
 	}
 }
@@ -124,12 +122,12 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 }
 
 type UpdtGameMetadataWorker struct {
-	services *gamestate.ChessMetaService
+	services *service.ChessMetaService
 }
 
 func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Generator, broadcaster pubsub.Broadcaster) *UpdtGameMetadataWorker {
 	return &UpdtGameMetadataWorker{
-		services: gamestate.NewChessMetaService(database, entropy, broadcaster),
+		services: service.NewChessMetaService(database, entropy, broadcaster),
 	}
 }
 

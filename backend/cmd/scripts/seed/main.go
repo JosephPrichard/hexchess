@@ -10,13 +10,7 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutator"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/service/challenge"
-	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/generators"
-	"hexchess-svc/service/leaderboard"
-	"hexchess-svc/service/replay"
-	"hexchess-svc/service/tournament"
-	"hexchess-svc/service/user"
+	"hexchess-svc/service"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
 
@@ -85,11 +79,12 @@ func main() {
 	shutdown := slogutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
 
-	databaseClient := database.NewDatabase(ctx, database.DatabaseConfig{
+	databasePools := database.NewDatabasePools(ctx, database.DatabaseConfig{
 		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
 		AwsRegion:     cfg.AwsRegion,
 	})
+	databaseClient := database.NewDatabase(databasePools)
 	defer databaseClient.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
@@ -103,7 +98,7 @@ func main() {
 	}
 
 	// execute the test seed script and measure results
-	services := newServices(redisClient, databaseClient)
+	services := newSeedServices(redisClient, databaseClient)
 
 	// root node in the foreign key hierarchy tree
 	seedUsers(ctx, services.user)
@@ -131,31 +126,24 @@ func main() {
 	slog.Info("finished seeding databases", "timeTaken", time.Since(start).String())
 }
 
-type Services struct {
-	leaderboard *leaderboard.LeaderboardService
-	user        *user.UserService
-	challenge   *challenge.ChallengeService
-	replay      *replay.ReplayService
-	gameover    *gameplay.GameOverService
+type SeedServices struct {
+	leaderboard *service.LeaderboardService
+	user        *service.UserService
+	challenge   *service.ChallengeService
+	replay      *service.ReplayService
+	gameover    *service.GameOverService
 }
 
-func newServices(
-	redisClient cache.Redis,
-	databaseClient database.Database,
-) Services {
-	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier())
-	userSvc := user.NewUserService(databaseClient)
-	challengeSvc := challenge.NewChallengeService(databaseClient, entropy.RealSource{})
-	gameoverSvc := gameplay.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil)
-	return Services{
-		leaderboard: leaderboardSvc,
-		user:        userSvc,
-		challenge:   challengeSvc,
-		gameover:    gameoverSvc,
+func newSeedServices(redisClient cache.Redis, databaseClient database.Database) SeedServices {
+	return SeedServices{
+		leaderboard: service.NewLeaderboardService(redisClient, databaseClient.Querier()),
+		user:        service.NewUserService(databaseClient),
+		challenge:   service.NewChallengeService(databaseClient, entropy.RealSource{}),
+		gameover:    service.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil),
 	}
 }
 
-func seedUsers(ctx context.Context, userSvc *user.UserService) {
+func seedUsers(ctx context.Context, userSvc *service.UserService) {
 	defer perf.New().Log()
 
 	if _, err := userSvc.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
@@ -163,8 +151,8 @@ func seedUsers(ctx context.Context, userSvc *user.UserService) {
 	}
 }
 
-func generateUserInsts() []user.Inst {
-	var insts []user.Inst
+func generateUserInsts() []service.UserInst {
+	var insts []service.UserInst
 	for i := range *usersCount {
 		var username string
 		if *deterministicUsernames {
@@ -173,7 +161,7 @@ func generateUserInsts() []user.Inst {
 			username = gofakeit.Username()
 		}
 
-		insts = append(insts, user.Inst{
+		insts = append(insts, service.UserInst{
 			Username: username,
 			Password: "password1",
 			Country:  "us",
@@ -217,17 +205,17 @@ func generateMode() model.GameMode {
 	}
 }
 
-func seedChallenges(ctx context.Context, services *challenge.ChallengeService) error {
+func seedChallenges(ctx context.Context, services *service.ChallengeService) error {
 	defer perf.New().Log()
 	return services.BatchInsertChallenges(ctx, generateChallengeInsts())
 }
 
-func generateChallengeInsts() []challenge.Inst {
+func generateChallengeInsts() []service.ChallengeInst {
 	hashChallengeKey := func(challengerID, challengeeID int64) string {
 		return fmt.Sprintf("%d,%d", challengerID, challengeeID)
 	}
 
-	var insts []challenge.Inst
+	var insts []service.ChallengeInst
 	for range *challengesCount {
 		// generate two challenges that are unique, this is done by retrying if a duplicate is found.
 		// note(Joseph): we assume the number of users is large enough to avoid duplicates
@@ -243,7 +231,7 @@ func generateChallengeInsts() []challenge.Inst {
 			}
 		}
 
-		insts = append(insts, challenge.Inst{
+		insts = append(insts, service.ChallengeInst{
 			ChallengerID: challengerID,
 			ChallengeeID: challengeeID,
 			StartColor:   model.Random,
@@ -288,7 +276,7 @@ func generateGameResults() []GameResultInsts {
 	return insts
 }
 
-func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService, insts []GameResultInsts) error {
+func seedGameResults(ctx context.Context, gameoverSvc *service.GameOverService, insts []GameResultInsts) error {
 	defer perf.New().Log()
 
 	a := insts
@@ -306,7 +294,7 @@ func seedGameResults(ctx context.Context, gameoverSvc *gameplay.GameOverService,
 
 			mode := inst.ReplayMode
 
-			moveSeq, err := generators.RandomMoveHistSeq(mode, 10, 30, -1)
+			moveSeq, err := service.RandomMoveHistSeq(mode, 10, 30, -1)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
@@ -355,7 +343,7 @@ func generateTournaments() []TournamentInsts {
 		var participants []mutator.BatchInsertTournamentParticipantParams
 		var usedParticipants = map[int64]struct{}{}
 
-		for i := range tournament.KnockoutParticipantsAtRound(rounds, 1) {
+		for i := range service.KnockoutParticipantsAtRound(rounds, 1) {
 			var participantID int64
 			if i == 0 {
 				participantID = createdBy

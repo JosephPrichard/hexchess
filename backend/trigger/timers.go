@@ -4,7 +4,7 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/model"
-	"hexchess-svc/service/gamestate"
+	"hexchess-svc/service"
 	"log/slog"
 	"time"
 )
@@ -28,7 +28,7 @@ func (trigger *TimerTrigger) Start() {
 }
 
 func (trigger *TimerTrigger) loop(partition string) {
-	service := gamestate.NewChessTimerService(trigger.redis, partition)
+	service := service.NewChessTimerService(trigger.redis, partition)
 
 	t := time.NewTicker(trigger.period)
 	defer t.Stop()
@@ -38,7 +38,7 @@ func (trigger *TimerTrigger) loop(partition string) {
 	}
 }
 
-func (trigger *TimerTrigger) iteration(service *gamestate.TimerService) {
+func (trigger *TimerTrigger) iteration(service *service.TimerService) {
 	ctx, cancel := context.WithTimeout(context.Background(), trigger.period*2)
 	defer cancel()
 

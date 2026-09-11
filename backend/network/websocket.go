@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/model"
-	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/gamestate"
+	"hexchess-svc/service"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/slogutil"
@@ -73,12 +72,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 
 	// start input reader (close signal received from client)
 	go func() {
-		readCtx := GameSocketContext{
-			Context: context.WithoutCancel(ctx),
-			GameID:  gameID,
-			Player:  player,
-			ErrChan: errChan,
-		}
+		ctx := GameSocketContext{Context: context.WithoutCancel(ctx), GameID: gameID, Player: player, ErrChan: errChan}
 		defer cleanup()
 		for {
 			_, input, err := conn.ReadMessage()
@@ -87,11 +81,11 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 				slog.InfoContext(ctx, "websocket read error", "gameID", gameID, "error", err)
 				break
 			}
-			go server.handleGameMessage(readCtx, input)
+			go server.handleGameMessage(ctx, input)
 		}
 	}()
 
-	// step 5: start output writer (close signal received from server)
+	// start output writer (close signal received from server)
 	go func() {
 		defer cleanup()
 		for {
@@ -119,27 +113,27 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	switch {
 	case errutil.IsType[WsMessageTypeError](err):
 		wsErr = ErrWsMessageType
-	case errors.Is(err, gamestate.ErrNoChessState):
+	case errors.Is(err, service.ErrNoChessState):
 		wsErr = ErrWsInvalidGame
-	case errutil.IsType[gameplay.ErrFinishedGame](err):
+	case errutil.IsType[service.ErrFinishedGame](err):
 		wsErr = ErrWsFinishedGame
-	case errors.Is(err, gameplay.ErrForfeitPlayer):
+	case errors.Is(err, service.ErrForfeitPlayer):
 		wsErr = ErrWsForfeitPlayer
-	case errutil.IsType[gameplay.ErrStartedGame](err):
+	case errutil.IsType[service.ErrStartedGame](err):
 		wsErr = ErrWsStartedGame
-	case errutil.IsType[gameplay.ErrTurn](err):
+	case errutil.IsType[service.ErrTurn](err):
 		wsErr = ErrWsTurn
-	case errutil.IsType[gameplay.ErrInvalidMove](err):
+	case errutil.IsType[service.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
-	case errors.Is(err, gamestate.ErrNoChessState):
+	case errors.Is(err, service.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
-	case errors.Is(err, gameplay.ErrUndoCurrPlayer):
+	case errors.Is(err, service.ErrUndoCurrPlayer):
 		wsErr = ErrWsUndoCurrPlayer
 	case
 		errors.Is(err, model.ErrNoMoveUndo),
-		errors.Is(err, gameplay.ErrUndoNoop),
-		errors.Is(err, gameplay.ErrNoUndo):
+		errors.Is(err, service.ErrUndoNoop),
+		errors.Is(err, service.ErrNoUndo):
 		wsErr = ErrWsUndoAction
 	default:
 		wsErr = ErrWsFatal

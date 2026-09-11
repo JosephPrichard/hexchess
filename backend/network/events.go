@@ -3,7 +3,7 @@ package network
 import (
 	"context"
 	"hexchess-svc/pubsub"
-	svc "hexchess-svc/service/user"
+	svc "hexchess-svc/service"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"

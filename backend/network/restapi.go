@@ -5,11 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/model"
-	challengeSvc "hexchess-svc/service/challenge"
-	replaySvc "hexchess-svc/service/replay"
-	sessionSvc "hexchess-svc/service/session"
-	tournamentSvc "hexchess-svc/service/tournament"
-	userSvc "hexchess-svc/service/user"
+	"hexchess-svc/service"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -37,13 +33,13 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 		return ErrHttpConfirmPassword
 	}
 
-	user, err := server.services.InsertUser(ctx, userSvc.Inst{
+	user, err := server.services.InsertUser(ctx, service.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  model.DefaultCountry,
 		JoinedOn: time.Now(),
 	})
-	if errors.Is(err, userSvc.ErrTakenUsername) {
+	if errors.Is(err, service.ErrTakenUsername) {
 		return ErrHttpDuplicateUsername
 	} else if err != nil {
 		return serrors.New("insert user", err)
@@ -64,7 +60,7 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 	return nil
 }
 
-func (server *HttpServer) handleLoginSession(ctx context.Context, w http.ResponseWriter, user userSvc.VerifiedUser) error {
+func (server *HttpServer) handleLoginSession(ctx context.Context, w http.ResponseWriter, user service.VerifiedUser) error {
 	t, err := server.authenticator.SetSessionPlayer(ctx, w, model.NewPlayer(user.ID, user.Username, user.Country))
 	if err != nil {
 		return err
@@ -118,7 +114,7 @@ func (server *HttpServer) HandleGoogleLogin(w http.ResponseWriter, r *http.Reque
 	}
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
-	user, err := server.services.SelectOrInsertGoogleUser(ctx, payload.AccountID, userSvc.GoogleUserInst{
+	user, err := server.services.SelectOrInsertGoogleUser(ctx, payload.AccountID, service.GoogleUserInst{
 		Username: payload.Username,
 		Country:  model.DefaultCountry,
 	})
@@ -150,7 +146,7 @@ func (server *HttpServer) HandleUpdatePassword(w http.ResponseWriter, r *http.Re
 	}
 
 	user, err := server.services.VerifyUser(ctx, player.Name, body.Password)
-	if errors.Is(err, userSvc.ErrUserNotFound) {
+	if errors.Is(err, service.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if err != nil {
 		return serrors.New("verify user", err)
@@ -183,7 +179,7 @@ func (server *HttpServer) HandleUpdateUser(w http.ResponseWriter, r *http.Reques
 		return err
 	}
 
-	user, err := server.services.UpdateUser(ctx, player.ID, userSvc.UpdtUserParams{
+	user, err := server.services.UpdateUser(ctx, player.ID, service.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
@@ -232,7 +228,7 @@ func (server *HttpServer) HandleRefreshSession(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 
 	session, err := server.authenticator.GetSession(ctx, r)
-	if errors.Is(err, sessionSvc.ErrSessionNotFound) {
+	if errors.Is(err, service.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	} else if err != nil {
@@ -277,7 +273,7 @@ func (server *HttpServer) HandleGetSelf(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
-	if errors.Is(err, sessionSvc.ErrSessionNotFound) {
+	if errors.Is(err, service.ErrSessionNotFound) {
 		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	} else if err != nil {
@@ -343,7 +339,7 @@ func (server *HttpServer) HandleGetPersona(w http.ResponseWriter, r *http.Reques
 	}
 
 	persona, err := server.services.GetPersona(ctx, int64(userID), defaultPaginationCount)
-	if errors.Is(err, userSvc.ErrUserNotFound) {
+	if errors.Is(err, service.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
 		return serrors.New("get full user", err, "userID", userID)
@@ -440,7 +436,7 @@ func (server *HttpServer) HandleCreateChallenge(w http.ResponseWriter, r *http.R
 		return err
 	}
 
-	challenge, err := server.services.InsertChallenge(ctx, challengeSvc.Inst{
+	challenge, err := server.services.InsertChallenge(ctx, service.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
@@ -483,9 +479,9 @@ func (server *HttpServer) HandleGetChallenges(w http.ResponseWriter, r *http.Req
 
 	switch participants {
 	case SentParticipantsTarget:
-		challengeList, err = server.services.GetChallengesByParticipant(ctx, challengeSvc.Key{ChallengerID: player.ID, ChallengeeID: -1})
+		challengeList, err = server.services.GetChallengesByParticipant(ctx, service.Key{ChallengerID: player.ID, ChallengeeID: -1})
 	case ReceivedParticipantTarget:
-		challengeList, err = server.services.GetChallengesByParticipant(ctx, challengeSvc.Key{ChallengerID: -1, ChallengeeID: player.ID})
+		challengeList, err = server.services.GetChallengesByParticipant(ctx, service.Key{ChallengerID: -1, ChallengeeID: player.ID})
 	}
 	if err != nil {
 		return serrors.New("get challenges", err)
@@ -637,7 +633,7 @@ func (server *HttpServer) HandleGetReplay(w http.ResponseWriter, r *http.Request
 	} else {
 		replay, err = server.services.GetReplay(ctx, query.ReplayID)
 	}
-	if errors.Is(err, replaySvc.ErrNoReplay) {
+	if errors.Is(err, service.ErrNoReplay) {
 		return ErrHttpNotFoundReplay
 	} else if err != nil {
 		return serrors.New("get replay by query", err, "replaysQuery", query)
@@ -668,10 +664,10 @@ func (server *HttpServer) HandleSearchReplays(w http.ResponseWriter, r *http.Req
 }
 
 type EloHistoriesResp struct {
-	Buckets replaySvc.EloHistoryBuckets `json:"buckets"`
+	Buckets service.EloHistoryBuckets `json:"buckets"`
 }
 
-var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", replaySvc.ShortBucketDuration.Seconds())
+var GetEloHistoriesCacheControl = fmt.Sprintf("public, max-age=%f", service.ShortBucketDuration.Seconds())
 
 func (server *HttpServer) HandleGetEloHistories(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
@@ -681,7 +677,7 @@ func (server *HttpServer) HandleGetEloHistories(w http.ResponseWriter, r *http.R
 		return err
 	}
 
-	params := replaySvc.EloHistoriesParams{
+	params := service.EloHistoriesParams{
 		UserID:    int64(query.UserID),
 		Months:    query.Months,
 		TimeUntil: time.Now(),
@@ -741,7 +737,7 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 	}
 
 	tournamentKey := uuid.New()
-	tournamentID, err := server.services.CreateTournament(ctx, tournamentSvc.TournamentInst{
+	tournamentID, err := server.services.CreateTournament(ctx, service.TournamentInst{
 		Key:       tournamentKey,
 		Name:      body.Name,
 		Rounds:    body.Rounds,
@@ -751,7 +747,7 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 		CreatedOn: time.Now(),
 		CreatedBy: player.ID,
 	})
-	if errors.Is(err, tournamentSvc.ErrInvalidRounds) {
+	if errors.Is(err, service.ErrInvalidRounds) {
 		return ErrHttpInvalidRounds
 	} else if err != nil {
 		return serrors.New("insert tournament", err)
@@ -779,7 +775,7 @@ func (server *HttpServer) HandleJoinTournament(w http.ResponseWriter, r *http.Re
 		return err
 	}
 
-	tournamentEvent, err := server.services.JoinTournament(ctx, tournamentSvc.JoinTournamentInst{
+	tournamentEvent, err := server.services.JoinTournament(ctx, service.JoinTournamentInst{
 		TournamentKey: tournamentKey,
 		JoiningUserID: player.ID,
 		InsertionTime: time.Now(),
@@ -837,7 +833,7 @@ func (server *HttpServer) HandleGetTournament(w http.ResponseWriter, r *http.Req
 	}
 
 	tourney, err := server.services.GetTournament(ctx, tournamentKey)
-	if errors.Is(err, tournamentSvc.ErrTournamentNotFound) {
+	if errors.Is(err, service.ErrTournamentNotFound) {
 		return ErrHttpNotFoundTournament
 	} else if err != nil {
 		return serrors.New("get tournament by key", err)

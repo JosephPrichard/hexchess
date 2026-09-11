@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
-	svc "hexchess-svc/service/replay"
+	svc "hexchess-svc/service"
 
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"

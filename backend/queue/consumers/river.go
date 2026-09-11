@@ -6,10 +6,7 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
-	"hexchess-svc/service/gameplay"
-	"hexchess-svc/service/gamestate"
-	"hexchess-svc/service/tournament"
-	"hexchess-svc/service/user"
+	"hexchess-svc/service"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
@@ -73,7 +70,7 @@ func (*defaultErrorHandler) HandlePanic(ctx context.Context, job *rivertype.JobR
 
 type AdvanceTournamentWorker struct {
 	river.WorkerDefaults[queue.AdvanceTournamentJob]
-	orchestrator *tournament.TournamentAdvanceService
+	orchestrator *service.TournamentAdvanceService
 }
 
 func NewAdvanceTournamentWorker(
@@ -82,12 +79,12 @@ func NewAdvanceTournamentWorker(
 	broadcaster pubsub.Broadcaster,
 ) *AdvanceTournamentWorker {
 	return &AdvanceTournamentWorker{
-		orchestrator: tournament.NewTournamentAdvanceService(
+		orchestrator: service.NewTournamentAdvanceService(
 			database,
-			user.NewUserService(database),
-			gameplay.NewGameCreateService(
+			service.NewUserService(database),
+			service.NewGameCreateService(
 				redis,
-				gamestate.NewChessRepoService(redis),
+				service.NewChessRepoService(redis),
 			),
 			broadcaster,
 		),
@@ -98,7 +95,7 @@ func (w *AdvanceTournamentWorker) Work(ctx context.Context, job *river.Job[queue
 	slog.InfoContext(ctx, "begin tournament advance event", "job", job.Args)
 
 	gameIDs, err := w.orchestrator.AdvanceTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
-	if errutil.IsType[tournament.MatchInvariantError](err) {
+	if errutil.IsType[service.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
 	} else if err != nil {
 		return err
