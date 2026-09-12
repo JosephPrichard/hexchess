@@ -54,7 +54,7 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 	// progress tournament on the database
 	matches, err := services.ProgressTournament(ctx, tournamentKey, eventID)
 	if err != nil {
-		return nil, serrors.New("advance tournament", err, "tournamentKey", tournamentKey)
+		return nil, serrors.New("advance tournament", err, "key", tournamentKey)
 	}
 
 	// create playable games correlated with the committed matches
@@ -129,7 +129,7 @@ func progressTournament(ctx context.Context, query database.QuerierMutator, tour
 
 	tournament, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select tournament by key", err, "key", tournamentKey)
 	}
 	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
 
@@ -157,7 +157,7 @@ func progressTournament(ctx context.Context, query database.QuerierMutator, tour
 	}
 
 	*matchesToCreate = matchmaking.NextMatches
-	slog.InfoContext(ctx, "advanced tournament", "tournamentKey", tournamentKey, "matchesToCreate", matchesToCreate)
+	slog.InfoContext(ctx, "advanced tournament", "key", tournamentKey, "matchesToCreate", matchesToCreate)
 	return nil
 }
 
@@ -250,7 +250,7 @@ func insertCreatedMatches(
 	matchmaking MatchmakingOutput,
 ) error {
 	if err := insertTournamentMatches(ctx, query, pgtype.UUID{Bytes: tournamentKey, Valid: true}, matchmaking); err != nil {
-		return serrors.New("insert tournament matches", err, "tournamentKey", tournamentKey, "matchmaking", matchmaking)
+		return serrors.New("insert tournament matches", err, "key", tournamentKey, "matchmaking", matchmaking)
 	}
 
 	eventInput, err := sonic.Marshal(model.MatchCreations{Creations: matchmaking.NextMatches})
@@ -276,7 +276,7 @@ func insertTournamentMatches(ctx context.Context, query database.QuerierMutator,
 		Rounds:        pgtype.Int4{Int32: response.TotalRounds, Valid: true},
 		WinnerID:      pgtype.Int8{Int64: response.WinnerID, Valid: shouldUpdateWinnerID},
 	}); err != nil {
-		return serrors.New("update tournament status", err, "tournamentKey", tournamentKey, "response", response)
+		return serrors.New("update tournament status", err, "key", tournamentKey, "response", response)
 	}
 
 	if len(response.NextMatches) > 0 {

@@ -753,7 +753,7 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 		return serrors.New("insert tournament", err)
 	}
 
-	slog.InfoContext(ctx, "created tournament", "tournamentID", tournamentID, "tournamentKey", tournamentKey)
+	slog.InfoContext(ctx, "created tournament", "tournamentID", tournamentID, "key", tournamentKey)
 
 	writeJSON(w, http.StatusCreated, CreateTournamentResp{TournamentKey: tournamentKey.String()})
 	return nil
@@ -781,10 +781,10 @@ func (server *HttpServer) HandleJoinTournament(w http.ResponseWriter, r *http.Re
 		InsertionTime: time.Now(),
 	})
 	if err != nil {
-		return serrors.New("join tournament by tournament id", err, "tournamentKey", tournamentKey)
+		return serrors.New("join tournament by tournament id", err, "key", tournamentKey)
 	}
 
-	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "tournamentKey", tournamentKey)
+	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "key", tournamentKey)
 
 	server.dispatcher.Go(func() {
 		server.services.NotifyTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
@@ -808,7 +808,7 @@ func (server *HttpServer) HandleBeginCountdownTournament(w http.ResponseWriter, 
 
 	result, err := server.services.BeginTournamentCountdown(ctx, tournamentKey, player.ID)
 	if err != nil {
-		return serrors.New("begin tournament countdown by tournament id", err, "tournamentKey", tournamentKey)
+		return serrors.New("begin tournament countdown by tournament id", err, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
@@ -883,7 +883,7 @@ func (server *HttpServer) HandleLeaveTournament(w http.ResponseWriter, r *http.R
 	if err != nil {
 		return serrors.New("leave tournament", err)
 	}
-	slog.Info("attempted to leave tournament", "didLeave", didLeave, "tournamentKey", tournamentKey, "player", player)
+	slog.Info("attempted to leave tournament", "didLeave", didLeave, "key", tournamentKey, "player", player)
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil

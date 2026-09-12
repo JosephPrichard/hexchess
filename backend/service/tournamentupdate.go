@@ -97,10 +97,10 @@ func (services *UpdateTournamentService) LeaveTournament(ctx context.Context, to
 		UserID:        userID,
 	})
 	if err != nil {
-		return false, serrors.New("delete participant from tournament", err, "userID", userID, "tournamentKey", tournamentKey)
+		return false, serrors.New("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
 	}
 
-	slog.InfoContext(ctx, "deleted tournament participant", "tournamentKey", tournamentKey, "deletedIDs", deletedIDs)
+	slog.InfoContext(ctx, "deleted tournament participant", "key", tournamentKey, "deletedIDs", deletedIDs)
 	return len(deletedIDs) > 0, nil
 }
 
@@ -219,7 +219,7 @@ func (services *UpdateTournamentService) BeginTournamentCountdown(ctx context.Co
 func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
 	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select tournament by key", err, "key", tournamentKey)
 	}
 
 	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
@@ -240,14 +240,14 @@ func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Co
 		Status:             mutator.TournamentStatusEnum(nextTournamentStatus.String()),
 		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 	}); err != nil {
-		return serrors.New("update tournament status", err, "tournamentKey", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
+		return serrors.New("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 	}
 
 	if err := services.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
 	}); err != nil {
-		return serrors.New("publish advance tournament event", err, "tournamentKey", tournamentKey)
+		return serrors.New("publish advance tournament event", err, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)

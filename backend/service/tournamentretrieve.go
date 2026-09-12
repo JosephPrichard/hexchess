@@ -40,17 +40,17 @@ func (services *RetrieveTournamentService) GetTournament(ctx context.Context, to
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = services.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.New("select tournament by key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select tournament by key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		participantRows, err = services.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.New("select participants by tournament key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select participants by tournament key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		matchRows, err = services.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.New("select replay matches by tournament key", err, "tournamentKey", tournamentKey)
+		return serrors.New("select replay matches by tournament key", err, "key", tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
