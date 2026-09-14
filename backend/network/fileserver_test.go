@@ -1,4 +1,4 @@
-package network
+package network_test
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
+	"hexchess-svc/network"
 	"hexchess-svc/utils/async"
 	svc "hexchess-svc/utils/entropy"
 	"io"
@@ -87,7 +88,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 			r := httptest.NewRequest(http.MethodPost, "/api/users/profile-pics", bytes.NewBuffer(tt.body))
 			r.Header.Set("Content-Type", tt.contentType)
 			r.Header.Set("Content-Length", strconv.Itoa(len(tt.body)))
-			r.Header.Set("Cookie", FmtCookie(TestSessionID2))
+			r.Header.Set("Cookie", network.FmtCookie(TestSessionID2))
 			r.Header.Set("Content-Digest", tt.checksum)
 			w := httptest.NewRecorder()
 

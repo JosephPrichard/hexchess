@@ -1,9 +1,11 @@
-package network
+package network_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hexchess-svc/cloud"
+	"hexchess-svc/network"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/opt"
 
@@ -35,46 +37,56 @@ import (
 )
 
 var serviceViewCmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(ServiceResp{}, "Message"),
-	cmpopts.IgnoreFields(OneError{}, "Message"),
+	cmpopts.IgnoreFields(network.ServiceResp{}, "Message"),
+	cmpopts.IgnoreFields(network.OneError{}, "Message"),
+}
+
+var testSessionViewCmpOpts = cmpopts.IgnoreFields(network.SessionView{}, "ID", "TTLSecs")
+
+func asJSONReader(v any) *strings.Reader {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic("json marshal failed: " + err.Error())
+	}
+	return strings.NewReader(string(b))
 }
 
 func TestHandleRegister(t *testing.T) {
 	tests := []struct {
 		name        string
-		body        RegisterBody
-		wantSuccess SessionView
-		wantFail    ServiceResp
+		body        network.RegisterBody
+		wantSuccess network.SessionView
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:        "ValidUsername",
-			body:        RegisterBody{Username: "testing-name", Password: "testing-password", ConfirmPassword: "testing-password"},
-			wantSuccess: SessionView{Username: "testing-name", Country: "un"},
+			body:        network.RegisterBody{Username: "testing-name", Password: "testing-password", ConfirmPassword: "testing-password"},
+			wantSuccess: network.SessionView{Username: "testing-name", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 		{
 			name:       "InvalidPasswordConfirmDoesNotMatch",
-			body:       RegisterBody{Username: "testing-name1", Password: "testing-password1", ConfirmPassword: "wrong"},
-			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
+			body:       network.RegisterBody{Username: "testing-name1", Password: "testing-password1", ConfirmPassword: "wrong"},
+			wantFail:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpConfirmPassword.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name: "InvalidUsernameAndPasswordTooShort",
-			body: RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
-			wantFail: ServiceResp{
+			body: network.RegisterBody{Username: "s", Password: "short", ConfirmPassword: "short"},
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"RegisterBody.Username": {Error: ErrHttpInvalidUsername.Error()},
-					"RegisterBody.Password": {Error: ErrHttpInvalidPassword.Error()},
+				Errors: map[string]network.OneError{
+					"RegisterBody.Username": {Error: network.ErrHttpInvalidUsername.Error()},
+					"RegisterBody.Password": {Error: network.ErrHttpInvalidPassword.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "InvalidUsernameDuplicate",
-			body:       RegisterBody{Username: itest.UsersInsts[0].Username, Password: "testing-password2", ConfirmPassword: "testing-password2"},
-			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpDuplicateUsername.Error()},
+			body:       network.RegisterBody{Username: itest.UsersInsts[0].Username, Password: "testing-password2", ConfirmPassword: "testing-password2"},
+			wantFail:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpDuplicateUsername.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 	}
@@ -104,21 +116,21 @@ func TestHandleLogin(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		body        LoginBody
-		wantSuccess SessionView
-		wantFail    ServiceResp
+		body        network.LoginBody
+		wantSuccess network.SessionView
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "InvalidLogin",
-			body:       LoginBody{Username: "testing-name", Password: "testing-password"},
-			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
+			body:       network.LoginBody{Username: "testing-name", Password: "testing-password"},
+			wantFail:   network.ServiceResp{Status: http.StatusUnauthorized, Error: network.ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:        "ValidLogin",
-			body:        LoginBody{Username: user.Username, Password: "password1"},
-			wantSuccess: SessionView{Username: user.Username, Country: "us"},
+			body:        network.LoginBody{Username: user.Username, Password: "password1"},
+			wantSuccess: network.SessionView{Username: user.Username, Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -150,9 +162,9 @@ func TestHandleGoogleLogin(t *testing.T) {
 		name        string
 		runCount    int
 		setupMocks  func(*gomock.Controller) cloud.SDKs
-		body        GoogleLoginBody
-		wantSuccess SessionView
-		wantFail    ServiceResp
+		body        network.GoogleLoginBody
+		wantSuccess network.SessionView
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
@@ -166,8 +178,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 				return cloud.NewOptRemoteAPIs(
 					cloud.WithGoogleIDTokenValidator(validator, apiKey))
 			},
-			body:       GoogleLoginBody{Token: "invalidToken123"},
-			wantFail:   ServiceResp{Status: http.StatusInternalServerError, Error: ErrHttpFatal.Error()},
+			body:       network.GoogleLoginBody{Token: "invalidToken123"},
+			wantFail:   network.ServiceResp{Status: http.StatusInternalServerError, Error: network.ErrHttpFatal.Error()},
 			wantStatus: http.StatusInternalServerError,
 		},
 		{
@@ -182,8 +194,8 @@ func TestHandleGoogleLogin(t *testing.T) {
 				return cloud.NewOptRemoteAPIs(
 					cloud.WithGoogleIDTokenValidator(validator, apiKey))
 			},
-			body:        GoogleLoginBody{Token: "testToken123"},
-			wantSuccess: SessionView{Username: "email@domain.com", Country: "un"},
+			body:        network.GoogleLoginBody{Token: "testToken123"},
+			wantSuccess: network.SessionView{Username: "email@domain.com", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -221,56 +233,56 @@ func TestHandleGoogleLogin(t *testing.T) {
 func TestHandleUpdateUser(t *testing.T) {
 	tests := []struct {
 		name        string
-		body        UpdateUserBody
+		body        network.UpdateUserBody
 		sessionID   string
-		wantSuccess SessionView
-		wantFail    ServiceResp
+		wantSuccess network.SessionView
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "UnauthorizedUser",
-			body:       UpdateUserBody{NewUsername: "username"},
+			body:       network.UpdateUserBody{NewUsername: "username"},
 			sessionID:  "invalid",
-			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
+			wantFail:   network.ServiceResp{Status: http.StatusUnauthorized, Error: network.ErrHttpSessionExpired.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name:      "InvalidUsernameAndBiographyLength",
-			body:      UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
+			body:      network.UpdateUserBody{NewCountry: "us", NewUsername: "s", NewBio: strings.Repeat("a", 5001)},
 			sessionID: TestSessionID1,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"UpdateUserBody.NewBio":      {Error: ErrHttpInvalidBio.Error()},
-					"UpdateUserBody.NewUsername": {Error: ErrHttpInvalidUsername.Error()},
+				Errors: map[string]network.OneError{
+					"UpdateUserBody.NewBio":      {Error: network.ErrHttpInvalidBio.Error()},
+					"UpdateUserBody.NewUsername": {Error: network.ErrHttpInvalidUsername.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:      "InvalidCountryUnknown",
-			body:      UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
+			body:      network.UpdateUserBody{NewCountry: "wrong", NewUsername: "new-username", NewBio: "testing biography"},
 			sessionID: TestSessionID1,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"UpdateUserBody.NewCountry": {Error: ErrHttpInvalidCountry.Error()},
+				Errors: map[string]network.OneError{
+					"UpdateUserBody.NewCountry": {Error: network.ErrHttpInvalidCountry.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "UpdatingBioOnly",
-			body:        UpdateUserBody{NewBio: "testing biography"},
+			body:        network.UpdateUserBody{NewBio: "testing biography"},
 			sessionID:   TestSessionID1,
-			wantSuccess: SessionView{Username: "user1", Country: "us"},
+			wantSuccess: network.SessionView{Username: "user1", Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 		{
 			name:        "UpdatingUsernameBioAndCountry",
-			body:        UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "un"},
+			body:        network.UpdateUserBody{NewUsername: "new-username", NewBio: "testing biography", NewCountry: "un"},
 			sessionID:   TestSessionID1,
-			wantSuccess: SessionView{Username: "new-username", Country: "un"},
+			wantSuccess: network.SessionView{Username: "new-username", Country: "un"},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -283,7 +295,7 @@ func TestHandleUpdateUser(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
+			r.Header.Set("Cookie", network.FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
@@ -301,38 +313,38 @@ func TestHandleUpdateUser(t *testing.T) {
 func TestHandleUpdatePassword(t *testing.T) {
 	tests := []struct {
 		name        string
-		body        UpdatePasswordBody
-		wantSuccess ServiceResp
-		wantFail    ServiceResp
+		body        network.UpdatePasswordBody
+		wantSuccess network.ServiceResp
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "InvalidLogin",
-			body:       UpdatePasswordBody{Password: "password2", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
-			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpInvalidLogin.Error()},
+			body:       network.UpdatePasswordBody{Password: "password2", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
+			wantFail:   network.ServiceResp{Status: http.StatusUnauthorized, Error: network.ErrHttpInvalidLogin.Error()},
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name: "InvalidPasswordLength",
-			body: UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
-			wantFail: ServiceResp{
+			body: network.UpdatePasswordBody{Password: "password1", NewPassword: "short", ConfirmNewPassword: "short"},
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"UpdatePasswordBody.NewPassword": {Error: ErrHttpInvalidPassword.Error()},
+				Errors: map[string]network.OneError{
+					"UpdatePasswordBody.NewPassword": {Error: network.ErrHttpInvalidPassword.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "InvalidPasswordConfirmDoesNotMatch",
-			body:       UpdatePasswordBody{Password: "password1", NewPassword: "testing-password1", ConfirmNewPassword: "testing-password"},
-			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpConfirmPassword.Error()},
+			body:       network.UpdatePasswordBody{Password: "password1", NewPassword: "testing-password1", ConfirmNewPassword: "testing-password"},
+			wantFail:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpConfirmPassword.Error()},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:        "ValidPasswordUpdate",
-			body:        UpdatePasswordBody{Password: "password1", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
-			wantSuccess: ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
+			body:        network.UpdatePasswordBody{Password: "password1", NewPassword: "testing-password", ConfirmNewPassword: "testing-password"},
+			wantSuccess: network.ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -345,7 +357,7 @@ func TestHandleUpdatePassword(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/users/password", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			r.Header.Set("Cookie", network.FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
@@ -363,58 +375,58 @@ func TestHandleUpdatePassword(t *testing.T) {
 func TestHandleUpdateChallenge(t *testing.T) {
 	tests := []struct {
 		name       string
-		body       UpdateChallengeBody
+		body       network.UpdateChallengeBody
 		sessionID  string
-		wantFail   ServiceResp
+		wantFail   network.ServiceResp
 		wantStatus int
 	}{
 		{
 			name:       "UnauthorizedUser",
-			body:       UpdateChallengeBody{Action: "DELETE"},
-			wantFail:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
+			body:       network.UpdateChallengeBody{Action: "DELETE"},
+			wantFail:   network.ServiceResp{Status: http.StatusUnauthorized, Error: network.ErrHttpSessionExpired.Error()},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
 		},
 		{
 			name: "InvalidChallengeAction",
-			body: UpdateChallengeBody{Action: "invalid"},
-			wantFail: ServiceResp{
+			body: network.UpdateChallengeBody{Action: "invalid"},
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{"UpdateChallengeBody.Action": {Error: ErrHttpInvalidInput.Error()}},
+				Errors: map[string]network.OneError{"UpdateChallengeBody.Action": {Error: network.ErrHttpInvalidInput.Error()}},
 			},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "InvalidChallenge",
-			body:       UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
-			wantFail:   ServiceResp{Status: http.StatusNotFound, Error: ErrHttpNotFoundChallenge.Error()},
+			body:       network.UpdateChallengeBody{ChallengerID: 999, ChallengeeID: 1, Action: "ACCEPT"},
+			wantFail:   network.ServiceResp{Status: http.StatusNotFound, Error: network.ErrHttpNotFoundChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name:       "InvalidDeleteChallengeCannotDeleteNotOwn",
-			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
-			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
+			body:       network.UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "DELETE"},
+			wantFail:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpUpdateChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "ValidDeleteChallenge",
-			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "DELETE"},
+			body:       network.UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "DELETE"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "InvalidAcceptChallengeCannotAcceptOwn",
-			body:       UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "ACCEPT"},
-			wantFail:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpUpdateChallenge.Error()},
+			body:       network.UpdateChallengeBody{ChallengerID: 1, ChallengeeID: 2, Action: "ACCEPT"},
+			wantFail:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpUpdateChallenge.Error()},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "ValidAcceptChallenge",
-			body:       UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "ACCEPT"},
+			body:       network.UpdateChallengeBody{ChallengerID: 5, ChallengeeID: 1, Action: "ACCEPT"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
 		},
@@ -428,7 +440,7 @@ func TestHandleUpdateChallenge(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/update", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
+			r.Header.Set("Cookie", network.FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
@@ -444,25 +456,25 @@ func TestHandleUpdateChallenge(t *testing.T) {
 func TestHandleCreateGame(t *testing.T) {
 	tests := []struct {
 		name       string
-		body       CreateGameBody
+		body       network.CreateGameBody
 		wantStatus int
-		wantFail   ServiceResp
+		wantFail   network.ServiceResp
 	}{
 		{
 			name:       "CreatedGame",
-			body:       CreateGameBody{FirstColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       network.CreateGameBody{FirstColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			wantStatus: http.StatusOK,
 		},
 		{
 			name:       "InvalidModeColorAndInitialFen",
-			body:       CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
+			body:       network.CreateGameBody{InitialFEN: "invalid", FirstColor: "invalid", Mode: "invalid"},
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"CreateGameBody.FirstColor": {Error: ErrHttpInvalidInput.Error()},
-					"CreateGameBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
-					"CreateGameBody.InitialFen": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"CreateGameBody.FirstColor": {Error: network.ErrHttpInvalidInput.Error()},
+					"CreateGameBody.Mode":       {Error: network.ErrHttpInvalidInput.Error()},
+					"CreateGameBody.InitialFen": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 		},
@@ -480,7 +492,7 @@ func TestHandleCreateGame(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/games/create", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(TestSessionID1))
+			r.Header.Set("Cookie", network.FmtCookie(TestSessionID1))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
@@ -496,56 +508,56 @@ func TestHandleCreateGame(t *testing.T) {
 func TestHandleCreateChallenge(t *testing.T) {
 	tests := []struct {
 		name       string
-		body       CreateChallengeBody
+		body       network.CreateChallengeBody
 		sessionID  string
 		wantStatus int
-		wantResp   ServiceResp
+		wantResp   network.ServiceResp
 	}{
 		{
 			name:       "UnauthorizedUser",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       network.CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  "invalid",
 			wantStatus: http.StatusUnauthorized,
-			wantResp:   ServiceResp{Status: http.StatusUnauthorized, Error: ErrHttpSessionExpired.Error()},
+			wantResp:   network.ServiceResp{Status: http.StatusUnauthorized, Error: network.ErrHttpSessionExpired.Error()},
 		},
 		{
 			name:       "ChallengingSelf",
-			body:       CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       network.CreateChallengeBody{ChallengeeID: 1, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpSelfChallenge.Error()},
+			wantResp:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpSelfChallenge.Error()},
 		},
 		{
 			name:       "ChallengingInvalidUser",
-			body:       CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       network.CreateChallengeBody{ChallengeeID: 999, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpInvalidParticipants.Error()},
+			wantResp:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpInvalidParticipants.Error()},
 		},
 		{
 			name:       "CreatingDuplicateChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       network.CreateChallengeBody{ChallengeeID: 2, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp:   ServiceResp{Status: http.StatusBadRequest, Error: ErrHttpDuplicateChallenge.Error()},
+			wantResp:   network.ServiceResp{Status: http.StatusBadRequest, Error: network.ErrHttpDuplicateChallenge.Error()},
 		},
 		{
 			name:       "CreatedChallenge",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
+			body:       network.CreateChallengeBody{ChallengeeID: 4, StartColor: "WHITE", Mode: "CORRESPONDENCE_1"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusOK,
-			wantResp:   ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
+			wantResp:   network.ServiceResp{Status: http.StatusOK, Message: "SUCCESS"},
 		},
 		{
 			name:       "InvalidModeAndColor",
-			body:       CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
+			body:       network.CreateChallengeBody{ChallengeeID: 4, StartColor: "invalid", Mode: "invalid"},
 			sessionID:  TestSessionID1,
 			wantStatus: http.StatusBadRequest,
-			wantResp: ServiceResp{
+			wantResp: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"CreateChallengeBody.Mode":       {Error: ErrHttpInvalidInput.Error()},
-					"CreateChallengeBody.StartColor": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"CreateChallengeBody.Mode":       {Error: network.ErrHttpInvalidInput.Error()},
+					"CreateChallengeBody.StartColor": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 		},
@@ -562,7 +574,7 @@ func TestHandleCreateChallenge(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodPost, "/api/challenges/create", asJSONReader(tt.body))
-			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
+			r.Header.Set("Cookie", network.FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
@@ -579,14 +591,14 @@ func TestHandleSearchPlayers(t *testing.T) {
 		username    string
 		page        string
 		wantStatus  int
-		wantSuccess SearchPlayersResp
-		wantFail    ServiceResp
+		wantSuccess network.SearchPlayersResp
+		wantFail    network.ServiceResp
 	}{
 		{
 			name:       "SearchPlayers",
 			username:   "john",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchPlayersResp{
+			wantSuccess: network.SearchPlayersResp{
 				UserList: []model.LbdUser{
 					{
 						User: model.User{
@@ -644,19 +656,19 @@ func TestGetLeaderboard(t *testing.T) {
 		mode        string
 		page        string
 		wantStatus  int
-		wantSuccess LeaderboardResp
-		wantFail    ServiceResp
+		wantSuccess network.LeaderboardResp
+		wantFail    network.ServiceResp
 	}{
 		{
 			name:       "InvalidPageAndMode",
 			mode:       "invalid",
 			page:       "invalid",
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"mode": {Error: ErrHttpInvalidInput.Error()},
-					"page": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"mode": {Error: network.ErrHttpInvalidInput.Error()},
+					"page": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 		},
@@ -664,7 +676,7 @@ func TestGetLeaderboard(t *testing.T) {
 			name:       "ValidLeaderboard",
 			mode:       model.ModeTimed1Plus0.String(),
 			wantStatus: http.StatusOK,
-			wantSuccess: LeaderboardResp{
+			wantSuccess: network.LeaderboardResp{
 				TotalPages: 1,
 				UserList: []model.LbdUser{
 					{
@@ -715,14 +727,14 @@ func TestGetPersona(t *testing.T) {
 	tests := []struct {
 		name        string
 		id          string
-		wantSuccess GetPersonaResp
-		wantFail    ServiceResp
+		wantSuccess network.GetPersonaResp
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name: "GetPlayerWithReplays",
 			id:   "1",
-			wantSuccess: GetPersonaResp{
+			wantSuccess: network.GetPersonaResp{
 				Persona: model.Persona{
 					User:  itest.TestUser[0],
 					Stats: itest.TestUserStats[0],
@@ -739,16 +751,16 @@ func TestGetPersona(t *testing.T) {
 		{
 			name:       "GotNoUser",
 			id:         "998877",
-			wantFail:   ServiceResp{Status: http.StatusNotFound, Error: ErrHttpNotFoundUser.Error()},
+			wantFail:   network.ServiceResp{Status: http.StatusNotFound, Error: network.ErrHttpNotFoundUser.Error()},
 			wantStatus: http.StatusNotFound,
 		},
 		{
 			name: "InvalidUserID",
 			id:   "testing",
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"id": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"id": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
@@ -780,7 +792,7 @@ func TestGetChallenges(t *testing.T) {
 		name         string
 		participants string
 		sessionID    string
-		wantSuccess  GetChallengesResp
+		wantSuccess  network.GetChallengesResp
 		wantStatus   int
 	}{
 		{
@@ -793,7 +805,7 @@ func TestGetChallenges(t *testing.T) {
 			name:         "GotSentChallenges",
 			participants: "sent",
 			sessionID:    TestSessionID1,
-			wantSuccess: GetChallengesResp{
+			wantSuccess: network.GetChallengesResp{
 				ChallengeList: []model.Challenge{itest.TestChallenge[0]},
 			},
 			wantStatus: http.StatusOK,
@@ -802,7 +814,7 @@ func TestGetChallenges(t *testing.T) {
 			name:         "GotReceivedChallenges",
 			participants: "received",
 			sessionID:    TestSessionID1,
-			wantSuccess: GetChallengesResp{
+			wantSuccess: network.GetChallengesResp{
 				ChallengeList: []model.Challenge{itest.TestChallenge[1]},
 			},
 			wantStatus: http.StatusOK,
@@ -820,7 +832,7 @@ func TestGetChallenges(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/challenges?participants=%s", tt.participants), nil)
-			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
+			r.Header.Set("Cookie", network.FmtCookie(tt.sessionID))
 			w := httptest.NewRecorder()
 
 			h.ServeHTTP(w, r)
@@ -837,15 +849,15 @@ func TestHandleSearchReplays(t *testing.T) {
 	tests := []struct {
 		name        string
 		params      string
-		wantSuccess SearchReplaysResp
-		wantFail    ServiceResp
+		wantSuccess network.SearchReplaysResp
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:       "GotUserReplays_ByUserID",
 			params:     "userId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[4],
 				itest.TestReplays[3],
 				itest.TestReplays[2],
@@ -856,7 +868,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByUserID_SortedRating",
 			params:     "userId=1&sort=rating",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[4],
 				itest.TestReplays[3],
 				itest.TestReplays[0],
@@ -867,7 +879,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByUserID_SortedTurnCount",
 			params:     "userId=1&sort=turnCount",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[0],
 				itest.TestReplays[3],
 				itest.TestReplays[2],
@@ -878,7 +890,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByWinnerID_LoserID",
 			params:     "winnerId=1&loserId=2",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[0],
 			}},
 		},
@@ -886,7 +898,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByWhiteID",
 			params:     "whiteId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[4],
 				itest.TestReplays[3],
 				itest.TestReplays[0],
@@ -896,7 +908,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByWhiteID_BlackID",
 			params:     "whiteId=3&blackId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[2],
 			}},
 		},
@@ -904,7 +916,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByWhiteID_WinnerID",
 			params:     "whiteId=1&winnerId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[3],
 				itest.TestReplays[0],
 			}},
@@ -913,7 +925,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByWhiteID_LoserID",
 			params:     "whiteId=1&loserId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[4],
 			}},
 		},
@@ -921,7 +933,7 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByUserID_Mode_Result_Cause",
 			params:     "userId=1&mode=CORRESPONDENCE_7&result=WHITE_WINS&cause=CHECKMATE",
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[3],
 				itest.TestReplays[0],
 			}},
@@ -932,7 +944,7 @@ func TestHandleSearchReplays(t *testing.T) {
 				"userId=1&toDate=%s",
 				(itest.TimeNow.Add(time.Hour * 24 * 2)).Format(time.DateOnly)),
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[2],
 				itest.TestReplays[0],
 			}},
@@ -943,7 +955,7 @@ func TestHandleSearchReplays(t *testing.T) {
 				"userId=1&fromDate=%s",
 				(itest.TimeNow.Add(time.Hour * 24 * 2)).Format(time.DateOnly)),
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[4],
 				itest.TestReplays[3],
 				itest.TestReplays[2],
@@ -956,37 +968,37 @@ func TestHandleSearchReplays(t *testing.T) {
 				(itest.TimeNow.Add(time.Hour * 24 * 1)).Format(time.DateOnly),
 				(itest.TimeNow.Add(time.Hour * 24 * 3)).Format(time.DateOnly)),
 			wantStatus: http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
 				itest.TestReplays[3],
 				itest.TestReplays[2],
 			}},
 		},
-		// tests for non existent users
+		// tests for non-existent users
 		{
 			name:        "GotNoReplaysForNonexistentUser",
 			params:      "userId=999",
 			wantStatus:  http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{}},
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{}},
 		},
 		{
 			name:        "GotNoReplaysForNonexistentUser",
 			params:      "whiteId=999",
 			wantStatus:  http.StatusOK,
-			wantSuccess: SearchReplaysResp{ReplayList: []model.FullReplay{}},
+			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{}},
 		},
 		// input field validations
 		{
 			name:   "Invalid_UserIDs",
 			params: "userId=INVALID&afterId=INVALID&whiteId=INVALID&blackId=INVALID&loserId=INVALID&winnerId=INVALID",
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"afterId":  {Error: ErrHttpInvalidInput.Error()},
-					"userId":   {Error: ErrHttpInvalidInput.Error()},
-					"whiteId":  {Error: ErrHttpInvalidInput.Error()},
-					"blackId":  {Error: ErrHttpInvalidInput.Error()},
-					"loserId":  {Error: ErrHttpInvalidInput.Error()},
-					"winnerId": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"afterId":  {Error: network.ErrHttpInvalidInput.Error()},
+					"userId":   {Error: network.ErrHttpInvalidInput.Error()},
+					"whiteId":  {Error: network.ErrHttpInvalidInput.Error()},
+					"blackId":  {Error: network.ErrHttpInvalidInput.Error()},
+					"loserId":  {Error: network.ErrHttpInvalidInput.Error()},
+					"winnerId": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 			wantStatus: http.StatusBadRequest,
@@ -995,12 +1007,12 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "Invalid_ModeResultCause",
 			params:     "mode=INVALID&result=INVALID&cause=INVALID",
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"cause":  {Error: ErrHttpInvalidInput.Error()},
-					"mode":   {Error: ErrHttpInvalidInput.Error()},
-					"result": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"cause":  {Error: network.ErrHttpInvalidInput.Error()},
+					"mode":   {Error: network.ErrHttpInvalidInput.Error()},
+					"result": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 		},
@@ -1008,11 +1020,11 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "Invalid_Datetime",
 			params:     "fromDate=INVALID&toDate=INVALID",
 			wantStatus: http.StatusBadRequest,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"fromDate": {Error: ErrHttpInvalidInput.Error()},
-					"toDate":   {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"fromDate": {Error: network.ErrHttpInvalidInput.Error()},
+					"toDate":   {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 		},
@@ -1042,20 +1054,20 @@ func TestHandleGetReplay(t *testing.T) {
 	tests := []struct {
 		name        string
 		userID      string
-		wantSuccess GetReplayResp
-		wantFail    ServiceResp
+		wantSuccess network.GetReplayResp
+		wantFail    network.ServiceResp
 		wantStatus  int
 	}{
 		{
 			name:        "GotReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
-			wantSuccess: GetReplayResp{Replay: itest.TestReplays[0]},
+			wantSuccess: network.GetReplayResp{Replay: itest.TestReplays[0]},
 		},
 		{
 			name:       "GotNoReplay",
 			userID:     "998877",
-			wantFail:   ServiceResp{Status: http.StatusNotFound, Error: ErrHttpNotFoundReplay.Error()},
+			wantFail:   network.ServiceResp{Status: http.StatusNotFound, Error: network.ErrHttpNotFoundReplay.Error()},
 			wantStatus: http.StatusNotFound,
 		},
 	}
@@ -1081,7 +1093,7 @@ func TestHandleGetReplay(t *testing.T) {
 }
 
 func TestHandleGetGameMetadata(t *testing.T) {
-	allChessMetas := []ChessMeta{
+	allChessMetas := []network.ChessMeta{
 		{Ordering: 3, GameID: itest.GameID3, Mode: "CORRESPONDENCE_1"},
 		{Ordering: 2, GameID: itest.GameID2, Mode: "CORRESPONDENCE_1"},
 		{
@@ -1096,15 +1108,15 @@ func TestHandleGetGameMetadata(t *testing.T) {
 		name       string
 		sessionID  string
 		wantStatus int
-		wantResp   ChessMetasResp
+		wantResp   network.ChessMetasResp
 	}{
 		{
 			name:       "ChessMetasWithSelfList",
 			sessionID:  TestSessionID2,
 			wantStatus: http.StatusOK,
-			wantResp: ChessMetasResp{
+			wantResp: network.ChessMetasResp{
 				ChessList: allChessMetas,
-				SelfChessList: []ChessMeta{
+				SelfChessList: []network.ChessMeta{
 					{
 						Ordering:    1,
 						GameID:      itest.GameID1,
@@ -1118,9 +1130,9 @@ func TestHandleGetGameMetadata(t *testing.T) {
 			name:       "ChessMetasWithoutSelfList",
 			sessionID:  "invalid",
 			wantStatus: http.StatusOK,
-			wantResp: ChessMetasResp{
+			wantResp: network.ChessMetasResp{
 				ChessList:     allChessMetas,
-				SelfChessList: []ChessMeta{},
+				SelfChessList: []network.ChessMeta{},
 			},
 		},
 	}
@@ -1133,7 +1145,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 			createTestSessions(t, testinfra.Redis)
 
 			r := httptest.NewRequest(http.MethodGet, "/api/game/rooms", nil)
-			r.Header.Set("Cookie", FmtCookie(tt.sessionID))
+			r.Header.Set("Cookie", network.FmtCookie(tt.sessionID))
 
 			w := httptest.NewRecorder()
 			h.ServeHTTP(w, r)
@@ -1169,15 +1181,15 @@ func TestGetTournament(t *testing.T) {
 	tests := []struct {
 		name          string
 		tournamentKey string
-		wantResp      GetTournamentResp
+		wantResp      network.GetTournamentResp
 		wantStatus    int
-		wantFail      ServiceResp
+		wantFail      network.ServiceResp
 	}{
 		{
 			name:          "GotTournament",
 			tournamentKey: itest.Tournament0LobbyKey.String(),
 			wantStatus:    http.StatusOK,
-			wantResp: GetTournamentResp{
+			wantResp: network.GetTournamentResp{
 				Tournament:   itest.Tournaments[0],
 				Participants: []model.Participant{},
 				Matches:      []model.FullMatch{},
@@ -1187,7 +1199,7 @@ func TestGetTournament(t *testing.T) {
 			name:          "RetrieveFullTournament",
 			tournamentKey: itest.Tournament9InProgressUncompletedKey.String(),
 			wantStatus:    http.StatusOK,
-			wantResp: GetTournamentResp{
+			wantResp: network.GetTournamentResp{
 				Tournament:   itest.Tournaments[9],
 				Participants: []model.Participant{},
 				Matches:      itest.MatchesTournament9, // stable ordering using the `ordering` column
@@ -1197,19 +1209,19 @@ func TestGetTournament(t *testing.T) {
 			name:          "TournamentNotFound",
 			tournamentKey: uuid.NewString(),
 			wantStatus:    http.StatusNotFound,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusNotFound,
-				Error:  ErrHttpNotFoundTournament.Error(),
+				Error:  network.ErrHttpNotFoundTournament.Error(),
 			},
 		},
 		{
 			name:          "InvalidTournamentKey",
 			tournamentKey: "invalid",
 			wantStatus:    http.StatusBadRequest,
-			wantFail: ServiceResp{
+			wantFail: network.ServiceResp{
 				Status: http.StatusBadRequest,
-				Errors: map[string]OneError{
-					"tournamentKey": {Error: ErrHttpInvalidInput.Error()},
+				Errors: map[string]network.OneError{
+					"tournamentKey": {Error: network.ErrHttpInvalidInput.Error()},
 				},
 			},
 		},
@@ -1248,16 +1260,16 @@ func TestGetTournaments(t *testing.T) {
 		name       string
 		userID     string
 		afterID    string
-		wantResp   GetTournamentsResp
+		wantResp   network.GetTournamentsResp
 		wantStatus int
-		wantFail   ServiceResp
+		wantFail   network.ServiceResp
 	}{
 		{
 			name:       "RetrievedTournaments",
 			userID:     "",
 			afterID:    "",
 			wantStatus: http.StatusOK,
-			wantResp: GetTournamentsResp{
+			wantResp: network.GetTournamentsResp{
 				Tournaments: []model.Tournament{
 					itest.Tournaments[9],
 					itest.Tournaments[8],
@@ -1277,7 +1289,7 @@ func TestGetTournaments(t *testing.T) {
 			userID:     "4",
 			afterID:    "",
 			wantStatus: http.StatusOK,
-			wantResp: GetTournamentsResp{
+			wantResp: network.GetTournamentsResp{
 				Tournaments: []model.Tournament{
 					itest.Tournaments[5],
 					itest.Tournaments[2],

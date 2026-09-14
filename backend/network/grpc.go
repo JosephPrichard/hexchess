@@ -7,6 +7,7 @@ import (
 	"hexchess-svc/service"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/slogutil"
+	"io"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -17,43 +18,55 @@ type GRPCServer struct {
 	matchmakerService *service.MatchmakerService
 }
 
-func NewGRPCServer() GRPCServer {
-	return GRPCServer{matchmakerService: service.NewMatchmakerService()}
+func NewGRPCServer(matchmakerService *service.MatchmakerService) GRPCServer {
+	return GRPCServer{matchmakerService: matchmakerService}
 }
 
 func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_MatchmakingStreamServer) error {
-	ctx := context.WithValue(context.Background(), slogutil.Trace, uuid.NewString())
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), slogutil.Trace, uuid.NewString()))
+	defer cancel()
 
 	state := &MatchmakingStreamState{
 		service:      server.matchmakerService,
 		responseChan: make(chan service.MatchResponse, 1),
 	}
 
-	defer func() {
-		slog.InfoContext(ctx, "matchmaking stream :: engaging cancellation")
-		state.service.SendMatchRequest(service.NewMatchRequestCancel(state.matchmakeID))
-	}()
-
+	// writer: send matchmaking service responses through stream
 	go func() {
 		for matchResponse := range state.responseChan {
 			response := mapMatchmakingResponse(matchResponse)
-			slog.InfoContext(ctx, "matchmaking stream :: sending response", "response", response)
+			slog.InfoContext(ctx, "sending matchmaking stream response", "state", state, "response", response)
 
 			if err := stream.Send(response); err != nil {
-				slog.ErrorContext(ctx, "matchmaking stream :: failed to send response", "error", err)
+				slog.ErrorContext(ctx, "failed to send matchmaking stream response", "state", state, "error", err)
 			}
 		}
+		cancel() // signal reader to stop listening to requests
 	}()
 
-	for {
-		request, err := stream.Recv()
-		if err != nil {
-			slog.WarnContext(ctx, "matchmaking stream :: failed to receive request", "error", err)
-			return err
-		}
-		slog.InfoContext(ctx, "matchmaking stream :: handling request", "request", request)
+	shutdown := func() error {
+		slog.InfoContext(ctx, "shutting down matchmaking stream", "state", state)
+		state.service.SendMatchRequest(service.NewMatchRequestCancel(state.matchmakeID.UserID, state.matchmakeID.Mode))
+		return nil
+	}
 
-		handleMatchmakingRequest(ctx, state, request)
+	// reader: send each matchmaking request to service and send the final request on shutdown
+	for {
+		select {
+		case <-ctx.Done():
+			return shutdown()
+		default:
+			request, err := stream.Recv()
+			if err == io.EOF {
+				return shutdown()
+			} else if err != nil {
+				slog.WarnContext(ctx, "failed to receive matchmaking stream request", "state", state, "error", err)
+				return err
+			}
+
+			slog.InfoContext(ctx, "handling matchmaking stream request", "state", state, "request", request)
+			handleMatchmakingRequest(ctx, state, request)
+		}
 	}
 }
 
@@ -61,7 +74,12 @@ type MatchmakingStreamState struct {
 	service      *service.MatchmakerService
 	responseChan chan service.MatchResponse
 
-	matchmakeID service.MatchmakeID
+	matchmakeID MatchmakingID
+}
+
+type MatchmakingID struct {
+	UserID int64          `json:"userID"`
+	Mode   model.GameMode `json:"mode"`
 }
 
 func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState, request *rpc.MatchmakingRequest) {
@@ -69,15 +87,17 @@ func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState
 	case *rpc.MatchmakingRequest_Begin:
 		inputMode, err := enum.Parse(value.Begin.Mode, model.GameModeEnums)
 		if err != nil {
-			slog.ErrorContext(ctx, "matchmaking stream :: invalid mode in recv begin request - dropping message", "error", err)
+			slog.ErrorContext(ctx, "invalid mode in recv begin request - dropping message", "error", err)
 			return
 		}
 
-		state.matchmakeID = service.MatchmakeID{UserID: value.Begin.UserId, Mode: inputMode}
+		state.matchmakeID = MatchmakingID{UserID: value.Begin.UserId, Mode: inputMode}
 
-		state.service.SendMatchRequest(service.NewMatchRequestBegin(state.matchmakeID, value.Begin.UserElo, state.responseChan))
+		state.service.SendMatchRequest(service.NewMatchRequestBegin(state.matchmakeID.UserID, state.matchmakeID.Mode, value.Begin.UserElo, state.responseChan))
 	case *rpc.MatchmakingRequest_Confirm:
-		state.service.SendMatchRequest(service.NewMatchRequestConfirmation(state.matchmakeID))
+		if value.Confirm.Accept {
+			state.service.SendMatchRequest(service.NewMatchRequestConfirmation(state.matchmakeID.UserID, state.matchmakeID.Mode))
+		}
 	}
 }
 
@@ -85,15 +105,25 @@ func mapMatchmakingResponse(matchResponse service.MatchResponse) *rpc.Matchmakin
 	response := &rpc.MatchmakingResponse{}
 
 	switch matchResponse.Kind {
+	case service.MatchResponseJoin:
+		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Join{
+			Join: &rpc.MatchmakingJoinResponse{},
+		}}
 	case service.MatchResponseProposal:
-		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Begin{
-			Begin: &rpc.MatchmakingProposalResponse{
+		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Proposal{
+			Proposal: &rpc.MatchmakingProposalResponse{
 				UserOneId: matchResponse.UserOneID,
 				UserTwoId: matchResponse.UserTwoID,
 			},
 		}}
 	case service.MatchResponseConfirmation:
-		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Confirm{Confirm: &rpc.MatchmakingConfirmResponse{}}}
+		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Confirm{
+			Confirm: &rpc.MatchmakingConfirmResponse{},
+		}}
+	case service.MatchResponseCancel:
+		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Cancel{
+			Cancel: &rpc.MatchmakingCancelResponse{},
+		}}
 	}
 
 	return response

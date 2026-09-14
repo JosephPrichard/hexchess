@@ -57,7 +57,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 		wantEloBuckets     EloHistoryBuckets
 	}{
 		{
-			name:               "retrieve all elo histories",
+			name:               "RetrieveAllEloHistories",
 			params:             EloHistoriesParams{UserID: 6, TimeUntil: timeUntil},
 			wantBucketDuration: LongBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{
@@ -71,7 +71,7 @@ func TestRetrieveEloHistories(t *testing.T) {
 			},
 		},
 		{
-			name:               "retrieve elo histories past 3 months",
+			name:               "RetrieveEloHistoriesPast3Months",
 			params:             EloHistoriesParams{UserID: 6, Months: 3, TimeUntil: timeUntil},
 			wantBucketDuration: ShortBucketDuration,
 			wantEloBuckets: EloHistoryBuckets{

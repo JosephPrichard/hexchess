@@ -28,10 +28,14 @@ message MatchmakingConfirmRequest {
 
 message MatchmakingResponse {
   oneof value {
-    MatchmakingProposalResponse begin = 1;
-    MatchmakingConfirmResponse confirm = 2;
+    MatchmakingJoinResponse join = 1;
+    MatchmakingProposalResponse proposal = 2;
+    MatchmakingConfirmResponse confirm = 3;
+    MatchmakingCancelResponse cancel = 4;
   }
 }
+
+message MatchmakingJoinResponse {}
 
 message MatchmakingProposalResponse {
   int64 user_one_id = 1;
@@ -39,3 +43,5 @@ message MatchmakingProposalResponse {
 }
 
 message MatchmakingConfirmResponse {}
+
+message MatchmakingCancelResponse {}

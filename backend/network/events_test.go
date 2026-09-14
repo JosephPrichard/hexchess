@@ -1,10 +1,11 @@
-package network
+package network_test
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/model"
+	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
 	"time"
 
@@ -93,10 +94,10 @@ func TestHandleCountEvents(t *testing.T) {
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":0}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":3}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", ActiveCountEvent, `{"count":2}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", GamesCountEvent, `{"count":4}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", network.ActiveCountEvent, `{"count":0}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", network.GamesCountEvent, `{"count":3}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", network.ActiveCountEvent, `{"count":2}`),
+		fmt.Sprintf("event: %s\ndata: %s\n", network.GamesCountEvent, `{"count":4}`),
 	}
 
 	gotEvents := scanEvents(t, resp, len(wantEvents))
@@ -116,7 +117,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	go func() {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/active", nil)
-		req.Header.Set("Cookie", FmtCookie(TestSessionID1))
+		req.Header.Set("Cookie", network.FmtCookie(TestSessionID1))
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -142,7 +143,7 @@ func TestHandleUserEvents(t *testing.T) {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/user", nil)
 	require.NoError(t, err)
-	req.Header.Set("Cookie", FmtCookie(TestSessionID1))
+	req.Header.Set("Cookie", network.FmtCookie(TestSessionID1))
 
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
@@ -160,13 +161,13 @@ func TestHandleUserEvents(t *testing.T) {
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, "1"),
+		fmt.Sprintf("event: %s\ndata: %s\n", network.MetaEvent, "1"),
 	}
 
 	for _, challenge := range inputMessages[1:] {
 		challengeJson, err := json.Marshal(challenge)
 		require.NoError(t, err)
-		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", UserChallengeEvent, challengeJson))
+		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", network.UserChallengeEvent, challengeJson))
 	}
 
 	gotEvents := scanEvents(t, resp, len(wantEvents))
@@ -233,12 +234,12 @@ func TestHandleTournamentEvents(t *testing.T) {
 
 	// expect one event for each tournament input, plus the meta event
 	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", MetaEvent, keyString),
+		fmt.Sprintf("event: %s\ndata: %s\n", network.MetaEvent, keyString),
 	}
 	for _, tournament := range inputTournaments[1:] {
 		jsonData, err := json.Marshal(tournament)
 		require.NoError(t, err)
-		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", TournamentEvent, jsonData))
+		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", network.TournamentEvent, jsonData))
 	}
 
 	gotEvents := scanEvents(t, resp, len(wantEvents))

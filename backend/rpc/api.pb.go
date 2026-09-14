@@ -213,8 +213,10 @@ type MatchmakingResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Value:
 	//
-	//	*MatchmakingResponse_Begin
+	//	*MatchmakingResponse_Join
+	//	*MatchmakingResponse_Proposal
 	//	*MatchmakingResponse_Confirm
+	//	*MatchmakingResponse_Cancel
 	Value         isMatchmakingResponse_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -257,10 +259,19 @@ func (x *MatchmakingResponse) GetValue() isMatchmakingResponse_Value {
 	return nil
 }
 
-func (x *MatchmakingResponse) GetBegin() *MatchmakingProposalResponse {
+func (x *MatchmakingResponse) GetJoin() *MatchmakingJoinResponse {
 	if x != nil {
-		if x, ok := x.Value.(*MatchmakingResponse_Begin); ok {
-			return x.Begin
+		if x, ok := x.Value.(*MatchmakingResponse_Join); ok {
+			return x.Join
+		}
+	}
+	return nil
+}
+
+func (x *MatchmakingResponse) GetProposal() *MatchmakingProposalResponse {
+	if x != nil {
+		if x, ok := x.Value.(*MatchmakingResponse_Proposal); ok {
+			return x.Proposal
 		}
 	}
 	return nil
@@ -275,21 +286,78 @@ func (x *MatchmakingResponse) GetConfirm() *MatchmakingConfirmResponse {
 	return nil
 }
 
+func (x *MatchmakingResponse) GetCancel() *MatchmakingCancelResponse {
+	if x != nil {
+		if x, ok := x.Value.(*MatchmakingResponse_Cancel); ok {
+			return x.Cancel
+		}
+	}
+	return nil
+}
+
 type isMatchmakingResponse_Value interface {
 	isMatchmakingResponse_Value()
 }
 
-type MatchmakingResponse_Begin struct {
-	Begin *MatchmakingProposalResponse `protobuf:"bytes,1,opt,name=begin,proto3,oneof"`
+type MatchmakingResponse_Join struct {
+	Join *MatchmakingJoinResponse `protobuf:"bytes,1,opt,name=join,proto3,oneof"`
+}
+
+type MatchmakingResponse_Proposal struct {
+	Proposal *MatchmakingProposalResponse `protobuf:"bytes,2,opt,name=proposal,proto3,oneof"`
 }
 
 type MatchmakingResponse_Confirm struct {
-	Confirm *MatchmakingConfirmResponse `protobuf:"bytes,2,opt,name=confirm,proto3,oneof"`
+	Confirm *MatchmakingConfirmResponse `protobuf:"bytes,3,opt,name=confirm,proto3,oneof"`
 }
 
-func (*MatchmakingResponse_Begin) isMatchmakingResponse_Value() {}
+type MatchmakingResponse_Cancel struct {
+	Cancel *MatchmakingCancelResponse `protobuf:"bytes,4,opt,name=cancel,proto3,oneof"`
+}
+
+func (*MatchmakingResponse_Join) isMatchmakingResponse_Value() {}
+
+func (*MatchmakingResponse_Proposal) isMatchmakingResponse_Value() {}
 
 func (*MatchmakingResponse_Confirm) isMatchmakingResponse_Value() {}
+
+func (*MatchmakingResponse_Cancel) isMatchmakingResponse_Value() {}
+
+type MatchmakingJoinResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchmakingJoinResponse) Reset() {
+	*x = MatchmakingJoinResponse{}
+	mi := &file_api_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchmakingJoinResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchmakingJoinResponse) ProtoMessage() {}
+
+func (x *MatchmakingJoinResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchmakingJoinResponse.ProtoReflect.Descriptor instead.
+func (*MatchmakingJoinResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{4}
+}
 
 type MatchmakingProposalResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -301,7 +369,7 @@ type MatchmakingProposalResponse struct {
 
 func (x *MatchmakingProposalResponse) Reset() {
 	*x = MatchmakingProposalResponse{}
-	mi := &file_api_proto_msgTypes[4]
+	mi := &file_api_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -313,7 +381,7 @@ func (x *MatchmakingProposalResponse) String() string {
 func (*MatchmakingProposalResponse) ProtoMessage() {}
 
 func (x *MatchmakingProposalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[4]
+	mi := &file_api_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -326,7 +394,7 @@ func (x *MatchmakingProposalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MatchmakingProposalResponse.ProtoReflect.Descriptor instead.
 func (*MatchmakingProposalResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{4}
+	return file_api_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *MatchmakingProposalResponse) GetUserOneId() int64 {
@@ -351,7 +419,7 @@ type MatchmakingConfirmResponse struct {
 
 func (x *MatchmakingConfirmResponse) Reset() {
 	*x = MatchmakingConfirmResponse{}
-	mi := &file_api_proto_msgTypes[5]
+	mi := &file_api_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -363,7 +431,7 @@ func (x *MatchmakingConfirmResponse) String() string {
 func (*MatchmakingConfirmResponse) ProtoMessage() {}
 
 func (x *MatchmakingConfirmResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_proto_msgTypes[5]
+	mi := &file_api_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -376,7 +444,43 @@ func (x *MatchmakingConfirmResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MatchmakingConfirmResponse.ProtoReflect.Descriptor instead.
 func (*MatchmakingConfirmResponse) Descriptor() ([]byte, []int) {
-	return file_api_proto_rawDescGZIP(), []int{5}
+	return file_api_proto_rawDescGZIP(), []int{6}
+}
+
+type MatchmakingCancelResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MatchmakingCancelResponse) Reset() {
+	*x = MatchmakingCancelResponse{}
+	mi := &file_api_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MatchmakingCancelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MatchmakingCancelResponse) ProtoMessage() {}
+
+func (x *MatchmakingCancelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MatchmakingCancelResponse.ProtoReflect.Descriptor instead.
+func (*MatchmakingCancelResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_rawDescGZIP(), []int{7}
 }
 
 var File_api_proto protoreflect.FileDescriptor
@@ -393,15 +497,19 @@ const file_api_proto_rawDesc = "" +
 	"\buser_elo\x18\x02 \x01(\x01R\auserElo\x12\x12\n" +
 	"\x04mode\x18\x03 \x01(\tR\x04mode\"3\n" +
 	"\x19MatchmakingConfirmRequest\x12\x16\n" +
-	"\x06accept\x18\x01 \x01(\bR\x06accept\"\x95\x01\n" +
-	"\x13MatchmakingResponse\x128\n" +
-	"\x05begin\x18\x01 \x01(\v2 .api.MatchmakingProposalResponseH\x00R\x05begin\x12;\n" +
-	"\aconfirm\x18\x02 \x01(\v2\x1f.api.MatchmakingConfirmResponseH\x00R\aconfirmB\a\n" +
-	"\x05value\"]\n" +
+	"\x06accept\x18\x01 \x01(\bR\x06accept\"\x89\x02\n" +
+	"\x13MatchmakingResponse\x122\n" +
+	"\x04join\x18\x01 \x01(\v2\x1c.api.MatchmakingJoinResponseH\x00R\x04join\x12>\n" +
+	"\bproposal\x18\x02 \x01(\v2 .api.MatchmakingProposalResponseH\x00R\bproposal\x12;\n" +
+	"\aconfirm\x18\x03 \x01(\v2\x1f.api.MatchmakingConfirmResponseH\x00R\aconfirm\x128\n" +
+	"\x06cancel\x18\x04 \x01(\v2\x1e.api.MatchmakingCancelResponseH\x00R\x06cancelB\a\n" +
+	"\x05value\"\x19\n" +
+	"\x17MatchmakingJoinResponse\"]\n" +
 	"\x1bMatchmakingProposalResponse\x12\x1e\n" +
 	"\vuser_one_id\x18\x01 \x01(\x03R\tuserOneId\x12\x1e\n" +
 	"\vuser_two_id\x18\x02 \x01(\x03R\tuserTwoId\"\x1c\n" +
-	"\x1aMatchmakingConfirmResponse2_\n" +
+	"\x1aMatchmakingConfirmResponse\"\x1b\n" +
+	"\x19MatchmakingCancelResponse2_\n" +
 	"\x11MatchmakerService\x12J\n" +
 	"\x11MatchmakingStream\x12\x17.api.MatchmakingRequest\x1a\x18.api.MatchmakingResponse(\x010\x01B\x12Z\x10hexchess-svc/rpcb\x06proto3"
 
@@ -417,27 +525,31 @@ func file_api_proto_rawDescGZIP() []byte {
 	return file_api_proto_rawDescData
 }
 
-var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_api_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_api_proto_goTypes = []any{
 	(*MatchmakingRequest)(nil),          // 0: api.MatchmakingRequest
 	(*MatchmakingBeginRequest)(nil),     // 1: api.MatchmakingBeginRequest
 	(*MatchmakingConfirmRequest)(nil),   // 2: api.MatchmakingConfirmRequest
 	(*MatchmakingResponse)(nil),         // 3: api.MatchmakingResponse
-	(*MatchmakingProposalResponse)(nil), // 4: api.MatchmakingProposalResponse
-	(*MatchmakingConfirmResponse)(nil),  // 5: api.MatchmakingConfirmResponse
+	(*MatchmakingJoinResponse)(nil),     // 4: api.MatchmakingJoinResponse
+	(*MatchmakingProposalResponse)(nil), // 5: api.MatchmakingProposalResponse
+	(*MatchmakingConfirmResponse)(nil),  // 6: api.MatchmakingConfirmResponse
+	(*MatchmakingCancelResponse)(nil),   // 7: api.MatchmakingCancelResponse
 }
 var file_api_proto_depIdxs = []int32{
 	1, // 0: api.MatchmakingRequest.begin:type_name -> api.MatchmakingBeginRequest
 	2, // 1: api.MatchmakingRequest.confirm:type_name -> api.MatchmakingConfirmRequest
-	4, // 2: api.MatchmakingResponse.begin:type_name -> api.MatchmakingProposalResponse
-	5, // 3: api.MatchmakingResponse.confirm:type_name -> api.MatchmakingConfirmResponse
-	0, // 4: api.MatchmakerService.MatchmakingStream:input_type -> api.MatchmakingRequest
-	3, // 5: api.MatchmakerService.MatchmakingStream:output_type -> api.MatchmakingResponse
-	5, // [5:6] is the sub-list for method output_type
-	4, // [4:5] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	4, // 2: api.MatchmakingResponse.join:type_name -> api.MatchmakingJoinResponse
+	5, // 3: api.MatchmakingResponse.proposal:type_name -> api.MatchmakingProposalResponse
+	6, // 4: api.MatchmakingResponse.confirm:type_name -> api.MatchmakingConfirmResponse
+	7, // 5: api.MatchmakingResponse.cancel:type_name -> api.MatchmakingCancelResponse
+	0, // 6: api.MatchmakerService.MatchmakingStream:input_type -> api.MatchmakingRequest
+	3, // 7: api.MatchmakerService.MatchmakingStream:output_type -> api.MatchmakingResponse
+	7, // [7:8] is the sub-list for method output_type
+	6, // [6:7] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_init() }
@@ -450,8 +562,10 @@ func file_api_proto_init() {
 		(*MatchmakingRequest_Confirm)(nil),
 	}
 	file_api_proto_msgTypes[3].OneofWrappers = []any{
-		(*MatchmakingResponse_Begin)(nil),
+		(*MatchmakingResponse_Join)(nil),
+		(*MatchmakingResponse_Proposal)(nil),
 		(*MatchmakingResponse_Confirm)(nil),
+		(*MatchmakingResponse_Cancel)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -459,7 +573,7 @@ func file_api_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_rawDesc), len(file_api_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

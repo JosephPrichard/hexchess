@@ -1,10 +1,11 @@
-package network
+package network_test
 
 import (
 	stlcmp "cmp"
 	"context"
 	"fmt"
 	"hexchess-svc/chess"
+	"hexchess-svc/network"
 
 	"net/http"
 	"net/url"
@@ -90,7 +91,7 @@ var (
 				{
 					GameId: gameID.String(),
 					Value: &pb.GameOutput_Error{
-						Error: &pb.ErrorOutput{Message: ErrWsInvalidMove.Error()},
+						Error: &pb.ErrorOutput{Message: network.ErrWsInvalidMove.Error()},
 					},
 				},
 			},
@@ -139,7 +140,7 @@ var (
 				{
 					GameId: gameID.String(),
 					Value: &pb.GameOutput_Error{
-						Error: &pb.ErrorOutput{Message: ErrWsUndoAction.Error()},
+						Error: &pb.ErrorOutput{Message: network.ErrWsUndoAction.Error()},
 					},
 				},
 			},

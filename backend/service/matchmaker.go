@@ -2,76 +2,58 @@ package service
 
 import (
 	"hexchess-svc/model"
+	"hexchess-svc/utils/perf"
+	"log/slog"
 	"slices"
+	"sort"
 	"time"
 )
-
-type MatchmakerService struct {
-	modeNodeMap map[model.GameMode]*serviceNode
-}
-
-func NewMatchmakerService() *MatchmakerService {
-	modeNodeMap := map[model.GameMode]*serviceNode{}
-
-	for _, mode := range model.GameModeEnums {
-		node := &serviceNode{
-			requestChan: make(chan MatchmakingRequest),
-			stopChan:    make(chan struct{}),
-		}
-		go node.Run()
-		modeNodeMap[mode] = node
-	}
-
-	return &MatchmakerService{modeNodeMap: modeNodeMap}
-}
 
 type MatchRequestKind int
 
 const (
-	MatchRequestBegin MatchRequestKind = iota
-	MatchRequestConfirmation
-	MatchRequestCancel
+	BeginMatchRequest MatchRequestKind = iota
+	ConfirmMatchRequest
+	CancelMatchRequest
 )
 
 type MatchmakingRequest struct {
-	Kind         MatchRequestKind
-	MatchmakeID  MatchmakeID
-	UserElo      float64
-	ResponseChan chan MatchResponse
+	Kind         MatchRequestKind   `json:"kind"`
+	UserID       int64              `json:"userID"`
+	Mode         model.GameMode     `json:"mode"`
+	UserElo      float64            `json:"userElo"`
+	ResponseChan chan MatchResponse `json:"responseChan"`
 }
 
-type MatchmakeID struct {
-	UserID int64
-	Mode   model.GameMode
-}
-
-func NewMatchRequestBegin(matchmakeID MatchmakeID, userElo float64, responseChan chan MatchResponse) MatchmakingRequest {
+func NewMatchRequestBegin(userID int64, mode model.GameMode, userElo float64, responseChan chan MatchResponse) MatchmakingRequest {
 	return MatchmakingRequest{
-		Kind:         MatchRequestBegin,
-		MatchmakeID:  matchmakeID,
+		Kind:         BeginMatchRequest,
+		UserID:       userID,
+		Mode:         mode,
 		UserElo:      userElo,
 		ResponseChan: responseChan,
 	}
 }
 
-func NewMatchRequestConfirmation(matchmakeID MatchmakeID) MatchmakingRequest {
-	return MatchmakingRequest{Kind: MatchRequestBegin, MatchmakeID: matchmakeID}
+func NewMatchRequestConfirmation(userID int64, mode model.GameMode) MatchmakingRequest {
+	return MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: userID, Mode: mode}
 }
 
-func NewMatchRequestCancel(matchmakeID MatchmakeID) MatchmakingRequest {
-	return MatchmakingRequest{Kind: MatchRequestCancel, MatchmakeID: matchmakeID}
-}
-
-func (services *MatchmakerService) SendMatchRequest(request MatchmakingRequest) {
-	node := services.modeNodeMap[request.MatchmakeID.Mode]
-	node.requestChan <- request
+func NewMatchRequestCancel(userID int64, mode model.GameMode) MatchmakingRequest {
+	return MatchmakingRequest{Kind: CancelMatchRequest, UserID: userID, Mode: mode}
 }
 
 type MatchResponseKind int
 
 const (
-	MatchResponseProposal     MatchResponseKind = iota // sent in cases where the server is proposing a potential match
-	MatchResponseConfirmation                          // sent when both users have accepted the match
+	// MatchResponseJoin sent when a user who requests a match is moved into the pending users pool
+	MatchResponseJoin MatchResponseKind = iota
+	// MatchResponseProposal sent in cases where the server is proposing a potential match
+	MatchResponseProposal
+	// MatchResponseConfirmation sent when both users have accepted the match
+	MatchResponseConfirmation
+	// MatchResponseCancel sent when another player cancels a potential match rather than accepting
+	MatchResponseCancel
 )
 
 type MatchResponse struct {
@@ -80,104 +62,371 @@ type MatchResponse struct {
 	UserOneID int64
 }
 
-type serviceNode struct {
-	requestChan chan MatchmakingRequest
-	stopChan    chan struct{}
+type MatchmakingNode int
+
+type MatchmakerService struct {
+	nodeMap map[model.GameMode]*matchmakerNode
 }
 
-type runState struct {
-	pendingUsers   []PendingUser
-	matchProposals []MatchProposal
+type MatchmakerServiceConfig struct {
+	TickRate   time.Duration `json:"tickRate"`
+	TickFactor int64         `json:"tickFactor"`
+}
+
+var DefaultMatchmakerServiceConfig = MatchmakerServiceConfig{
+	TickRate:   time.Millisecond * 500,
+	TickFactor: 10, // every tick a pendingUser is not provided a match - increase the (+-) elo range by this value
+}
+
+func NewMatchmakerService(cfg *MatchmakerServiceConfig) *MatchmakerService {
+	config := DefaultMatchmakerServiceConfig
+	if cfg != nil {
+		config = *cfg
+	}
+
+	nodeMap := map[model.GameMode]*matchmakerNode{}
+
+	for _, mode := range model.GameModeEnums {
+		matchmaker := &matchmakerNode{
+			config: config,
+
+			requestChan: make(chan MatchmakingRequest),
+			stopChan:    make(chan struct{}),
+
+			state: MatchmakerState{
+				PendingUsers:   make(map[int64]PendingUser),
+				UserEloIdx:     make([]UserEloRecord, 0),
+				MatchProposals: make([]MatchProposal, 0),
+			},
+		}
+		go matchmaker.Run()
+		nodeMap[mode] = matchmaker
+	}
+
+	return &MatchmakerService{nodeMap: nodeMap}
+}
+
+func (services *MatchmakerService) SendMatchRequest(request MatchmakingRequest) {
+	node := services.nodeMap[request.Mode]
+	if node == nil {
+		slog.Error("matchmaker service node does not exist for mode", "request", request)
+		return
+	}
+	node.requestChan <- request
+}
+
+func (services *MatchmakerService) Shutdown() {
+	for _, node := range services.nodeMap {
+		node.Shutdown()
+	}
+}
+
+type matchmakerNode struct {
+	config MatchmakerServiceConfig
+
+	// CSP - communicate with a matchmaker instance by using channels
+	requestChan chan MatchmakingRequest
+	stopChan    chan struct{}
+
+	state MatchmakerState
+}
+
+type MatchmakerState struct {
+	PendingUsers map[int64]PendingUser `json:"pendingUsers"` // userID->user map structure storing users that are waiting matches
+	UserEloIdx   []UserEloRecord       `json:"userEloIdx"`   // indexing data-structure for elo range query lookups on user data
+
+	MatchProposals []MatchProposal `json:"matchProposals"` // working list of matches proposed to user participants
+
+	potentialProposals []potentialProposal
+	pairedUsers        map[int64]struct{}
+}
+
+type UserEloRecord struct {
+	UserID  int64
+	UserElo float64
 }
 
 type PendingUser struct {
 	UserID       int64
 	UserElo      float64
-	Ticks        int64 // number ticks the user has remained in the matchmaking pool
+	Ticks        int64 // number of ticks the user has remained in the matchmaking pool
 	ResponseChan chan MatchResponse
 }
 
 type MatchProposal struct {
-	ResponseChan  chan MatchResponse
 	UserOne       PendingUser
-	UserOneAccept bool
 	UserTwo       PendingUser
+	UserOneAccept bool
 	UserTwoAccept bool
 }
 
-const TickRate = time.Millisecond * 500
+type potentialProposal struct {
+	userOneID int64
+	userTwoID int64
+}
 
-func (node *serviceNode) Run() {
-	ticker := time.NewTicker(TickRate)
-	state := &runState{pendingUsers: make([]PendingUser, 0)}
-
+func (node *matchmakerNode) Run() {
+	ticker := time.NewTicker(node.config.TickRate)
 	for {
 		select {
 		case <-ticker.C:
-			tick(state)
+			node.tick()
 		case request := <-node.requestChan:
-			handleRequest(state, request)
+			node.handleRequest(request)
 		case <-node.stopChan:
 			return
 		}
 	}
 }
 
-func tick(state *runState) {
-
+func (node *matchmakerNode) Shutdown() {
+	close(node.stopChan)
 }
 
-func handleRequest(state *runState, request MatchmakingRequest) {
-	switch request.Kind {
-	case MatchRequestBegin:
-		handleBeginRequest(state, request)
-	case MatchRequestConfirmation:
-		handleConfirmRequest(state, request)
-	case MatchRequestCancel:
-		handleCancelRequest(state, request)
+func (node *matchmakerNode) tick() {
+	if len(node.state.PendingUsers) == 0 && len(node.state.MatchProposals) == 0 {
+		return
+	}
+	defer perf.New().Log()
+
+	// transfer any matching pendingUsers into matchProposals based on range (elo-tick*TickFactor,elo+tick*TickFactor)
+	node.findPotentialProposals()
+
+	// remove any users in potentialProposals from pendingUsers and transfer them to matchProposals
+	for _, proposal := range node.state.potentialProposals {
+		node.appendMatchProposal(MatchProposal{
+			UserOne:       node.state.PendingUsers[proposal.userOneID],
+			UserTwo:       node.state.PendingUsers[proposal.userTwoID],
+			UserOneAccept: false,
+			UserTwoAccept: false,
+		})
+	}
+	node.deletePendingUsers(node.state.pairedUsers)
+
+	// update tick state of all pendingUsers
+	for _, record := range node.state.UserEloIdx {
+		pendingUser := node.state.PendingUsers[record.UserID]
+		pendingUser.Ticks++
+		node.state.PendingUsers[record.UserID] = pendingUser
 	}
 }
 
-func handleBeginRequest(state *runState, request MatchmakingRequest) {
-	state.pendingUsers = append(state.pendingUsers, PendingUser{
+func (node *matchmakerNode) findPotentialProposals() {
+	// reusing internal datastructures - need to clear out stale data first
+	node.state.potentialProposals = node.state.potentialProposals[:0]
+	clear(node.state.pairedUsers)
+
+	potentialProposals := node.state.potentialProposals
+	pairedUsers := node.state.pairedUsers
+
+	for currIdx := range node.state.UserEloIdx {
+		currUserID := node.state.UserEloIdx[currIdx].UserID
+		currPendingUser := node.state.PendingUsers[currUserID]
+
+		_, isCurrUserPaired := pairedUsers[currUserID]
+		if isCurrUserPaired {
+			continue
+		}
+
+		// find the closest right-most pendingUser and pair it into a potential proposal if possible
+		for potentialIdx := currIdx; potentialIdx < len(node.state.UserEloIdx); potentialIdx++ {
+			potentialUserID := node.state.UserEloIdx[potentialIdx].UserID
+			potentialPendingUser := node.state.PendingUsers[potentialUserID]
+
+			_, isPotentialUserPaired := pairedUsers[potentialUserID]
+			if isPotentialUserPaired {
+				continue
+			}
+
+			doesCurrUserIntersect, doesPotentialUserIntersect := node.pendingUsersIntersect(&currPendingUser, &potentialPendingUser)
+
+			bothUsersIntersect := doesCurrUserIntersect && doesPotentialUserIntersect
+			if bothUsersIntersect {
+				potentialProposals = append(potentialProposals, potentialProposal{
+					userOneID: currPendingUser.UserID,
+					userTwoID: potentialPendingUser.UserID,
+				})
+
+				pairedUsers[currUserID] = struct{}{}
+				pairedUsers[potentialUserID] = struct{}{}
+
+				break
+			}
+			if !doesPotentialUserIntersect {
+				break
+			}
+		}
+	}
+}
+
+func isInRange(potentialUser *PendingUser, beginElo float64, endElo float64) bool {
+	return potentialUser.UserElo >= beginElo && potentialUser.UserElo <= endElo
+}
+
+func (node *matchmakerNode) pendingUsersIntersect(currPendingUser *PendingUser, potentialPendingUser *PendingUser) (bool, bool) {
+	currBeginElo, currEndElo := node.getEloRange(currPendingUser)
+	potentialBeginElo, potentialEndElo := node.getEloRange(potentialPendingUser)
+
+	doesCurrUserIntersect := isInRange(currPendingUser, potentialBeginElo, potentialEndElo)
+	doesPotentialUserIntersect := isInRange(potentialPendingUser, currBeginElo, currEndElo)
+
+	return doesCurrUserIntersect, doesPotentialUserIntersect
+}
+
+func (node *matchmakerNode) getEloRange(pendingUser *PendingUser) (float64, float64) {
+	eloOffset := float64(pendingUser.Ticks * node.config.TickFactor)
+	beginElo := pendingUser.UserElo - eloOffset
+	endElo := pendingUser.UserElo + eloOffset
+	return beginElo, endElo
+}
+
+func (node *matchmakerNode) handleRequest(request MatchmakingRequest) {
+	switch request.Kind {
+	case BeginMatchRequest:
+		node.handleBeginRequest(request)
+	case ConfirmMatchRequest:
+		node.handleConfirmRequest(request)
+	case CancelMatchRequest:
+		node.handleCancelRequest(request)
+	}
+}
+
+func (node *matchmakerNode) handleBeginRequest(request MatchmakingRequest) {
+	defer perf.New().Log()
+
+	node.insertPendingUser(PendingUser{
 		ResponseChan: request.ResponseChan,
-		UserID:       request.MatchmakeID.UserID,
+		UserID:       request.UserID,
 		UserElo:      request.UserElo,
 	})
+
+	request.ResponseChan <- MatchResponse{Kind: MatchResponseJoin}
 }
 
-func handleConfirmRequest(state *runState, request MatchmakingRequest) {
-	proposalIndex := slices.IndexFunc(state.matchProposals, func(user MatchProposal) bool {
-		return user.UserOne.UserID == request.MatchmakeID.UserID || user.UserTwo.UserID == request.MatchmakeID.UserID
-	})
-	matchProposal := &state.matchProposals[proposalIndex]
+func (node *matchmakerNode) handleConfirmRequest(request MatchmakingRequest) {
+	defer perf.New().Log()
 
-	switch request.MatchmakeID.UserID {
-	case matchProposal.UserOne.UserID:
-		matchProposal.UserOneAccept = true
-	case matchProposal.UserTwo.UserID:
-		matchProposal.UserTwoAccept = true
+	proposal, index := node.getMatchProposal(request.UserID)
+	if index == -1 {
+		slog.Warn("user does not have a match to confirm - skipping", "userID", request.UserID)
+		return
 	}
 
-	if matchProposal.UserOneAccept && matchProposal.UserTwoAccept {
-		matchConfirmResponse := MatchResponse{
-			Kind:      MatchResponseConfirmation,
-			UserOneID: matchProposal.UserOne.UserID,
-			UserTwoID: matchProposal.UserTwo.UserID,
-		}
-		matchProposal.UserOne.ResponseChan <- matchConfirmResponse
-		matchProposal.UserTwo.ResponseChan <- matchConfirmResponse
+	// mark matchProposal as accepted and reinsert
+	switch request.UserID {
+	case proposal.UserOne.UserID:
+		proposal.UserOneAccept = true
+	case proposal.UserTwo.UserID:
+		proposal.UserTwoAccept = true
+	}
+	node.setMatchProposal(index, proposal)
+
+	// when matchProposal is accepted, communicate the confirmation, close the channels, and delete the proposal
+	isProposalAccepted := proposal.UserOneAccept && proposal.UserTwoAccept
+	if isProposalAccepted {
+		matchConfirmResponse := MatchResponse{Kind: MatchResponseConfirmation, UserOneID: proposal.UserOne.UserID, UserTwoID: proposal.UserTwo.UserID}
+
+		proposal.UserOne.ResponseChan <- matchConfirmResponse
+		proposal.UserTwo.ResponseChan <- matchConfirmResponse
+		close(proposal.UserOne.ResponseChan)
+		close(proposal.UserTwo.ResponseChan)
+
+		node.deleteMatchProposal(index)
 	}
 }
 
-func handleCancelRequest(state *runState, request MatchmakingRequest) {
-	// note(Joseph): remove any
-	state.pendingUsers = slices.DeleteFunc(state.pendingUsers, func(user PendingUser) bool {
-		return user.UserID == request.MatchmakeID.UserID
-	})
+func (node *matchmakerNode) handleCancelRequest(request MatchmakingRequest) {
+	defer perf.New().Log()
 
-	proposalIndex := slices.IndexFunc(state.matchProposals, func(user MatchProposal) bool {
-		return user.UserOne.UserID == request.MatchmakeID.UserID || user.UserTwo.UserID == request.MatchmakeID.UserID
+	node.deletePendingUser(request.UserID)
+
+	proposal, index := node.getMatchProposal(request.UserID)
+	if index == -1 {
+		slog.Warn("user does not have a match to cancel - skipping", "userID", request.UserID)
+		return
+	}
+
+	var requestingUser, otherUser PendingUser
+	switch request.UserID {
+	case proposal.UserOne.UserID:
+		requestingUser, otherUser = proposal.UserOne, proposal.UserTwo
+	case proposal.UserTwo.UserID:
+		requestingUser, otherUser = proposal.UserTwo, proposal.UserOne
+	}
+
+	node.deleteMatchProposal(index)
+	node.insertPendingUser(otherUser)
+
+	matchCancelResponse := MatchResponse{Kind: MatchResponseCancel}
+	close(requestingUser.ResponseChan)
+	otherUser.ResponseChan <- matchCancelResponse
+}
+
+func (node *matchmakerNode) insertPendingUser(pendingUser PendingUser) {
+	state := &node.state
+
+	_, exists := state.PendingUsers[pendingUser.UserID]
+	if exists {
+		return
+	}
+
+	// insert into central record for pending user data
+	state.PendingUsers[pendingUser.UserID] = pendingUser
+
+	// insert record into sorted user-by-elo index
+	userEloRecord := UserEloRecord{UserID: pendingUser.UserID, UserElo: pendingUser.UserElo}
+
+	insertionIndex := sort.Search(len(state.UserEloIdx), func(i int) bool {
+		return state.UserEloIdx[i].UserElo >= pendingUser.UserElo
 	})
-	matchProposal := &state.matchProposals[proposalIndex]
+	if insertionIndex >= 0 || insertionIndex < len(state.PendingUsers) {
+		state.UserEloIdx = slices.Insert(state.UserEloIdx, insertionIndex, userEloRecord)
+	} else {
+		state.UserEloIdx = append(state.UserEloIdx, userEloRecord)
+	}
+}
+
+func (node *matchmakerNode) getMatchProposal(userID int64) (proposal MatchProposal, index int) {
+	index = slices.IndexFunc(node.state.MatchProposals, func(proposal MatchProposal) bool {
+		return userID == proposal.UserOne.UserID || userID == proposal.UserTwo.UserID
+	})
+	if index >= 0 {
+		proposal = node.state.MatchProposals[index]
+	}
+	return
+}
+
+func (node *matchmakerNode) setMatchProposal(index int, matchProposal MatchProposal) {
+	node.state.MatchProposals[index] = matchProposal
+}
+
+func (node *matchmakerNode) deletePendingUser(userID int64) {
+	// delete from central record for pending user data
+	delete(node.state.PendingUsers, userID)
+
+	// delete record from sorted user-by-elo index
+	node.state.UserEloIdx = slices.DeleteFunc(node.state.UserEloIdx, func(user UserEloRecord) bool {
+		return user.UserID == userID
+	})
+}
+
+func (node *matchmakerNode) deletePendingUsers(userIDs map[int64]struct{}) {
+	// delete from central record for pending user data
+	for userID := range userIDs {
+		delete(node.state.PendingUsers, userID)
+	}
+
+	// delete record from sorted user-by-elo index
+	node.state.UserEloIdx = slices.DeleteFunc(node.state.UserEloIdx, func(user UserEloRecord) bool {
+		_, containsUserID := userIDs[user.UserID]
+		return containsUserID
+	})
+}
+
+func (node *matchmakerNode) appendMatchProposal(matchProposal MatchProposal) {
+	node.state.MatchProposals = append(node.state.MatchProposals, matchProposal)
+}
+
+func (node *matchmakerNode) deleteMatchProposal(proposalIndex int) {
+	node.state.MatchProposals = slices.Delete(node.state.MatchProposals, proposalIndex, proposalIndex+1)
 }

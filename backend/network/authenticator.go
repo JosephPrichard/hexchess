@@ -11,8 +11,6 @@ import (
 	"math/big"
 	"net/http"
 	"time"
-
-	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 const CookieKey = "session"
@@ -27,8 +25,6 @@ type SessionView struct {
 	Country  string        `json:"country"`
 	TTLSecs  time.Duration `json:"ttlSecs,omitempty"`
 }
-
-var testSessionViewCmpOpts = cmpopts.IgnoreFields(SessionView{}, "ID", "TTLSecs")
 
 func NewSessionID() string {
 	bytes := make([]byte, SessionIDLength)
