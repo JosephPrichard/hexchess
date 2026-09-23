@@ -31,8 +31,17 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 		responseChan: make(chan service.MatchResponse, 1),
 	}
 
+	cleanup := func() {
+		// both close operations are idempotent
+		cancelRequest := service.MatchmakingRequest{Kind: service.CancelMatchRequest, UserID: state.matchmakeID.UserID, Mode: state.matchmakeID.Mode}
+		state.service.SendMatchRequest(cancelRequest) // send close signal to reader
+		cancel() // send close signal to writer
+	}
+
 	// writer: send matchmaking service responses through stream
 	go func() {
+		defer cleanup()
+		
 		for matchResponse := range state.responseChan {
 			response := mapMatchmakingResponse(matchResponse)
 			slog.InfoContext(ctx, "sending matchmaking stream response", "state", state, "response", response)
@@ -41,24 +50,19 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 				slog.ErrorContext(ctx, "failed to send matchmaking stream response", "state", state, "error", err)
 			}
 		}
-		cancel() // signal reader to stop listening to requests
 	}()
 
-	shutdown := func() error {
-		slog.InfoContext(ctx, "shutting down matchmaking stream", "state", state)
-		state.service.SendMatchRequest(service.NewMatchRequestCancel(state.matchmakeID.UserID, state.matchmakeID.Mode))
-		return nil
-	}
-
 	// reader: send each matchmaking request to service and send the final request on shutdown
+	defer cleanup()
+ReadLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			return shutdown()
+			break ReadLoop
 		default:
 			request, err := stream.Recv()
 			if err == io.EOF {
-				return shutdown()
+				break ReadLoop
 			} else if err != nil {
 				slog.WarnContext(ctx, "failed to receive matchmaking stream request", "state", state, "error", err)
 				return err
@@ -68,6 +72,8 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 			handleMatchmakingRequest(ctx, state, request)
 		}
 	}
+
+	return nil
 }
 
 type MatchmakingStreamState struct {
@@ -93,10 +99,22 @@ func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState
 
 		state.matchmakeID = MatchmakingID{UserID: value.Begin.UserId, Mode: inputMode}
 
-		state.service.SendMatchRequest(service.NewMatchRequestBegin(state.matchmakeID.UserID, state.matchmakeID.Mode, value.Begin.UserElo, state.responseChan))
+		beginRequest := service.MatchmakingRequest{
+			Kind:         service.BeginMatchRequest,
+			UserID:       state.matchmakeID.UserID,
+			Mode:         state.matchmakeID.Mode,
+			UserElo:      value.Begin.UserElo,
+			ResponseChan: state.responseChan,
+		}
+		state.service.SendMatchRequest(beginRequest)
 	case *rpc.MatchmakingRequest_Confirm:
-		if value.Confirm.Accept {
-			state.service.SendMatchRequest(service.NewMatchRequestConfirmation(state.matchmakeID.UserID, state.matchmakeID.Mode))
+		if value.Confirm.Accept {	
+			confirmRequest := service.MatchmakingRequest{
+				Kind:   service.ConfirmMatchRequest, 
+				UserID: state.matchmakeID.UserID,
+				Mode:   state.matchmakeID.Mode,
+			}
+			state.service.SendMatchRequest(confirmRequest)
 		}
 	}
 }
