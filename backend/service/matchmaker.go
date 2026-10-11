@@ -25,24 +25,6 @@ type MatchmakingRequest struct {
 	ResponseChan chan MatchResponse `json:"responseChan"`
 }
 
-func NewMatchRequestBegin(userID int64, mode model.GameMode, userElo float64, responseChan chan MatchResponse) MatchmakingRequest {
-	return MatchmakingRequest{
-		Kind:         BeginMatchRequest,
-		UserID:       userID,
-		Mode:         mode,
-		UserElo:      userElo,
-		ResponseChan: responseChan,
-	}
-}
-
-func NewMatchRequestConfirmation(userID int64, mode model.GameMode) MatchmakingRequest {
-	return MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: userID, Mode: mode}
-}
-
-func NewMatchRequestCancel(userID int64, mode model.GameMode) MatchmakingRequest {
-	return MatchmakingRequest{Kind: CancelMatchRequest, UserID: userID, Mode: mode}
-}
-
 type MatchResponseKind int
 
 const (
