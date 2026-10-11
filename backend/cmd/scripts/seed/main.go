@@ -50,7 +50,7 @@ const (
 
 func main() {
 	start := time.Now()
-	ctx := context.WithValue(context.Background(), slogutil.Trace, "seed-databases-script")
+	ctx := slogutil.TracedContext(context.Background(), "seed-databases-script")
 
 	// parse input flags and config from script input
 	cfg := config.Load()

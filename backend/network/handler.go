@@ -1,7 +1,6 @@
 package network
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/utils/slogutil"
@@ -19,7 +18,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 			if trace == "" {
 				trace = uuid.NewString()
 			}
-			r = r.WithContext(context.WithValue(r.Context(), slogutil.Trace, trace))
+			r = r.WithContext(slogutil.TracedContext(r.Context(), trace))
 
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")

@@ -26,7 +26,24 @@ var (
 	GroupID   = "groupID"
 	EventID   = "eventID"
 	RequestID = "requestID"
+
+	ContextMap = "ctxmap"
 )
+
+func SetCtxMapKey(ctx context.Context, key string, value string) context.Context {
+	ctxmap, _ := ctx.Value(ContextMap).(map[string]string)
+
+	if ctxmap == nil {
+		ctxmap = make(map[string]string)
+	}
+	ctxmap[key] = value
+
+	return context.WithValue(ctx, ContextMap, ctxmap)
+}
+
+func TracedContext(ctx context.Context, trace string) context.Context {
+	return SetCtxMapKey(ctx, Trace, trace)
+}
 
 func Log(ctx context.Context, msg string, err error, args ...any) {
 	if err != nil {

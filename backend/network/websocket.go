@@ -194,7 +194,7 @@ func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input message
 		return
 	}
 
-	ctx.Context = context.WithValue(ctx.Context, slogutil.MessageID, pbInput.MessageId)
+	ctx.Context = slogutil.SetCtxMapKey(ctx.Context, slogutil.MessageID, pbInput.MessageId)
 
 	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 

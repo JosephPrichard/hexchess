@@ -23,7 +23,7 @@ func NewGRPCServer(matchmakerService *service.MatchmakerService) GRPCServer {
 }
 
 func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_MatchmakingStreamServer) error {
-	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), slogutil.Trace, uuid.NewString()))
+	ctx, cancel := context.WithCancel(slogutil.TracedContext(context.Background(), uuid.NewString()))
 	defer cancel()
 
 	state := &MatchmakingStreamState{

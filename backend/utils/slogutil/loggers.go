@@ -19,8 +19,6 @@ type staticLogData struct {
 	*ecsTaskMetadataBody
 }
 
-var PropagatedLogKeys = []string{Trace, SessionID, MessageID, GroupID, EventID, RequestID}
-
 func NewLogRecordHandler(serviceName string, h slog.Handler) slog.Handler {
 	return &LogRecordHandler{
 		Handler: h,
@@ -34,11 +32,10 @@ func NewLogRecordHandler(serviceName string, h slog.Handler) slog.Handler {
 }
 
 func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
-	// propagates only specific log keys inserted into the context.
-	// the reason why we do not propagate ALL keys is that it can be expensive to walk a large context tree
-	for _, key := range PropagatedLogKeys {
-		if v := ctx.Value(key); v != nil {
-			r.Add(key, v)
+	ctxmap, ok := ctx.Value(ContextMap).(map[string]string)
+	if ok {
+		for key, value := range ctxmap {
+			r.Add(key, value)
 		}
 	}
 

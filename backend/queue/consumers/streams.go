@@ -102,7 +102,7 @@ func (consumer *StreamConsumer) ConsumePartition(partitionKey string) {
 			consumer.cancel()
 		}
 
-		ctx := context.WithValue(consumer.ctx, slogutil.Trace, uuid.NewString())
+		ctx := slogutil.TracedContext(consumer.ctx, uuid.NewString())
 
 		xArgs := &redis.XReadGroupArgs{
 			Group:    consumer.consumerGroup,
