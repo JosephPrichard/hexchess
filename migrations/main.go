@@ -50,7 +50,7 @@ func run() error {
 		return fmt.Errorf("parse postgres config: %s", err)
 	}
 
-	// note(Joseph): password should NOT be here or else...
+	// note: password should NOT be here or else...
 	slog.Info("parsed connection config", "connString", poolCfg.ConnConfig.ConnString())
 
 	// override password with aws token

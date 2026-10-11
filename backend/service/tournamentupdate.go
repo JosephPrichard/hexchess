@@ -21,11 +21,11 @@ import (
 )
 
 type UpdateTournamentService struct {
-	// infra dependencies
+	// infra
 	database.Database
 	redis cache.Redis
 
-	// service dependencies
+	// services
 	producer UpdateTournamentProducer
 }
 

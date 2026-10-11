@@ -36,7 +36,7 @@ func setupGameoverTest(t slogutil.TestLogger) (*GameOverService, itest.TestInfra
 	return services, infra
 }
 
-func TestInsertFinishedGameEvent(t *testing.T) {
+func TestHandleFinishedGameEvent(t *testing.T) {
 	ctx := t.Context()
 
 	testUser0 := itest.TestUser[0]

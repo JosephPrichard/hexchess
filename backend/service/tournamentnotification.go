@@ -8,10 +8,10 @@ import (
 )
 
 type TournamentNotificationService struct {
-	// infra dependencies
+	// infra
 	broadcaster pubsub.Broadcaster
 
-	// service dependencies
+	// services
 	leaderboard TournamentLeaderboardGetter
 }
 

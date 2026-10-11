@@ -42,7 +42,7 @@ func init() {
 func decodeJson[Body any](r *http.Request, body *Body) error {
 	defer r.Body.Close()
 
-	// note(Joseph): sonic.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
+	// note: sonic.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {

@@ -218,7 +218,7 @@ func generateChallengeInsts() []service.ChallengeInst {
 	var insts []service.ChallengeInst
 	for range *challengesCount {
 		// generate two challenges that are unique, this is done by retrying if a duplicate is found.
-		// note(Joseph): we assume the number of users is large enough to avoid duplicates
+		// note: we assume the number of users is large enough to avoid duplicates
 
 		var challengeSet = map[string]struct{}{}
 		var challengerID, challengeeID int64

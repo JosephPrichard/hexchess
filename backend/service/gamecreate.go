@@ -12,10 +12,10 @@ import (
 )
 
 type GameCreateService struct {
-	// infra deps
+	// infra
 	redis cache.Redis
 
-	// service deps
+	// services
 	chessState ChessSetter
 }
 

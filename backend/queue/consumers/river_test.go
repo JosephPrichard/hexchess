@@ -5,7 +5,6 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
-	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -27,7 +26,6 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 		testinfra.Database,
 		testinfra.Redis,
 		pubsub.NewSyncBroadcaster(testinfra.Redis),
-		&producers.NoopRiverClient{},
 	)
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey

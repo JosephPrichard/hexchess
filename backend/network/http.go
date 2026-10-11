@@ -1,7 +1,6 @@
 package network
 
 import (
-	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/cloud"
@@ -139,13 +138,6 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 	for _, opt := range opts {
 		opt(r)
 	}
-
-	var handlers []string
-	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		handlers = append(handlers, fmt.Sprintf("%s %s", method, route))
-		return nil
-	})
-	slog.Info("initialized serve mux", "handlers", handlers)
 
 	return r
 }

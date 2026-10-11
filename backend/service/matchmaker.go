@@ -119,8 +119,8 @@ type MatchmakerState struct {
 
 	MatchProposals []MatchProposal `json:"matchProposals"` // working list of matches proposed to user participants
 
-	potentialProposals []potentialProposal
-	pairedUsers        map[int64]struct{}
+	PotentialProposals []potentialProposal
+	PairedUsers        map[int64]struct{}
 }
 
 type UserEloRecord struct {
@@ -175,7 +175,7 @@ func (node *matchmakerNode) tick() {
 	node.findPotentialProposals()
 
 	// remove any users in potentialProposals from pendingUsers and transfer them to matchProposals
-	for _, proposal := range node.state.potentialProposals {
+	for _, proposal := range node.state.PotentialProposals {
 		node.appendMatchProposal(MatchProposal{
 			UserOne:       node.state.PendingUsers[proposal.userOneID],
 			UserTwo:       node.state.PendingUsers[proposal.userTwoID],
@@ -183,7 +183,7 @@ func (node *matchmakerNode) tick() {
 			UserTwoAccept: false,
 		})
 	}
-	node.deletePendingUsers(node.state.pairedUsers)
+	node.deletePendingUsers(node.state.PairedUsers)
 
 	// update tick state of all pendingUsers
 	for _, record := range node.state.UserEloIdx {
@@ -195,11 +195,19 @@ func (node *matchmakerNode) tick() {
 
 func (node *matchmakerNode) findPotentialProposals() {
 	// reusing internal datastructures - need to clear out stale data first
-	node.state.potentialProposals = node.state.potentialProposals[:0]
-	clear(node.state.pairedUsers)
+	if node.state.PotentialProposals != nil {
+		node.state.PotentialProposals = node.state.PotentialProposals[:0]
+	} else {
+		node.state.PotentialProposals = make([]potentialProposal, 0)
+	}
+	if node.state.PairedUsers != nil {
+		clear(node.state.PairedUsers)
+	} else {
+		node.state.PairedUsers = make(map[int64]struct{})
+	}
 
-	potentialProposals := node.state.potentialProposals
-	pairedUsers := node.state.pairedUsers
+	potentialProposals := node.state.PotentialProposals
+	pairedUsers := node.state.PairedUsers
 
 	for currIdx := range node.state.UserEloIdx {
 		currUserID := node.state.UserEloIdx[currIdx].UserID

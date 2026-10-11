@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -78,8 +79,10 @@ func NewDatabase(pools DatabasePools) Database {
 	return Database{pools: pools}
 }
 
-func NewRiverClient(pool *pgxpool.Pool) RiverClientAPI {
-	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{})
+func NewRiverClient(pool *pgxpool.Pool) *river.Client[pgx.Tx] {
+	riverProducerClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
+		Logger: slog.Default(),
+	})
 	if err != nil {
 		slogutil.Fatal("create river queue client", err)
 	}

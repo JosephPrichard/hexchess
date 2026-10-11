@@ -111,7 +111,7 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	}
 
 	// notify any subscribers of the game that replay has been created (game has ended)
-	// note(Joseph): replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
+	// note: replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
 	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
 	if err != nil {
 		return serrors.New("get replay by id", err, "replayID", result.ReplayID)

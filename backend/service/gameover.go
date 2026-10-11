@@ -26,12 +26,12 @@ import (
 )
 
 type GameOverService struct {
-	// infra deps
+	// infra
 	database.Database
 	redis       cache.Redis
 	broadcaster pubsub.Broadcaster
 
-	// service deps
+	// services
 	producer   AdvanceTournamentProducer
 	chessState ChessStateGetter
 }
@@ -72,7 +72,7 @@ func (services *GameOverService) HandleFinishedGame(ctx context.Context, event m
 	if err != nil {
 		return FinishedGameResult{}, serrors.New("marshal move histories", err)
 	}
-	// note(Joseph): this happens outside the transaction, so we do need to hold a lock for an expended period of time.
+	// note: this happens outside the transaction, so we do need to hold a lock for an expended period of time.
 	if err := services.upsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
 		return FinishedGameResult{}, serrors.New("insert replay move histories", err)
 	}
@@ -82,7 +82,7 @@ func (services *GameOverService) HandleFinishedGame(ctx context.Context, event m
 	}
 
 	// write through the new updates into the cache, this can run outside a transaction because we have a batch job to recover the update to the cache.
-	// note(Joseph): this operation is NOT idempotent, so it MUST be the last operation. once completed, we expect to ack immediately
+	// note: this operation is NOT idempotent, so it MUST be the last operation. once completed, we expect to ack immediately
 	if err := services.updateLeaderboard(ctx,
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
@@ -130,7 +130,7 @@ func (services *GameOverService) publishTournamentEvent(ctx context.Context, eve
 		return serrors.New("select tournament by game id", err, "gameID", event.GameID)
 	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
-		// note(Joseph): if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
+		// note: if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
 		if err := services.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
 			TournamentKey: tournamentKey.Bytes,
 		}); err != nil {

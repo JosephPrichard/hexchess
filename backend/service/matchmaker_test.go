@@ -24,7 +24,7 @@ func TestMatchRequests(t *testing.T) {
 	}{
 		{
 			name:          "MatchRequestBegin",
-			request:       NewMatchRequestBegin(2, model.ModeCorrespondence1, 1000, make(chan MatchResponse, 1)),
+			request:       MatchmakingRequest{Kind: BeginMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
 			wantResponses: []MatchResponse{},
 			beforeState: MatchmakerState{
 				PendingUsers: map[int64]PendingUser{
@@ -53,7 +53,7 @@ func TestMatchRequests(t *testing.T) {
 		},
 		{
 			name:          "MatchRequestBegin_Duplicate",
-			request:       NewMatchRequestConfirmation(1, model.ModeCorrespondence1),
+			request:       MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
 			wantResponses: []MatchResponse{},
 			beforeState: MatchmakerState{
 				PendingUsers:   map[int64]PendingUser{1: {UserID: 1, UserElo: 1000}},
@@ -66,7 +66,7 @@ func TestMatchRequests(t *testing.T) {
 		},
 		{
 			name:          "MatchRequestConfirmation_Waiting",
-			request:       NewMatchRequestConfirmation(1, model.ModeCorrespondence1),
+			request:       MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
 			wantResponses: []MatchResponse{},
 			beforeState: MatchmakerState{
 				PendingUsers: map[int64]PendingUser{},
@@ -93,7 +93,7 @@ func TestMatchRequests(t *testing.T) {
 		},
 		{
 			name:    "MatchRequestConfirmation_Complete",
-			request: NewMatchRequestConfirmation(2, model.ModeCorrespondence1),
+			request: MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 2, Mode: model.ModeCorrespondence1},
 			wantResponses: []MatchResponse{
 				{Kind: MatchResponseConfirmation, UserOneID: 1, UserTwoID: 2},
 				{}, // close
@@ -118,7 +118,7 @@ func TestMatchRequests(t *testing.T) {
 		},
 		{
 			name:    "MatchRequestCancel",
-			request: NewMatchRequestCancel(1, model.ModeCorrespondence1),
+			request: MatchmakingRequest{Kind: CancelMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
 			wantResponses: []MatchResponse{
 				{}, // close
 				{Kind: MatchResponseCancel},

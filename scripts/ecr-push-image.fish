@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-# Note(Joseph): Must be run from inside root, not this directory (Docker images reference things relative to root)
+# note: Must be run from inside root, not this directory (Docker images reference things relative to root)
 
 if not set -q AWS_ACCOUNT
     set -g AWS_ACCOUNT 938864279852

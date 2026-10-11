@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
@@ -13,6 +14,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 const ServiceName = "hexchess-api"
@@ -75,12 +78,17 @@ func main() {
 		Broadcaster:    broadcaster,
 		Broadcasters:   broadcasters,
 		AllowedOrigins: cfg.AllowedOrigins,
-	}, network.NewHealthCheck(network.HealthConfig{
+	})
+
+	network.SetHealthCheck(mux, network.HealthConfig{
 		PostgresCheck:     databaseClient.HealthcheckFunc(),
 		PostgresReadCheck: databaseClient.ReadHealthcheckFunc(),
 		RedisPrimaryCheck: redisClient.PrimaryHealthCheck,
 		RedisPubSubCheck:  redisClient.PubsubHealthCheck,
-	}))
+	})
+	network.SetAdminEndpoints(mux, riverClient)
+
+	logMux(mux)
 
 	slog.Info("finished initializing app, starting server",
 		"port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins, "timeTaken", time.Since(startTime).String())
@@ -93,4 +101,13 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.ServerPort, mux); err != nil {
 		slogutil.Fatal("failed while serving", err)
 	}
+}
+
+func logMux(mux *chi.Mux) {
+	var handlers []string
+	_ = chi.Walk(mux, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		handlers = append(handlers, fmt.Sprintf("%s %s", method, route))
+		return nil
+	})
+	slog.Info("initialized serve mux", "handlers", handlers)
 }

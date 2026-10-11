@@ -8,7 +8,6 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math/big"
@@ -17,10 +16,10 @@ import (
 )
 
 type GamePlayService struct {
-	// infra deps
+	// infra
 	redis cache.Redis
 
-	// service deps
+	// services
 	chessState ChessUpdater
 }
 
@@ -263,13 +262,4 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 
 	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "game", state.String())
 	return state.EndState, nil
-}
-
-func produceUpdtGameMetadata(ctx context.Context, pipe producers.RedisXAdder, state *model.ChessState) error {
-	return producers.ProduceUpdtGameMetadata(ctx, pipe, model.UpdtGameMetadataEvent{
-		GameID:      state.ID,
-		WhitePlayer: opt.Option[int64]{Value: state.WhitePlayer.ID, Present: state.WhitePlayer.Present},
-		BlackPlayer: opt.Option[int64]{Value: state.BlackPlayer.ID, Present: state.BlackPlayer.Present},
-		Mode:        state.Mode,
-	})
 }

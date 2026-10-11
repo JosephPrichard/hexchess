@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-# Note(Joseph): Must be run from inside this directory, not parent
+# note: Must be run from inside this directory, not parent
 set -x
 
 set REDIS_PORTS 6479 6480 6481 6482 6483 6484
