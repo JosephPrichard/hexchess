@@ -1,8 +1,8 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "./queries/dql"
-    schema: "./schema.sql"
+    queries: "./sql/query"
+    schema: "./sql/schema.sql"
     gen:
       go:
         package: "query"
@@ -10,11 +10,11 @@ sql:
         out: "./query"
         emit_interface: true
   - engine: "postgresql"
-    queries: "./queries/dml"
-    schema: "./schema.sql"
+    queries: "./sql/mutate"
+    schema: "./sql/schema.sql"
     gen:
       go:
-        package: "mutator"
+        package: "mutate"
         sql_package: "pgx/v5"
-        out: "./mutator"
+        out: "./mutate"
         emit_interface: true

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
@@ -56,18 +56,18 @@ func (services *ChallengeService) InsertChallenge(ctx context.Context, inst Chal
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := services.Mutator().InsertChallenge(ctx, mutator.InsertChallengeParams{
+	row, dbErr := services.Mutator().InsertChallenge(ctx, mutate.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
-		Mode:         mutator.ModeEnum(inst.Mode.String()),
-		StartColor:   mutator.ColorEnum(inst.StartColor.String()),
+		Mode:         mutate.ModeEnum(inst.Mode.String()),
+		StartColor:   mutate.ColorEnum(inst.StartColor.String()),
 		MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 	})
 	if dbErr != nil {
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
 			return model.Challenge{}, svcErr
 		}
-		return model.Challenge{}, serrors.New("insert challenge", dbErr, "inst", inst)
+		return model.Challenge{}, errutil.Wrap("insert challenge", dbErr, "inst", inst)
 	}
 
 	challenge := model.Challenge{
@@ -90,17 +90,17 @@ func (services *ChallengeService) InsertChallenge(ctx context.Context, inst Chal
 }
 
 func (services *ChallengeService) BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error {
-	batches := make([]mutator.BatchInsertChallengeParams, 0, len(insts))
+	batches := make([]mutate.BatchInsertChallengeParams, 0, len(insts))
 
 	for _, inst := range insts {
 		if inst.MadeOn.IsZero() {
 			inst.MadeOn = time.Now()
 		}
-		batches = append(batches, mutator.BatchInsertChallengeParams{
+		batches = append(batches, mutate.BatchInsertChallengeParams{
 			ChallengerID: inst.ChallengerID,
 			ChallengeeID: inst.ChallengeeID,
-			Mode:         mutator.ModeEnum(inst.Mode.String()),
-			StartColor:   mutator.ColorEnum(inst.StartColor.String()),
+			Mode:         mutate.ModeEnum(inst.Mode.String()),
+			StartColor:   mutate.ColorEnum(inst.StartColor.String()),
 			MadeOn:       pgtype.Timestamptz{Valid: true, Time: inst.MadeOn},
 		})
 	}
@@ -141,7 +141,7 @@ func (services *ChallengeService) GetChallengesByParticipant(ctx context.Context
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
-		return nil, serrors.New("get challenges by participant", err, "key", key)
+		return nil, errutil.Wrap("get challenges by participant", err, "key", key)
 	}
 
 	challenges := make([]model.Challenge, 0, len(rows))
@@ -176,13 +176,13 @@ type DeleteResult struct {
 func (services *ChallengeService) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
 	defer perf.WithContext(ctx).Log()
 
-	params := mutator.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
+	params := mutate.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
 	challengeRow, err := services.Mutator().DeleteChallenge(ctx, params)
 	if database.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, serrors.New("delete challenge", err, "params", params)
+		return DeleteResult{}, errutil.Wrap("delete challenge", err, "params", params)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)
@@ -204,7 +204,7 @@ func (services *ChallengeService) DeleteExpiredChallenges(ctx context.Context, u
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	err := services.Mutator().DeleteExpiredChallenges(ctx, mutator.DeleteExpiredChallengesParams{
+	err := services.Mutator().DeleteExpiredChallenges(ctx, mutate.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})

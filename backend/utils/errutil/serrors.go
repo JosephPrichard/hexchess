@@ -1,4 +1,4 @@
-package serrors
+package errutil
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ func (e *ServiceError) Error() string {
 	return e.Err.Error()
 }
 
-func New(message string, err error, values ...any) error {
+func Wrap(message string, err error, values ...any) error {
 	if err == nil {
 		return nil
 	}
@@ -44,9 +44,8 @@ func New(message string, err error, values ...any) error {
 }
 
 func WalkValues(err error, values *[]any) {
-	var serr *ServiceError
 	for {
-		if errors.As(err, &serr) {
+		if serr, ok := errors.AsType[*ServiceError](err); ok {
 			for k, v := range serr.Values {
 				if slices.Contains(*values, any(k)) {
 					continue

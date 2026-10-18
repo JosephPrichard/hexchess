@@ -3,11 +3,16 @@ package opt
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
 type Option[T any] struct {
 	Value   T
 	Present bool
+}
+
+func (o Option[T]) String() string {
+	return fmt.Sprintf("%s", o.Value)
 }
 
 var jsonNull = []byte("null")

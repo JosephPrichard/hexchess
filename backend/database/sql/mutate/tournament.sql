@@ -21,15 +21,17 @@ VALUES (sqlc.arg('tournamentKey')::uuid, sqlc.arg('userID'), sqlc.arg('joinedOn'
 INSERT INTO tournament_participants (tournament_key, user_id, joined_on)
 VALUES (sqlc.arg('tournamentKey')::uuid, sqlc.arg('userID'), sqlc.arg('joinedOn')::timestamptz);
 
--- name: BatchInsertTournamentMatch :batchexec
+-- name: BatchInsertTournamentMatch :batchone
 INSERT INTO tournament_matches (tournament_key, game_id, white_id, black_id, round, created_on)
 VALUES (sqlc.arg('tournamentKey')::uuid,
         sqlc.arg('gameID'),
         sqlc.arg('whiteID'),
         sqlc.arg('blackID'),
         sqlc.arg('round'),
-        COALESCE(sqlc.narg('createdOn')::timestamptz, CURRENT_TIMESTAMP)) ON CONFLICT
-ON CONSTRAINT tournament_matches_pkey DO NOTHING;
+        COALESCE(sqlc.narg('createdOn')::timestamptz, CURRENT_TIMESTAMP))
+ON CONFLICT ON CONSTRAINT tournament_matches_pkey
+DO UPDATE SET created_on = EXCLUDED.created_on -- dummy update to force row to be returned
+RETURNING *;
 
 -- name: UpdateTournamentStatus :exec
 UPDATE tournaments

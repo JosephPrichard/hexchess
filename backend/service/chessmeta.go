@@ -3,16 +3,16 @@ package service
 import (
 	"context"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/opt"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 
@@ -37,15 +37,15 @@ func NewChessMetaService(
 func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) error {
 	defer perf.WithContext(ctx).Log()
 
-	updtResult, err := services.Mutator().UpdateGameMeta(ctx, mutator.UpdateGameMetaParams{
+	updtResult, err := services.Mutator().UpdateGameMeta(ctx, mutate.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer.Value, Valid: updt.WhitePlayer.Present},
 		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer.Value, Valid: updt.BlackPlayer.Present},
-		Mode:      mutator.ModeEnum(updt.Mode.String()),
+		Mode:      mutate.ModeEnum(updt.Mode.String()),
 		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
-		return serrors.New("update game metadata", err, "updt", updt)
+		return errutil.Wrap("update game metadata", err, "updt", updt)
 	}
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
@@ -72,13 +72,13 @@ func (services *ChessMetaService) GetGameMetadata(
 
 	eg.Go(func() (err error) {
 		chessMetas, err = services.getGameMetadata(egCtx, opt.None[int64](), afterOrdering, opt.Some[int32](count))
-		return serrors.New(
+		return errutil.Wrap(
 			"get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
 		eg.Go(func() (err error) {
 			userChessMetas, err = services.getGameMetadata(ctx, opt.Some[int64](player.ID), opt.None[int64](), opt.None[int32]())
-			return serrors.New(
+			return errutil.Wrap(
 				"get user game metadata", err, "userID", player.ID)
 		})
 	}
@@ -94,7 +94,7 @@ func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int
 
 	count, err := services.Querier().SelectGameMetasCount(ctx)
 	if err != nil {
-		return 0, serrors.New("count chess metadatas", err)
+		return 0, errutil.Wrap("count chess metadatas", err)
 	}
 
 	slog.InfoContext(ctx, "selected chess metadatas count", "count", count)
@@ -115,7 +115,7 @@ func (services *ChessMetaService) getGameMetadata(
 		PerPage:       database.MapOptInt4(count),
 	})
 	if err != nil {
-		return nil, serrors.New("select game metas", err, "userID", userID)
+		return nil, errutil.Wrap("select game metas", err, "userID", userID)
 	}
 
 	var chessMetas []model.ChessMeta

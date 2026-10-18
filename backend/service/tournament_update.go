@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
-	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
-
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
+	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/perf"
 	"log/slog"
 	"time"
 
@@ -71,20 +70,20 @@ func (services *UpdateTournamentService) CreateTournament(ctx context.Context, i
 		rounds = inst.Rounds
 	}
 
-	tournamentID, err := services.Mutator().InsertTournament(ctx, mutator.InsertTournamentParams{
+	tournamentID, err := services.Mutator().InsertTournament(ctx, mutate.InsertTournamentParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.Key, Valid: true},
 		Name:          inst.Name,
 		Rounds:        rounds,
-		Status:        mutator.TournamentStatusEnum(InsertionStatus),
+		Status:        mutate.TournamentStatusEnum(InsertionStatus),
 		Countdown:     inst.Countdown.Milliseconds(),
 		CreatedOn:     pgtype.Timestamptz{Time: inst.CreatedOn, Valid: true},
 		CreatedBy:     inst.CreatedBy,
 		UpdatedOn:     pgtype.Timestamptz{Time: inst.CreatedOn, Valid: true},
-		Mode:          mutator.ModeEnum(inst.Mode.String()),
-		Ruleset:       mutator.TournamentRulesetEnum(inst.Ruleset.String()),
+		Mode:          mutate.ModeEnum(inst.Mode.String()),
+		Ruleset:       mutate.TournamentRulesetEnum(inst.Ruleset.String()),
 	})
 	if err != nil {
-		return 0, serrors.New("insert tournament", err, "inst", inst)
+		return 0, errutil.Wrap("insert tournament", err, "inst", inst)
 	}
 
 	slog.InfoContext(ctx, "created tournament", "tournamentKey", tournamentID, "inst", inst)
@@ -92,12 +91,12 @@ func (services *UpdateTournamentService) CreateTournament(ctx context.Context, i
 }
 
 func (services *UpdateTournamentService) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
-	deletedIDs, err := services.Mutator().DeleteTournamentParticipant(ctx, mutator.DeleteTournamentParticipantParams{
+	deletedIDs, err := services.Mutator().DeleteTournamentParticipant(ctx, mutate.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
 	})
 	if err != nil {
-		return false, serrors.New("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
+		return false, errutil.Wrap("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "deleted tournament participant", "key", tournamentKey, "deletedIDs", deletedIDs)
@@ -155,7 +154,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 	if database.IsErrNoRows(err) {
 		return ErrTournamentNotFound
 	} else if err != nil {
-		return serrors.New("select tournament", err, "tournamentKey", inst.TournamentKey)
+		return errutil.Wrap("select tournament", err, "tournamentKey", inst.TournamentKey)
 	}
 
 	gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
@@ -175,7 +174,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 		}
 	}
 
-	if dbErr := query.InsertTournamentParticipant(ctx, mutator.InsertTournamentParticipantParams{
+	if dbErr := query.InsertTournamentParticipant(ctx, mutate.InsertTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.TournamentKey, Valid: true},
 		UserID:        inst.JoiningUserID,
 		JoinedOn:      pgtype.Timestamptz{Time: inst.InsertionTime, Valid: true},
@@ -183,7 +182,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 		if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
 			return svcErr
 		}
-		return serrors.New("insert tournament participant", dbErr, "inst", inst)
+		return errutil.Wrap("insert tournament participant", dbErr, "inst", inst)
 	}
 
 	slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
@@ -219,7 +218,7 @@ func (services *UpdateTournamentService) BeginTournamentCountdown(ctx context.Co
 func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
 	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return serrors.New("select tournament by key", err, "key", tournamentKey)
+		return errutil.Wrap("select tournament by key", err, "key", tournamentKey)
 	}
 
 	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
@@ -234,20 +233,20 @@ func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Co
 	nextTournamentStatus := model.TournamentScheduled
 	updtTournamentTime := time.Now()
 
-	if err := query.UpdateTournamentStatus(ctx, mutator.UpdateTournamentStatusParams{
+	if err := query.UpdateTournamentStatus(ctx, mutate.UpdateTournamentStatusParams{
 		TournamentKey:      pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		CountdownStartedOn: pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
-		Status:             mutator.TournamentStatusEnum(nextTournamentStatus.String()),
+		Status:             mutate.TournamentStatusEnum(nextTournamentStatus.String()),
 		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 	}); err != nil {
-		return serrors.New("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
+		return errutil.Wrap("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 	}
 
 	if err := services.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
 	}); err != nil {
-		return serrors.New("publish advance tournament event", err, "key", tournamentKey)
+		return errutil.Wrap("publish advance tournament event", err, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)

@@ -4,13 +4,12 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
+	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/service"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/serrors"
-
-	"hexchess-svc/model"
+	"hexchess-svc/utils/errutil"
 	"log/slog"
 
 	"github.com/bytedance/sonic"
@@ -107,14 +106,14 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	// insert the finished game into the system of record
 	result, err := w.services.HandleFinishedGame(ctx, event)
 	if err != nil {
-		return serrors.New("insert finished game failed", err)
+		return errutil.Wrap("insert finished game failed", err)
 	}
 
 	// notify any subscribers of the game that replay has been created (game has ended)
 	// note: replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
 	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
 	if err != nil {
-		return serrors.New("get replay by id", err, "replayID", result.ReplayID)
+		return errutil.Wrap("get replay by id", err, "replayID", result.ReplayID)
 	}
 	w.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(model.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay}))
 

@@ -2,7 +2,7 @@ package slogutil
 
 import (
 	"context"
-	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/errutil"
 	"log/slog"
 	"os"
 )
@@ -59,7 +59,7 @@ func Log(ctx context.Context, msg string, err error, args ...any) {
 
 func Error(ctx context.Context, level slog.Level, msg string, err error, args ...any) {
 	args = append(args, "error", err)
-	serrors.WalkValues(err, &args)
+	errutil.WalkValues(err, &args)
 	slog.Log(ctx, level, msg, args...)
 }
 

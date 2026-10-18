@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/timeutil"
@@ -43,10 +43,10 @@ func (c *RedisMetricCollector) Persist() {
 		return
 	}
 
-	metricRows := make([]mutator.InsertRedisEventMetricsParams, 0, len(c.metrics))
+	metricRows := make([]mutate.InsertRedisEventMetricsParams, 0, len(c.metrics))
 
 	for _, metric := range c.metrics {
-		metricRows = append(metricRows, mutator.InsertRedisEventMetricsParams{
+		metricRows = append(metricRows, mutate.InsertRedisEventMetricsParams{
 			StreamName:  metric.StreamName,
 			EventId:     pgtype.UUID{Bytes: metric.EventID, Valid: true},
 			GroupId:     pgtype.UUID{Bytes: metric.GroupID, Valid: true},
@@ -62,12 +62,13 @@ func (c *RedisMetricCollector) Persist() {
 
 const InsertRedisEventMetricMaxRetries = 3
 
-func (c *RedisMetricCollector) insertRedisMetrics(metrics []mutator.InsertRedisEventMetricsParams) {
+func (c *RedisMetricCollector) insertRedisMetrics(metrics []mutate.InsertRedisEventMetricsParams) {
 	var batchErr error
 	maxRetries := InsertRedisEventMetricMaxRetries
 
 	for i := range maxRetries {
 		batchErr = nil
+
 		// metric insertions fail individually, it is safe to retry the entire batch if any fails because each insert is idempotent
 		c.querier.InsertRedisEventMetrics(context.Background(), metrics).Exec(func(index int, err error) {
 			batchErr = errors.Join(batchErr, err)

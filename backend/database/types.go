@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 
 	"github.com/jackc/pgx/v5"
@@ -20,7 +20,7 @@ type Database struct {
 
 type Queriers struct {
 	Transactor Transactor
-	Mutator    mutator.Querier
+	Mutator    mutate.Querier
 	Querier    query.Querier
 }
 
@@ -38,11 +38,11 @@ type TxArgs struct {
 }
 type QuerierMutator interface {
 	query.Querier
-	mutator.Querier
+	mutate.Querier
 }
 
 type readQueries = query.Queries
-type writeQueries = mutator.Queries
+type writeQueries = mutate.Queries
 
 type ReadWriteQueries struct {
 	*readQueries
@@ -53,14 +53,14 @@ func NewPoolQuerier(pool *pgxpool.Pool) QuerierMutator {
 	if pool == nil {
 		return nil
 	}
-	return ReadWriteQueries{readQueries: query.New(pool), writeQueries: mutator.New(pool)}
+	return ReadWriteQueries{readQueries: query.New(pool), writeQueries: mutate.New(pool)}
 }
 
 func NewTxnQuerier(txn pgx.Tx) QuerierMutator {
 	if txn == nil {
 		return nil
 	}
-	return ReadWriteQueries{readQueries: query.New(txn), writeQueries: mutator.New(txn)}
+	return ReadWriteQueries{readQueries: query.New(txn), writeQueries: mutate.New(txn)}
 }
 
 type RiverClientAPI interface {

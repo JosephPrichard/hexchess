@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
@@ -33,7 +34,7 @@ func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvanceService, itest.T
 
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
-func TestProgressTournament_StoresMatches(t *testing.T) {
+func TestAdvanceTournament_StoresMatches(t *testing.T) {
 	tests := []struct {
 		name          string
 		tournamentKey uuid.UUID
@@ -277,7 +278,7 @@ func leafError(err error) error {
 	}
 }
 
-func TestProgressTournament_ThenGetChessStates(t *testing.T) {
+func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	services, testinfra := setupAdvanceTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
@@ -307,15 +308,44 @@ func TestProgressTournament_ThenGetChessStates(t *testing.T) {
 	}
 }
 
-var cmpOptsMatchCreation = cmpopts.IgnoreFields(model.MatchCreation{}, "GameID")
+var cmpOptsFullMatch = cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
 
-func TestProgressTournament_InsertsEvent(t *testing.T) {
+func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 	services, testinfra := setupAdvanceTest(t)
 	defer testinfra.Close()
+
 	ctx := t.Context()
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
 	eventID := uuid.New()
+
+	wantTournaments := []model.FullMatch{
+		{
+			Ordering:      10,
+			TournamentKey: tournamentKey,
+			Round:         1,
+			GameMode:      opt.Some(model.ModeCorrespondence1),
+			WhiteID:       3,
+			BlackID:       4,
+		},
+		{
+			Ordering:      11,
+			TournamentKey: tournamentKey,
+			Round:         1,
+			GameMode:      opt.Some(model.ModeCorrespondence1),
+			WhiteID:       5,
+			BlackID:       6,
+		},
+	}
+	wantTournamentOutputs := []model.TournamentOutput{
+		{
+			Key:     tournamentKey.String(),
+			Kind:    model.TournamentMatchmakingKind,
+			Matches: wantTournaments,
+		},
+	}
+
+	assertBroadcasts := pubsub.ExpectBroadcastTournamentOutput(t, testinfra.Redis, tournamentKey.String(), wantTournamentOutputs)
 
 	_, err := services.AdvanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
@@ -323,20 +353,10 @@ func TestProgressTournament_InsertsEvent(t *testing.T) {
 	eventData, err := testinfra.Querier().SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
 	require.NoError(t, err)
 
-	var matchCreations model.MatchCreations
-	require.NoError(t, sonic.Unmarshal(eventData, &matchCreations))
+	var edata model.MatchCreations
+	require.NoError(t, sonic.Unmarshal(eventData, &edata))
 
-	wantTournaments := []model.MatchCreation{
-		{
-			GameMode: model.ModeCorrespondence1,
-			WhiteID:  3,
-			BlackID:  4,
-		},
-		{
-			GameMode: model.ModeCorrespondence1,
-			WhiteID:  5,
-			BlackID:  6,
-		},
-	}
-	testutil.Equal(t, wantTournaments, matchCreations.Creations, cmpOptsMatchCreation)
+	testutil.Equal(t, wantTournaments, edata.Creations, cmpOptsFullMatch)
+
+	assertBroadcasts()
 }

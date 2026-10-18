@@ -1,6 +1,7 @@
 package model
 
 import (
+	"hexchess-svc/utils/opt"
 	"time"
 
 	"github.com/google/uuid"
@@ -31,14 +32,15 @@ type TournamentReplay struct {
 }
 
 type FullMatch struct {
-	Ordering      int64             `json:"ordering"`
-	GameID        GameID            `json:"gameId"`
-	TournamentKey uuid.UUID         `json:"tournamentKey"`
-	Round         int32             `json:"round"`
-	CreatedOn     time.Time         `json:"createdOn"`
-	WhiteID       int64             `json:"whiteId"`
-	BlackID       int64             `json:"blackId"`
-	Replay        *TournamentReplay `json:"replay"`
+	Ordering      int64                `json:"ordering"`
+	GameID        GameID               `json:"gameId"`
+	TournamentKey uuid.UUID            `json:"tournamentKey"`
+	Round         int32                `json:"round"`
+	CreatedOn     time.Time            `json:"createdOn"`
+	WhiteID       int64                `json:"whiteId"`
+	BlackID       int64                `json:"blackId"`
+	Replay        *TournamentReplay    `json:"replay"`
+	GameMode      opt.Option[GameMode] `json:"gameMode"` // sometimes initialized, contains the game mode of gameID
 }
 
 type MatchCreation struct {
@@ -49,7 +51,7 @@ type MatchCreation struct {
 }
 
 type MatchCreations struct {
-	Creations []MatchCreation `json:"creations"`
+	Creations []FullMatch `json:"creations"`
 }
 
 type FullTournament struct {

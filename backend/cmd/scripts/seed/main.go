@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/service"
 	"hexchess-svc/utils/entropy"
@@ -318,9 +318,9 @@ func seedGameResults(ctx context.Context, gameoverSvc *service.GameOverService, 
 }
 
 type TournamentInsts struct {
-	tournament   mutator.InsertTournamentParams
-	participants []mutator.BatchInsertTournamentParticipantParams
-	matches      []mutator.BatchInsertTournamentMatchParams
+	tournament   mutate.InsertTournamentParams
+	participants []mutate.BatchInsertTournamentParticipantParams
+	matches      []mutate.BatchInsertTournamentMatchParams
 }
 
 func generateTournaments() []TournamentInsts {
@@ -340,7 +340,7 @@ func generateTournaments() []TournamentInsts {
 		status := model.TournamentInProgress
 		rounds := rand.Intn(4) + 1
 
-		var participants []mutator.BatchInsertTournamentParticipantParams
+		var participants []mutate.BatchInsertTournamentParticipantParams
 		var usedParticipants = map[int64]struct{}{}
 
 		for i := range service.KnockoutParticipantsAtRound(rounds, 1) {
@@ -351,7 +351,7 @@ func generateTournaments() []TournamentInsts {
 				participantID = generateUserID(usedParticipants)
 			}
 			joinedOn := time.Now().Add(-time.Minute*60 + time.Minute*time.Duration(i))
-			participants = append(participants, mutator.BatchInsertTournamentParticipantParams{
+			participants = append(participants, mutate.BatchInsertTournamentParticipantParams{
 				TournamentKey: pgTkey,
 				UserID:        participantID,
 				JoinedOn:      pgtype.Timestamptz{Time: joinedOn, Valid: true},
@@ -359,10 +359,10 @@ func generateTournaments() []TournamentInsts {
 			usedParticipants[participantID] = struct{}{}
 		}
 
-		var matches []mutator.BatchInsertTournamentMatchParams
+		var matches []mutate.BatchInsertTournamentMatchParams
 		for i := 0; i+1 < len(participants); i += 2 {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
-			matches = append(matches, mutator.BatchInsertTournamentMatchParams{
+			matches = append(matches, mutate.BatchInsertTournamentMatchParams{
 				TournamentKey: pgTkey,
 				GameID:        model.NewGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
@@ -373,20 +373,20 @@ func generateTournaments() []TournamentInsts {
 		}
 
 		insts = append(insts, TournamentInsts{
-			tournament: mutator.InsertTournamentParams{
+			tournament: mutate.InsertTournamentParams{
 				TournamentKey: pgTkey,
 				Name:          fmt.Sprintf("%s's tournament", gofakeit.FirstName()),
 				Rounds:        1,
-				Status:        mutator.TournamentStatusEnum(status.String()),
-				Mode:          mutator.ModeEnum(generateMode().String()),
-				Ruleset:       mutator.TournamentRulesetEnum(model.TournamentKnockout.String()),
+				Status:        mutate.TournamentStatusEnum(status.String()),
+				Mode:          mutate.ModeEnum(generateMode().String()),
+				Ruleset:       mutate.TournamentRulesetEnum(model.TournamentKnockout.String()),
 				CreatedBy:     createdBy,
 				Countdown:     10,
 				CreatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 				UpdatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},
 			},
 			participants: participants,
-			matches:      []mutator.BatchInsertTournamentMatchParams{},
+			matches:      []mutate.BatchInsertTournamentMatchParams{},
 		})
 	}
 	return insts
@@ -407,19 +407,19 @@ func seedTournaments(ctx context.Context, query database.QuerierMutator, paramsL
 				return err
 			}
 
-			var errs []error
+			var batchErr error
 
 			query.BatchInsertTournamentParticipant(egCtx, params.participants).Exec(func(i int, err error) {
-				errs = append(errs, err)
+				batchErr = errors.Join(batchErr, err)
 			})
-			if err := errors.Join(errs...); err != nil {
-				return err
+			if batchErr != nil {
+				return batchErr
 			}
 
-			query.BatchInsertTournamentMatch(egCtx, params.matches).Exec(func(i int, err error) {
-				errs = append(errs, err)
+			query.BatchInsertTournamentMatch(egCtx, params.matches).QueryRow(func(i int, _ mutate.TournamentMatch, err error) {
+				batchErr = errors.Join(batchErr, err)
 			})
-			return errors.Join(errs...)
+			return batchErr
 		})
 	}
 	return nil

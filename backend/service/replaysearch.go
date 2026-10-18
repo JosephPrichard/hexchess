@@ -7,9 +7,9 @@ import (
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 	"time"
@@ -127,7 +127,7 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 	}
 	replayRows, err := services.Querier().SelectReplaysByQuery(ctx, params)
 	if err != nil {
-		return nil, serrors.New("select replays by query", err)
+		return nil, errutil.Wrap("select replays by query", err)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -167,7 +167,7 @@ func (services *ReplaySearchService) getIDsByUsernames(ctx context.Context, requ
 
 	userRows, err := services.Querier().SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return serrors.New("select user ids by names", err, "usernames", usernames)
+		return errutil.Wrap("select user ids by names", err, "usernames", usernames)
 	}
 
 	userIDs := make(map[string]int64)

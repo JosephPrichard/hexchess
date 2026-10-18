@@ -38,12 +38,12 @@ func DeserializeMove(pbMove *pb.Move) chess.Move {
 	}
 	return chess.Move{
 		From: chess.Hex{
-			File: uint32(pbMove.FromFile),
-			Rank: uint32(pbMove.FromRank),
+			File: pbMove.FromFile,
+			Rank: pbMove.FromRank,
 		},
 		To: chess.Hex{
-			File: uint32(pbMove.ToFile),
-			Rank: uint32(pbMove.ToRank),
+			File: pbMove.ToFile,
+			Rank: pbMove.ToRank,
 		},
 		Promotion: chess.Promotion(pbMove.Promotion),
 	}
@@ -142,11 +142,9 @@ func DeserializeHistMove(pbHistMove *pb.HistMove) chess.HistMove {
 		return chess.HistMove{}
 	}
 	return chess.HistMove{
-		PieceMove: chess.PieceMove{
-			Piece: chess.Piece(pbHistMove.Piece),
-			From:  chess.Hex{File: pbHistMove.FromFile, Rank: pbHistMove.FromRank},
-			To:    chess.Hex{File: pbHistMove.ToFile, Rank: pbHistMove.ToRank},
-		},
+		Piece:      chess.Piece(pbHistMove.Piece),
+		From:       chess.Hex{File: pbHistMove.FromFile, Rank: pbHistMove.FromRank},
+		To:         chess.Hex{File: pbHistMove.ToFile, Rank: pbHistMove.ToRank},
 		Notation:   pbHistMove.Notation,
 		WhiteTimer: time.Duration(pbHistMove.WhiteTimerMs) * time.Millisecond,
 		BlackTimer: time.Duration(pbHistMove.BlackTimerMs) * time.Millisecond,
@@ -343,7 +341,7 @@ func DeserializeChessState(pbChess *pb.ChessState) (*ChessState, error) {
 	return &ChessState{
 		Game:         game,
 		InitialBoard: initialBoard,
-		UndoState:    UndoState{UndoID: pbChess.UndoId},
+		UndoID:       pbChess.UndoId,
 		EndState:     DeserializeEndKind(pbChess.EndState),
 		ID:           GameID(pbChess.Id),
 		WhitePlayer:  DeserializePlayer(pbChess.WhitePlayer),

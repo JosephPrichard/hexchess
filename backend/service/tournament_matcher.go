@@ -170,7 +170,7 @@ func NewFirstMatches(request FirstMatchmakingInput) (MatchmakingOutput, error) {
 
 	switch request.Ruleset {
 	case model.TournamentKnockout:
-		// invariant: matches are devided by two each time and stop at 1, we need to start at the expected power of 2
+		// invariant: matches are decided by two each time and stop at 1, we need to start at the expected power of 2
 		wantRoundCount := KnockoutParticipantsAtRound(int(totalRounds), 1)
 		if participantCount != wantRoundCount {
 			return MatchmakingOutput{}, MatchCountError{Kind: ParticipantCountErrKind, WantCount: wantRoundCount, GotCount: participantCount}

@@ -5,11 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 	"time"
@@ -59,10 +59,10 @@ func (services *UserService) InsertUser(ctx context.Context, inst UserInst) (mod
 
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
-		return model.User{}, serrors.New("generate hash", err)
+		return model.User{}, errutil.Wrap("generate hash", err)
 	}
 
-	userRow, err := services.Mutator().InsertUser(ctx, mutator.InsertUserParams{
+	userRow, err := services.Mutator().InsertUser(ctx, mutate.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -74,7 +74,7 @@ func (services *UserService) InsertUser(ctx context.Context, inst UserInst) (mod
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return model.User{}, ErrTakenUsername
 		}
-		return model.User{}, serrors.New("insert user to transactor", err)
+		return model.User{}, errutil.Wrap("insert user to transactor", err)
 	}
 
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
@@ -83,7 +83,7 @@ func (services *UserService) InsertUser(ctx context.Context, inst UserInst) (mod
 }
 
 func (services *UserService) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]model.User, error) {
-	batches := make([]mutator.BatchInsertUserParams, len(insts))
+	batches := make([]mutate.BatchInsertUserParams, len(insts))
 
 	var hashEg errgroup.Group // no context propagation because jobs are non-cancellable
 
@@ -94,9 +94,9 @@ func (services *UserService) BatchInsertUsers(ctx context.Context, insts []UserI
 		hashEg.Go(func() error {
 			hash, err := hashPassword(inst.Password)
 			if err != nil {
-				return serrors.New("hash password for inst index", err, "index", i)
+				return errutil.Wrap("hash password for inst index", err, "index", i)
 			}
-			batch := mutator.BatchInsertUserParams{
+			batch := mutate.BatchInsertUserParams{
 				Username: inst.Username,
 				Country:  inst.Country,
 				Password: hash.HashedPassword,
@@ -113,16 +113,17 @@ func (services *UserService) BatchInsertUsers(ctx context.Context, insts []UserI
 
 	slog.InfoContext(ctx, "batch inserting users", "insts", insts)
 
-	var rows []mutator.BatchInsertUserRow
-	var insertErrs []error
-	services.Mutator().BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutator.BatchInsertUserRow, err error) {
-		if err == nil {
-			rows = append(rows, row)
-		} else {
-			insertErrs = append(insertErrs, serrors.New("batch insert user", err, "index", i))
-		}
+	var rows []mutate.BatchInsertUserRow
+	var batchErr error
+
+	services.Mutator().BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutate.BatchInsertUserRow, err error) {
+		rows = append(rows, row)
+		batchErr = errors.Join(batchErr, err)
 	})
-	err := errors.Join(insertErrs...)
+	if batchErr != nil {
+		slog.ErrorContext(ctx, "failed to batch inserted users", "err", batchErr)
+		return nil, batchErr
+	}
 
 	var users []model.User
 	for _, row := range rows {
@@ -135,8 +136,8 @@ func (services *UserService) BatchInsertUsers(ctx context.Context, insts []UserI
 		})
 	}
 
-	slogutil.Log(ctx, "batch inserted users", err, "users", users)
-	return users, err
+	slog.InfoContext(ctx, "batch inserted users", "users", users)
+	return users, nil
 }
 
 type VerifiedUser struct {
@@ -180,7 +181,7 @@ func verifyUser(ctx context.Context, query database.QuerierMutator, username str
 	if database.IsErrNoRows(err) {
 		return ErrUserNotFound
 	} else if err != nil {
-		return serrors.New("select user by login", err, "username", username)
+		return errutil.Wrap("select user by login", err, "username", username)
 	}
 
 	isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
@@ -195,14 +196,14 @@ func verifyUser(ctx context.Context, query database.QuerierMutator, username str
 	err = bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
 	if err != nil {
 		if err := query.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
-			return serrors.New("increment user login attempts", err, "userID", loginRow.ID)
+			return errutil.Wrap("increment user login attempts", err, "userID", loginRow.ID)
 		}
 		slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", err)
 		return ErrUserNotFound
 	}
 
 	if err := query.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-		return serrors.New("reset user login attempts", err, "userID", loginRow.ID)
+		return errutil.Wrap("reset user login attempts", err, "userID", loginRow.ID)
 	}
 
 	*user = VerifiedUser{ID: loginRow.ID, Username: loginRow.Username, Country: loginRow.Country}
@@ -226,20 +227,20 @@ func (services *UserService) SelectOrInsertGoogleUser(ctx context.Context, googl
 	if database.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
-		return verifiedUser, serrors.New("select user by google account id", err, "googleAccountID", googleAccountID)
+		return verifiedUser, errutil.Wrap("select user by google account id", err, "googleAccountID", googleAccountID)
 	} else {
 		isCreated = true
 	}
 
 	if !isCreated {
-		userRow, err := services.Mutator().InsertUser(ctx, mutator.InsertUserParams{
+		userRow, err := services.Mutator().InsertUser(ctx, mutate.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
 			GoogleAccountID: pgtype.Text{String: googleAccountID, Valid: true},
 		})
 		if err != nil {
-			return verifiedUser, serrors.New("insert google user", err, "googleAccountID", googleAccountID)
+			return verifiedUser, errutil.Wrap("insert google user", err, "googleAccountID", googleAccountID)
 		}
 		verifiedUser = VerifiedUser{
 			ID:       userRow.ID,
@@ -276,14 +277,14 @@ func (services *UserService) UpdateUser(ctx context.Context, id int64, updt Updt
 		return model.User{}, nil
 	}
 
-	userRow, err := services.Mutator().UpdateUser(ctx, mutator.UpdateUserParams{
+	userRow, err := services.Mutator().UpdateUser(ctx, mutate.UpdateUserParams{
 		ID:       id,
 		Username: database.OptString(updt.Username),
 		Bio:      database.OptString(updt.Bio),
 		Country:  database.OptString(updt.Country),
 	})
 	if err != nil {
-		return model.User{}, serrors.New("update user", err, "userID", id)
+		return model.User{}, errutil.Wrap("update user", err, "userID", id)
 	}
 
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
@@ -296,9 +297,9 @@ func (services *UserService) UpdateUserPassword(ctx context.Context, id int64, n
 
 	hash, err := hashPassword(newPassword)
 	if err != nil {
-		return serrors.New("hash password for user", err, "userID", id)
+		return errutil.Wrap("hash password for user", err, "userID", id)
 	}
-	err = services.Mutator().UpdatePassword(ctx, mutator.UpdatePasswordParams{
+	err = services.Mutator().UpdatePassword(ctx, mutate.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
@@ -314,7 +315,7 @@ func (services *UserService) GetUserByID(ctx context.Context, id int64) (model.U
 	if database.IsErrNoRows(err) {
 		return model.User{}, ErrUserNotFound
 	} else if err != nil {
-		return model.User{}, serrors.New("select user", err, "userID", id)
+		return model.User{}, errutil.Wrap("select user", err, "userID", id)
 	}
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
 	slog.InfoContext(ctx, "selected user", "userID", id, "user", user)
@@ -330,7 +331,7 @@ func (services *UserService) GetUserStats(ctx context.Context, id int64) (model.
 
 	modeEloRows, err := services.Querier().SelectUserElosByID(ctx, id)
 	if err != nil {
-		return model.UserStats{}, serrors.New("select user elos by id", err, "userID", id)
+		return model.UserStats{}, errutil.Wrap("select user elos by id", err, "userID", id)
 	}
 
 	var stats model.UserStats
@@ -390,7 +391,7 @@ type HashResult struct {
 func hashPassword(password string) (HashResult, error) {
 	saltBytes := make([]byte, 16)
 	if _, err := rand.Read(saltBytes); err != nil {
-		return HashResult{}, serrors.New("generate salt", err)
+		return HashResult{}, errutil.Wrap("generate salt", err)
 	}
 	salt := base64.StdEncoding.EncodeToString(saltBytes)
 
@@ -398,7 +399,7 @@ func hashPassword(password string) (HashResult, error) {
 
 	hashed, err := bcrypt.GenerateFromPassword(saltedPassword, 12)
 	if err != nil {
-		return HashResult{}, serrors.New("hash password", err)
+		return HashResult{}, errutil.Wrap("hash password", err)
 	}
 
 	return HashResult{Salt: salt, HashedPassword: string(hashed)}, nil

@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/errutil"
 	"log/slog"
 	"math/big"
 
@@ -44,7 +44,7 @@ func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.Game
 		if !state.WhitePlayer.Present && !state.BlackPlayer.Present {
 			n, err := rand.Int(rand.Reader, big.NewInt(1000))
 			if err != nil {
-				return serrors.New("generate randint used to select first color", err)
+				return errutil.Wrap("generate randint used to select first color", err)
 			}
 			pickWhite := state.FirstColor == model.Random && n.Int64()%2 == 0 || state.FirstColor == model.White
 			if pickWhite {
@@ -146,7 +146,7 @@ func (services *GamePlayService) MakeGameMove(ctx context.Context, gameID model.
 			InitialBoard: chess.InitialBoard(),
 			Moves:        state.Game.Moves,
 		})
-		return serrors.New("push finished game event", err)
+		return errutil.Wrap("push finished game event", err)
 	}
 	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
@@ -253,7 +253,7 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 			InitialBoard: chess.InitialBoard(),
 			Moves:        state.Game.Moves,
 		})
-		return serrors.New("push finished game event", err)
+		return errutil.Wrap("push finished game event", err)
 	}
 	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {

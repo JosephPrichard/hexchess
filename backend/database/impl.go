@@ -3,7 +3,7 @@ package database
 import (
 	"context"
 	"errors"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -23,7 +23,7 @@ func (db *Database) QuerierMutator() QuerierMutator {
 	return db.querierMutator
 }
 
-func (db *Database) Mutator() mutator.Querier {
+func (db *Database) Mutator() mutate.Querier {
 	return db.QuerierMutator()
 }
 

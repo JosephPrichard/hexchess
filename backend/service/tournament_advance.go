@@ -5,13 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/enum"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 
 	"github.com/bytedance/sonic"
@@ -51,10 +52,10 @@ func NewTournamentAdvanceService(
 func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
 	defer perf.WithContext(ctx).Log()
 
-	// progress tournament on the database
-	matches, err := services.ProgressTournament(ctx, tournamentKey, eventID)
+	// advance tournament on the database
+	matches, err := services.advanceTournament(ctx, tournamentKey, eventID)
 	if err != nil {
-		return nil, serrors.New("advance tournament", err, "key", tournamentKey)
+		return nil, errutil.Wrap("advance tournament", err, "key", tournamentKey)
 	}
 
 	// create playable games correlated with the committed matches
@@ -75,11 +76,10 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 	}
 
 	// notify tournament participants that tournament has been progressed with new matches
-	// TODO: we need to select FullMatch information and broadcast that
 	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
-		Key:  tournamentKey.String(),
-		Kind: model.TournamentMatchmakingKind,
-		// Matches: matches,
+		Key:     tournamentKey.String(),
+		Kind:    model.TournamentMatchmakingKind,
+		Matches: matches,
 	})
 
 	var matchGameIDs []model.GameID
@@ -91,10 +91,10 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (services *TournamentAdvanceService) ProgressTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.MatchCreation, error) {
+func (services *TournamentAdvanceService) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.FullMatch, error) {
 	defer perf.WithContext(ctx).Log()
 
-	var matchesToCreate []model.MatchCreation
+	var createdMatches []model.FullMatch
 
 	err := services.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -110,26 +110,26 @@ func (services *TournamentAdvanceService) ProgressTournament(ctx context.Context
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, _ pgx.Tx, query database.QuerierMutator) error {
-			return progressTournament(ctx, query, tournamentKey, eventID, &matchesToCreate)
+			return advanceTournament(ctx, query, tournamentKey, eventID, &createdMatches)
 		},
 	})
 
-	return matchesToCreate, err
+	return createdMatches, err
 }
 
-func progressTournament(ctx context.Context, query database.QuerierMutator, tournamentKey uuid.UUID, eventID uuid.UUID, matchesToCreate *[]model.MatchCreation) error {
+func advanceTournament(ctx context.Context, query database.QuerierMutator, tournamentKey uuid.UUID, eventID uuid.UUID, createdMatches *[]model.FullMatch) error {
 	previousEvent, err := selectPreviousAdvanceEvent(ctx, query, eventID)
 	if err != nil {
-		return serrors.New("select previous advance tournament event", err, "eventID", eventID)
+		return errutil.Wrap("select previous advance tournament event", err, "eventID", eventID)
 	}
 	if previousEvent != nil {
-		*matchesToCreate = previousEvent.Creations
+		*createdMatches = previousEvent.Creations
 		return nil
 	}
 
 	tournament, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return serrors.New("select tournament by key", err, "key", tournamentKey)
+		return errutil.Wrap("select tournament by key", err, "key", tournamentKey)
 	}
 	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
 
@@ -139,25 +139,26 @@ func progressTournament(ctx context.Context, query database.QuerierMutator, tour
 	case model.TournamentScheduled:
 		output, err := advanceScheduledTournament(ctx, query, tournament)
 		if err != nil {
-			return serrors.New("advance scheduled tournament", err)
+			return errutil.Wrap("advance scheduled tournament", err)
 		}
 		matchmaking = output
 	case model.TournamentInProgress:
 		output, err := advanceInProgressTournament(ctx, query, tournament)
 		if err != nil {
-			return serrors.New("advance in progress tournament", err)
+			return errutil.Wrap("advance in progress tournament", err)
 		}
 		matchmaking = output
 	default:
 		return NewMatchInvariantError(tournamentKey, TournamentStatusAssertionError{Got: status, Expected: ExpectedAdvanceTournamentStatus})
 	}
 
-	if err := insertCreatedMatches(ctx, query, eventID, tournamentKey, matchmaking); err != nil {
+	insertedMatches, err := insertTournamentMatches(ctx, query, eventID, tournamentKey, matchmaking)
+	if err != nil {
 		return err
 	}
 
-	*matchesToCreate = matchmaking.NextMatches
-	slog.InfoContext(ctx, "advanced tournament", "key", tournamentKey, "matchesToCreate", matchesToCreate)
+	*createdMatches = insertedMatches
+	slog.InfoContext(ctx, "advanced tournament", "key", tournamentKey, "createdMatches", createdMatches)
 	return nil
 }
 
@@ -183,7 +184,7 @@ func advanceScheduledTournament(ctx context.Context, query database.QuerierMutat
 
 	participantRows, err := query.SelectParticipantsForMatchmakingByTournamentID(ctx, tournament.TournamentKey)
 	if err != nil {
-		return MatchmakingOutput{}, serrors.New("select participant ids by tournament key", err, "tournamentKey", tournament.TournamentKey)
+		return MatchmakingOutput{}, errutil.Wrap("select participant ids by tournament key", err, "tournamentKey", tournament.TournamentKey)
 	}
 
 	participants := make([]FirstMatchParticipant, 0, len(participantRows))
@@ -209,7 +210,7 @@ func advanceInProgressTournament(ctx context.Context, query database.QuerierMuta
 
 	matchRows, err := query.SelectMatchesByTournamentID(ctx, tournament.TournamentKey)
 	if err != nil {
-		return MatchmakingOutput{}, serrors.New("select matches by tournament key", err, "tournamentKey", tournament.TournamentKey)
+		return MatchmakingOutput{}, errutil.Wrap("select matches by tournament key", err, "tournamentKey", tournament.TournamentKey)
 	}
 
 	completedMatches := make([]CompletedPrevMatch, 0, len(matchRows))
@@ -242,78 +243,87 @@ func advanceInProgressTournament(ctx context.Context, query database.QuerierMuta
 	return output, nil
 }
 
-func insertCreatedMatches(
-	ctx context.Context,
-	query database.QuerierMutator,
-	eventID uuid.UUID,
-	tournamentKey uuid.UUID,
-	matchmaking MatchmakingOutput,
-) error {
-	if err := insertTournamentMatches(ctx, query, pgtype.UUID{Bytes: tournamentKey, Valid: true}, matchmaking); err != nil {
-		return serrors.New("insert tournament matches", err, "key", tournamentKey, "matchmaking", matchmaking)
+func insertTournamentMatches(
+	ctx context.Context, query database.QuerierMutator, eventID uuid.UUID, tournamentKey uuid.UUID, output MatchmakingOutput,
+) ([]model.FullMatch, error) {
+	matchCreations := output.NextMatches
+
+	// step one: batch insert matches into database (and retrieve the state)
+	var matchInsts []mutate.BatchInsertTournamentMatchParams
+	for _, match := range matchCreations {
+		matchInsts = append(matchInsts, mutate.BatchInsertTournamentMatchParams{
+			TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
+			Round:         output.NextMatchRound,
+			GameID:        match.GameID.String(),
+			WhiteID:       match.WhiteID,
+			BlackID:       match.BlackID,
+		})
 	}
 
-	eventInput, err := sonic.Marshal(model.MatchCreations{Creations: matchmaking.NextMatches})
-	if err != nil {
-		return err
+	var rows []mutate.TournamentMatch
+	var batchErr error
+
+	query.BatchInsertTournamentMatch(ctx, matchInsts).QueryRow(func(i int, row mutate.TournamentMatch, err error) {
+		rows = append(rows, row)
+		batchErr = errors.Join(batchErr, err)
+	})
+	if batchErr != nil {
+		return nil, batchErr
 	}
-	if err := query.InsertEventKey(ctx, mutator.InsertEventKeyParams{
+
+	var matches []model.FullMatch
+	for i := range rows {
+		row := rows[i]
+		matchCreation := matchCreations[i]
+
+		matches = append(matches, model.FullMatch{
+			Ordering:      row.Ordering,
+			GameID:        model.GameID(row.GameID),
+			TournamentKey: row.TournamentKey.Bytes,
+			Round:         row.Round,
+			CreatedOn:     row.CreatedOn.Time,
+			WhiteID:       row.WhiteID,
+			BlackID:       row.BlackID,
+			GameMode:      opt.Some(matchCreation.GameMode),
+			Replay:        nil, // guaranteed to always be nil, a recently inserted match cannot have a replay (idempotency key will no longer be used by the time it does)
+		})
+	}
+
+	// step two: insert idempotency key (contains inserted matches)
+	eventInput, err := sonic.Marshal(model.MatchCreations{Creations: matches})
+	if err != nil {
+		return nil, err
+	}
+	if err := query.InsertEventKey(ctx, mutate.InsertEventKeyParams{
 		ID:   pgtype.UUID{Bytes: eventID, Valid: true},
 		Data: eventInput,
 	}); err != nil {
-		return serrors.New("insert event with data", err, "eventID", eventID, "matchesToCreate", matchmaking.NextMatches)
+		return nil, errutil.Wrap("insert event with data", err, "eventID", eventID, "matchCreations", matches)
 	}
 
-	return nil
-}
+	// step 3: update tournament status
+	shouldUpdateWinnerID := output.WinnerID != WinnerIDNone
 
-func insertTournamentMatches(ctx context.Context, query database.QuerierMutator, tournamentKey pgtype.UUID, response MatchmakingOutput) error {
-	shouldUpdateWinnerID := response.WinnerID != WinnerIDNone
-
-	if err := query.UpdateTournamentStatus(ctx, mutator.UpdateTournamentStatusParams{
-		TournamentKey: tournamentKey,
-		Status:        mutator.TournamentStatusEnum(response.NextStatus.String()),
-		Rounds:        pgtype.Int4{Int32: response.TotalRounds, Valid: true},
-		WinnerID:      pgtype.Int8{Int64: response.WinnerID, Valid: shouldUpdateWinnerID},
+	if err := query.UpdateTournamentStatus(ctx, mutate.UpdateTournamentStatusParams{
+		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
+		Status:        mutate.TournamentStatusEnum(output.NextStatus.String()),
+		Rounds:        pgtype.Int4{Int32: output.TotalRounds, Valid: true},
+		WinnerID:      pgtype.Int8{Int64: output.WinnerID, Valid: shouldUpdateWinnerID},
 	}); err != nil {
-		return serrors.New("update tournament status", err, "key", tournamentKey, "response", response)
+		return nil, errutil.Wrap("update tournament status", err, "key", tournamentKey, "output", output)
 	}
 
-	if len(response.NextMatches) > 0 {
-		var matchInsts []mutator.BatchInsertTournamentMatchParams
-
-		for _, match := range response.NextMatches {
-			matchInsts = append(matchInsts, mutator.BatchInsertTournamentMatchParams{
-				TournamentKey: tournamentKey,
-				Round:         response.NextMatchRound,
-				GameID:        match.GameID.String(),
-				WhiteID:       match.WhiteID,
-				BlackID:       match.BlackID,
-			})
-		}
-
-		var batchErrs []error
-		query.BatchInsertTournamentMatch(ctx, matchInsts).Exec(func(i int, err error) {
-			if err != nil {
-				batchErrs = append(batchErrs, fmt.Errorf("batch insert tournament match %+v: %w", matchInsts[i], err))
-			}
-		})
-		if err := errors.Join(batchErrs...); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return matches, nil
 }
 
-func (services *TournamentAdvanceService) constructMatchDataMap(ctx context.Context, matches []model.MatchCreation) (map[int64]model.User, error) {
+func (services *TournamentAdvanceService) constructMatchDataMap(ctx context.Context, matches []model.FullMatch) (map[int64]model.User, error) {
 	userIDs := make([]int64, 0, len(matches)*2)
 	for _, match := range matches {
 		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
 	users, err := services.user.SelectUsersByIDs(ctx, userIDs)
 	if err != nil {
-		return nil, serrors.New("select user player data by ids", err)
+		return nil, errutil.Wrap("select user player data by ids", err)
 	}
 	userDataMap := make(map[int64]model.User)
 	for _, userAccount := range users {
@@ -323,9 +333,7 @@ func (services *TournamentAdvanceService) constructMatchDataMap(ctx context.Cont
 	return userDataMap, nil
 }
 
-func (services *TournamentAdvanceService) setupGame(
-	ctx context.Context, index int, match model.MatchCreation, userDataMap map[int64]model.User,
-) error {
+func (services *TournamentAdvanceService) setupGame(ctx context.Context, index int, match model.FullMatch, userDataMap map[int64]model.User) error {
 	whitePlayerData, okWhite := userDataMap[match.WhiteID]
 	blackPlayerData, okBlack := userDataMap[match.BlackID]
 
@@ -333,16 +341,20 @@ func (services *TournamentAdvanceService) setupGame(
 		// invariant: white and black should be valid ids if they have been pushed to the queue
 		return fmt.Errorf("missing player data for match: %+v", match)
 	}
+	if !match.GameMode.Present {
+		// invariant: game mode is provided for this full match
+		return fmt.Errorf("missing game mode for match: %+v", match)
+	}
 
 	err := services.gameplay.SetupGame(ctx, model.StateSetup{
 		ID:         match.GameID,
-		Mode:       match.GameMode,
+		Mode:       match.GameMode.Value,
 		FirstColor: model.White,
 		White:      model.NewPlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
 		Black:      model.NewPlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 	})
 	if err != nil {
-		return serrors.New("create game", err, "index", index, "gameID", match.GameID)
+		return errutil.Wrap("create game", err, "index", index, "gameID", match.GameID)
 	}
 
 	return nil

@@ -4,5 +4,5 @@ import _ "embed"
 
 //go:generate sqlc generate
 
-//go:embed schema.sql
+//go:embed sql/schema.sql
 var CreatePrimarySchema string

@@ -4,7 +4,7 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/errutil"
 	"log/slog"
 
 	"github.com/bytedance/sonic"
@@ -18,7 +18,7 @@ type RedisXAdder interface {
 func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event model.FinishGameEvent) error {
 	bytes, err := sonic.Marshal(event)
 	if err != nil {
-		return serrors.New("marshal finish game event", err)
+		return errutil.Wrap("marshal finish game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
@@ -27,7 +27,7 @@ func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event model.Fini
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.New("xadd finished game event", err, "finishedGame", event)
+		return errutil.Wrap("xadd finished game event", err, "finishedGame", event)
 	}
 
 	slog.InfoContext(ctx, "produced finished game event", "msgID", msgID, "gameID", event.GameID, "streamKey", xArgs.Stream)
@@ -37,7 +37,7 @@ func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event model.Fini
 func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, event model.UpdtGameMetadataEvent) error {
 	bytes, err := sonic.Marshal(event)
 	if err != nil {
-		return serrors.New("marshal update game event", err)
+		return errutil.Wrap("marshal update game event", err)
 	}
 
 	xArgs := &redis.XAddArgs{
@@ -46,7 +46,7 @@ func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, event mode
 	}
 	msgID, err := xadder.XAdd(ctx, xArgs).Result()
 	if err != nil {
-		return serrors.New("xadd update game event", err, "gameUpdt", event)
+		return errutil.Wrap("xadd update game event", err, "gameUpdt", event)
 	}
 
 	slog.InfoContext(ctx, "produced update game event", "msgID", msgID, "gameUpdt", event, "streamKey", xArgs.Stream)

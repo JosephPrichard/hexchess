@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 
 	"golang.org/x/sync/errgroup"
@@ -46,17 +46,17 @@ func (services *PersonaService) GetPersona(ctx context.Context, userID int64, pe
 
 	eg.Go(func() (err error) {
 		userData, err = services.user.GetUserByID(egCtx, userID)
-		return serrors.New("get user", err, "userID", userID)
+		return errutil.Wrap("get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = services.user.GetUserStats(egCtx, userID)
-		return serrors.New("get user stats", err, "userID", userID)
+		return errutil.Wrap("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		lbRanks, err = services.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		return serrors.New("get user leaderboard ranks", err, "userID", userID)
+		return errutil.Wrap("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
@@ -64,7 +64,7 @@ func (services *PersonaService) GetPersona(ctx context.Context, userID int64, pe
 			UserID:  opt.Some(userID),
 			PerPage: perPage,
 		})
-		return serrors.New("get user replays", err, "userID", userID)
+		return errutil.Wrap("get user replays", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {

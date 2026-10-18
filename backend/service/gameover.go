@@ -7,15 +7,15 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/database"
-	"hexchess-svc/database/mutator"
+	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/pubsub"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
 	"strconv"
 
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"slices"
 	"time"
@@ -59,22 +59,22 @@ func (services *GameOverService) HandleFinishedGame(ctx context.Context, event m
 	defer perf.WithContext(ctx).Log()
 
 	if err := services.backfillEvent(ctx, &event); err != nil {
-		return FinishedGameResult{}, serrors.New("backfill finish game event", err, "event", event)
+		return FinishedGameResult{}, errutil.Wrap("backfill finish game event", err, "event", event)
 	}
 
 	changeSet, err := services.InsertGameResult(ctx, event)
 	if err != nil {
-		return FinishedGameResult{}, serrors.New("insert finish game tx", err)
+		return FinishedGameResult{}, errutil.Wrap("insert finish game tx", err)
 	}
 
 	// persist history of a finished game (move and board data)
 	moveHistBlob, err := model.MarshalMoveHistory(chess.MoveHistory{InitialBoard: event.InitialBoard, MoveSeq: event.Moves})
 	if err != nil {
-		return FinishedGameResult{}, serrors.New("marshal move histories", err)
+		return FinishedGameResult{}, errutil.Wrap("marshal move histories", err)
 	}
 	// note: this happens outside the transaction, so we do need to hold a lock for an expended period of time.
 	if err := services.upsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
-		return FinishedGameResult{}, serrors.New("insert replay move histories", err)
+		return FinishedGameResult{}, errutil.Wrap("insert replay move histories", err)
 	}
 
 	if err := services.publishTournamentEvent(ctx, event); err != nil {
@@ -87,7 +87,7 @@ func (services *GameOverService) HandleFinishedGame(ctx context.Context, event m
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
-		return FinishedGameResult{}, serrors.New("incr leaderboard", err, "changeSet", changeSet)
+		return FinishedGameResult{}, errutil.Wrap("incr leaderboard", err, "changeSet", changeSet)
 	}
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", event.GameID)
@@ -99,7 +99,7 @@ func (services *GameOverService) backfillEvent(ctx context.Context, event *model
 		// event is not fully provided on TIMEOUT cause, since it is published from a trigger
 		state, err := services.chessState.GetChessState(ctx, event.GameID)
 		if err != nil {
-			return serrors.New("get chess state", err, "gameID", event.GameID)
+			return errutil.Wrap("get chess state", err, "gameID", event.GameID)
 		}
 
 		// we need to compute who wins - it depends on who's turn the timer ran out on
@@ -127,25 +127,25 @@ func (services *GameOverService) publishTournamentEvent(ctx context.Context, eve
 	case database.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", event.GameID)
 	case err != nil:
-		return serrors.New("select tournament by game id", err, "gameID", event.GameID)
+		return errutil.Wrap("select tournament by game id", err, "gameID", event.GameID)
 	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
 		// note: if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
 		if err := services.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
 			TournamentKey: tournamentKey.Bytes,
 		}); err != nil {
-			return serrors.New("publish scheduled tournament event", err)
+			return errutil.Wrap("publish scheduled tournament event", err)
 		}
 	}
 	return nil
 }
 
 func (services *GameOverService) upsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := services.Mutator().UpsertReplayMoveHistories(ctx, mutator.UpsertReplayMoveHistoriesParams{
+	if err := services.Mutator().UpsertReplayMoveHistories(ctx, mutate.UpsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {
-		return serrors.New("insert replay move histories", err)
+		return errutil.Wrap("insert replay move histories", err)
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func (services *GameOverService) updateLeaderboard(ctx context.Context, changes 
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return serrors.New("incr leaderboard user", err)
+		return errutil.Wrap("incr leaderboard user", err)
 	}
 
 	slog.InfoContext(ctx, "updated leaderboard user", "changes", changes)
@@ -234,7 +234,7 @@ func insertGameResult(ctx context.Context, querier database.QuerierMutator, game
 		*changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
 		return nil
 	} else if !database.IsErrNoRows(err) {
-		return serrors.New("select has replay with gameID", err)
+		return errutil.Wrap("select has replay with gameID", err)
 	}
 
 	// select the current state of stats for each game participant
@@ -246,31 +246,27 @@ func insertGameResult(ctx context.Context, querier database.QuerierMutator, game
 		Mode: query.ModeEnum(gameResult.ReplayMode.String()),
 	})
 	if err != nil {
-		return serrors.New("select users elo", err, "userIDs", userIDs)
+		return errutil.Wrap("select users elo", err, "userIDs", userIDs)
 	}
 
 	// compute and update the next state of stats for each game participant
-	var updts []mutator.UpsertUserEloParams
+	var updts []mutate.UpsertUserEloParams
 	*changeSet, updts = createInsertGameResultChangeSet(gameResult, userElos)
 
 	// updates are sorted by userID to prevent deadlocks
-	slices.SortFunc(updts, func(left, right mutator.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
+	slices.SortFunc(updts, func(left, right mutate.UpsertUserEloParams) int { return cmp.Compare(left.UserID, right.UserID) })
 
-	var batchUpsertErrs []error
-	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) {
-		if err != nil {
-			batchUpsertErrs = append(batchUpsertErrs, serrors.New("batch upserting elo", err, "batch", i, "updt", updts[i]))
-		}
-	})
-	if err := errors.Join(batchUpsertErrs...); err != nil {
-		return err
+	var batchErr error
+	querier.UpsertUserElo(ctx, updts).Exec(func(i int, err error) { batchErr = errors.Join(batchErr, err) })
+	if batchErr != nil {
+		return batchErr
 	}
 
 	// insert the new replay, which acts both the record and the idempotency key for this operation
 	replayInst := createInsertReplayParams(gameResult, *changeSet)
 	replayID, err := querier.InsertReplay(ctx, replayInst)
 	if err != nil {
-		return serrors.New("insert replay for result", err, "result", gameResult)
+		return errutil.Wrap("insert replay for result", err, "result", gameResult)
 	}
 
 	changeSet.ReplayID = replayID
@@ -295,14 +291,14 @@ func createGameResult(event model.FinishGameEvent) GameResult {
 	}
 }
 
-func createInsertReplayParams(result GameResult, changeSet GameResultChangeSet) mutator.InsertReplayParams {
-	return mutator.InsertReplayParams{
+func createInsertReplayParams(result GameResult, changeSet GameResultChangeSet) mutate.InsertReplayParams {
+	return mutate.InsertReplayParams{
 		GameID:    result.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: result.WhiteID, Valid: model.IsNonGuestID(result.WhiteID)},
 		BlackID:   pgtype.Int8{Int64: result.BlackID, Valid: model.IsNonGuestID(result.BlackID)},
-		Result:    mutator.ResultEnum(result.ReplayResult.String()),
-		Cause:     mutator.CauseEnum(result.ReplayCause.String()),
-		Mode:      mutator.ModeEnum(result.ReplayMode.String()),
+		Result:    mutate.ResultEnum(result.ReplayResult.String()),
+		Cause:     mutate.CauseEnum(result.ReplayCause.String()),
+		Mode:      mutate.ModeEnum(result.ReplayMode.String()),
 		WinElo:    changeSet.WinEloDiff,
 		LoseElo:   changeSet.LoseEloDiff,
 		WhiteElo:  changeSet.WhiteEloNext,
@@ -312,15 +308,15 @@ func createInsertReplayParams(result GameResult, changeSet GameResultChangeSet) 
 	}
 }
 
-func createInsertGameResultChangeSet(result GameResult, userModeElos []query.SelectUserModeElosByIDsRow) (GameResultChangeSet, []mutator.UpsertUserEloParams) {
+func createInsertGameResultChangeSet(result GameResult, userModeElos []query.SelectUserModeElosByIDsRow) (GameResultChangeSet, []mutate.UpsertUserEloParams) {
 	changeSet := GameResultChangeSet{}
-	var updts []mutator.UpsertUserEloParams
+	var updts []mutate.UpsertUserEloParams
 
 	if model.IsGuestID(result.WhiteID) || model.IsGuestID(result.BlackID) {
 		return changeSet, updts
 	}
 
-	mode := mutator.ModeEnum(result.ReplayMode.String())
+	mode := mutate.ModeEnum(result.ReplayMode.String())
 
 	whiteElo, blackElo := model.StartElo, model.StartElo
 	for _, row := range userModeElos {
@@ -336,7 +332,7 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		// changeSet is unmodified in draw so this becomes a noop changeSet
 		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
 
-		updts = []mutator.UpsertUserEloParams{
+		updts = []mutate.UpsertUserEloParams{
 			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: model.StartElo},
 			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: model.StartElo},
 		}
@@ -365,7 +361,7 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		changeSet.WinEloDiff = winEloNext - winElo
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
-		updts = []mutator.UpsertUserEloParams{
+		updts = []mutate.UpsertUserEloParams{
 			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: model.StartElo},
 			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: model.StartElo},
 		}

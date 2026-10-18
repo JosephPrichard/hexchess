@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/chess"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
+	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
 	"time"
 
@@ -671,12 +672,12 @@ var Events = []struct {
 		ID: TestEventID_TournamentCreation.String(),
 		Data: func() []byte {
 			data, err := sonic.Marshal(model.MatchCreations{
-				Creations: []model.MatchCreation{
+				Creations: []model.FullMatch{
 					{
 						GameID:   TestEventID_TournamentCreation_GameID,
 						WhiteID:  1,
 						BlackID:  2,
-						GameMode: model.ModeCorrespondence1,
+						GameMode: opt.Some(model.ModeCorrespondence1),
 					},
 				},
 			})

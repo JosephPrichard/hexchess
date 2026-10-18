@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: batch.go
 
-package mutator
+package mutate
 
 import (
 	"context"
@@ -74,15 +74,17 @@ func (b *BatchInsertChallengeBatchResults) Close() error {
 	return b.br.Close()
 }
 
-const batchInsertTournamentMatch = `-- name: BatchInsertTournamentMatch :batchexec
+const batchInsertTournamentMatch = `-- name: BatchInsertTournamentMatch :batchone
 INSERT INTO tournament_matches (tournament_key, game_id, white_id, black_id, round, created_on)
 VALUES ($1::uuid,
         $2,
         $3,
         $4,
         $5,
-        COALESCE($6::timestamptz, CURRENT_TIMESTAMP)) ON CONFLICT
-ON CONSTRAINT tournament_matches_pkey DO NOTHING
+        COALESCE($6::timestamptz, CURRENT_TIMESTAMP))
+ON CONFLICT ON CONSTRAINT tournament_matches_pkey
+DO UPDATE SET created_on = EXCLUDED.created_on -- dummy update to force row to be returned
+RETURNING ordering, tournament_key, round, game_id, created_on, white_id, black_id
 `
 
 type BatchInsertTournamentMatchBatchResults struct {
@@ -117,18 +119,28 @@ func (q *Queries) BatchInsertTournamentMatch(ctx context.Context, arg []BatchIns
 	return &BatchInsertTournamentMatchBatchResults{br, len(arg), false}
 }
 
-func (b *BatchInsertTournamentMatchBatchResults) Exec(f func(int, error)) {
+func (b *BatchInsertTournamentMatchBatchResults) QueryRow(f func(int, TournamentMatch, error)) {
 	defer b.br.Close()
 	for t := 0; t < b.tot; t++ {
+		var i TournamentMatch
 		if b.closed {
 			if f != nil {
-				f(t, ErrBatchAlreadyClosed)
+				f(t, i, ErrBatchAlreadyClosed)
 			}
 			continue
 		}
-		_, err := b.br.Exec()
+		row := b.br.QueryRow()
+		err := row.Scan(
+			&i.Ordering,
+			&i.TournamentKey,
+			&i.Round,
+			&i.GameID,
+			&i.CreatedOn,
+			&i.WhiteID,
+			&i.BlackID,
+		)
 		if f != nil {
-			f(t, err)
+			f(t, i, err)
 		}
 	}
 }

@@ -7,9 +7,9 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 	"strconv"
@@ -40,17 +40,20 @@ func (services *RetrieveTournamentService) GetTournament(ctx context.Context, to
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = services.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.New("select tournament by key", err, "key", tournamentKey)
+		return errutil.Wrap(
+			"select tournament by key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		participantRows, err = services.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.New("select participants by tournament key", err, "key", tournamentKey)
+		return errutil.Wrap(
+			"select participants by tournament key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		matchRows, err = services.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return serrors.New("select replay matches by tournament key", err, "key", tournamentKey)
+		return errutil.Wrap(
+			"select replay matches by tournament key", err, "key", tournamentKey)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -67,7 +70,7 @@ func (services *RetrieveTournamentService) GetTournament(ctx context.Context, to
 
 	userLdbRanksMap, err := services.getParticipantsRank(ctx, tournament.Participants, tournament.Mode)
 	if err != nil {
-		return model.FullTournament{}, serrors.New("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
+		return model.FullTournament{}, errutil.Wrap("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
 	}
 	for i := range tournament.Participants {
 		tournament.Participants[i].Rank = userLdbRanksMap[tournament.Participants[i].ID]
@@ -106,7 +109,7 @@ func (services *RetrieveTournamentService) getParticipantsRank(ctx context.Conte
 		if errors.Is(redis.Nil, err) {
 			continue
 		} else if err != nil {
-			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
+			return nil, errutil.Wrap("get participant rank for user", err, "userID", exec.userID)
 		}
 
 		leaderboardRanks[exec.userID] = MapLeaderboardRank(rank)
@@ -132,7 +135,7 @@ func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, p
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
+			return nil, errutil.Wrap("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
 		}
 		tournaments = mapTournamentsByParticipantRows(tournamentRows)
 	} else {
@@ -141,7 +144,7 @@ func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, p
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, serrors.New("select tournaments after id", err, "afterID", afterID)
+			return nil, errutil.Wrap("select tournaments after id", err, "afterID", afterID)
 		}
 		tournaments = mapTournamentsRows(tournamentRows)
 	}

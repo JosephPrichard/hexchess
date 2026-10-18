@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"hexchess-svc/cache"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -33,7 +33,7 @@ func (services *TimerService) TryExpireTimers(ctx context.Context, expireBeforeT
 	cmd := cache.PollGameTimers.Run(ctx, services.redis.PrimaryClient, services.zDequeueXAddKeys, expireBefore)
 	keys, err := cmd.Result()
 	if err != nil {
-		return nil, serrors.New("executing poll game timers script", err,
+		return nil, errutil.Wrap("executing poll game timers script", err,
 			"expireBefore", expireBefore, "zDequeueXAddKeys", services.zDequeueXAddKeys)
 	}
 

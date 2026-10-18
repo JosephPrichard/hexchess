@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: gamemeta.sql
 
-package mutator
+package mutate
 
 import (
 	"context"

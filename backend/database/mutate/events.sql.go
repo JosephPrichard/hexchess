@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: events.sql
 
-package mutator
+package mutate
 
 import (
 	"context"

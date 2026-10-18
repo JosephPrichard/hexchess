@@ -130,6 +130,8 @@ type grpcTestConfig struct {
 	matchmakingServerConfig *service.MatchmakerServiceConfig
 }
 
+const grpcServerBufSize = 1024 * 1024
+
 func setupGRPCTest(t *testing.T, cfg grpcTestConfig) grpcTestContext {
 	listener := bufconn.Listen(grpcServerBufSize)
 	server := grpc.NewServer()

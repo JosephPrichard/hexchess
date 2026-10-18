@@ -1,7 +1,6 @@
 package pubsub
 
 import (
-	"encoding/json"
 	"hexchess-svc/cache"
 	"hexchess-svc/model"
 	"hexchess-svc/pb"
@@ -9,8 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -21,53 +21,68 @@ var cmpOptsGameOutputs cmp.Options = []cmp.Option{
 	protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
 }
 
-func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
-	if wantOutputs == nil {
+var cmpOptsFullMatch = cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
+
+func expectBroadcast[Message any](
+	t *testing.T,
+	rdb cache.Redis,
+	want []Message,
+	subscribe func(lb *LocalBroadcasters, ch chan []byte),
+	unmarshal func(bytes []byte) Message,
+	cmpOpts ...cmp.Option,
+) func() {
+	t.Helper()
+
+	if want == nil {
 		return func() {}
 	}
 
-	localBroadcasters := NewLocalBroadcasters()
-	localBroadcasters.Listen(rdb)
+	lb := NewLocalBroadcasters()
+	lb.Listen(rdb)
 
-	subChan := make(chan []byte, len(wantOutputs))
-	localBroadcasters.Games.Subscribe(gameID, subChan)
+	subChan := make(chan []byte, len(want))
+	subscribe(lb, subChan)
 
 	return func() {
-		for i := range wantOutputs {
-			var bytes []byte
+		t.Helper()
+
+		for i := range want {
+			var raw []byte
 			select {
-			case bytes = <-subChan:
+			case raw = <-subChan:
 			case <-time.After(5 * time.Second):
-				t.Fatal("timed out waiting for broadcaster channel")
+				t.Fatalf("timed out waiting for broadcaster message %d/%d", i+1, len(want))
 			}
 
-			var output pb.GameOutput
-			require.NoError(t, proto.Unmarshal(bytes, &output))
+			got := unmarshal(raw)
 
-			testutil.Equal(t, wantOutputs[i], &output, cmpOptsGameOutputs...)
+			testutil.Equal(t, want[i], got, cmpOpts...)
 		}
 	}
 }
 
-func ExpectBroadcastActiveUsers(t *testing.T, rdb cache.Redis, wantOutputs []int64) func() {
-	if wantOutputs == nil {
-		return func() {}
-	}
+func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
+	return expectBroadcast(
+		t, rdb, wantOutputs,
+		func(lb *LocalBroadcasters, ch chan []byte) { lb.Games.Subscribe(gameID, ch) },
+		func(bytes []byte) *pb.GameOutput {
+			o := &pb.GameOutput{}
+			require.NoError(t, proto.Unmarshal(bytes, o))
+			return o
+		},
+		cmpOptsGameOutputs...,
+	)
+}
 
-	localBroadcasters := NewLocalBroadcasters()
-	localBroadcasters.Listen(rdb)
-
-	subChan := make(chan GlobalCastEvent, len(wantOutputs))
-	localBroadcasters.Counts.Subscribe(subChan)
-
-	return func() {
-		for i := range wantOutputs {
-			event := <-subChan
-
-			var output CountEvent
-			require.NoError(t, json.Unmarshal([]byte(event.Data), &output))
-
-			assert.Equal(t, wantOutputs[i], output.Count)
-		}
-	}
+func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKey string, wantOutputs []model.TournamentOutput) func() {
+	return expectBroadcast(
+		t, rdb, wantOutputs,
+		func(lb *LocalBroadcasters, ch chan []byte) { lb.Tournament.Subscribe(tournamentKey, ch) },
+		func(bytes []byte) model.TournamentOutput {
+			var o model.TournamentOutput
+			require.NoError(t, sonic.Unmarshal(bytes, &o))
+			return o
+		},
+		cmpOptsFullMatch,
+	)
 }

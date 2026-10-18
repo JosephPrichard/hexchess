@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: challenge.sql
 
-package mutator
+package mutate
 
 import (
 	"context"

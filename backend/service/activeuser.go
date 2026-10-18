@@ -6,8 +6,8 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
-	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
@@ -39,7 +39,7 @@ func (services *ActiveUserService) GetActiveCount(ctx context.Context) (int64, e
 
 	removed, err := services.redis.PrimaryClient.ZRemRangeByScore(ctx, cache.Constants.ActiveUsersZSet, "-inf", expireBeforeStr).Result()
 	if err != nil {
-		return 0, serrors.New("get expired active users by range", err)
+		return 0, errutil.Wrap("get expired active users by range", err)
 	}
 	if removed > 0 {
 		slog.InfoContext(ctx, "expired users with keys", "count", removed, "expireBefore", expireBefore)
@@ -47,7 +47,7 @@ func (services *ActiveUserService) GetActiveCount(ctx context.Context) (int64, e
 
 	count, err := services.redis.PrimaryClient.ZCard(ctx, cache.Constants.ActiveUsersZSet).Result()
 	if err != nil {
-		return 0, serrors.New("count active users", err)
+		return 0, errutil.Wrap("count active users", err)
 	}
 
 	slog.InfoContext(ctx, "selected active users count", "count", count)
@@ -61,7 +61,7 @@ func (services *ActiveUserService) RetainActiveUser(ctx context.Context, id stri
 
 	_, err := services.redis.PrimaryClient.ZAddXX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
-		return serrors.New("retain active user", err, "id", id)
+		return errutil.Wrap("retain active user", err, "id", id)
 	}
 
 	slog.InfoContext(ctx, "retained active user", "id", id)
@@ -75,13 +75,13 @@ func (services *ActiveUserService) AddActiveUser(ctx context.Context, id string)
 
 	_, err := services.redis.PrimaryClient.ZAddNX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
 	if err != nil {
-		return 0, serrors.New("add active user", err, "id", id)
+		return 0, errutil.Wrap("add active user", err, "id", id)
 	}
 	slog.InfoContext(ctx, "added active user", "id", id)
 
 	count, err := services.GetActiveCount(ctx)
 	if err != nil {
-		return 0, serrors.New("get active user count after adding user", err, "id", id)
+		return 0, errutil.Wrap("get active user count after adding user", err, "id", id)
 	}
 
 	services.broadcaster.BroadcastActiveCount(ctx, count)
@@ -93,7 +93,7 @@ func (services *ActiveUserService) RemoveActiveUser(ctx context.Context, id stri
 
 	res, err := services.redis.PrimaryClient.ZRem(ctx, cache.Constants.ActiveUsersZSet, id).Result()
 	if err != nil {
-		return 0, serrors.New("remove active user", err, "id", id)
+		return 0, errutil.Wrap("remove active user", err, "id", id)
 	}
 	if res > 0 {
 		slog.InfoContext(ctx, "removed active user", "id", id)
@@ -103,7 +103,7 @@ func (services *ActiveUserService) RemoveActiveUser(ctx context.Context, id stri
 
 	count, err := services.GetActiveCount(ctx)
 	if err != nil {
-		return 0, serrors.New("get active user count after removing user", err, "id", id)
+		return 0, errutil.Wrap("get active user count after removing user", err, "id", id)
 	}
 
 	services.broadcaster.BroadcastActiveCount(ctx, count)

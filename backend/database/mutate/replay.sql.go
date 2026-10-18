@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: replay.sql
 
-package mutator
+package mutate
 
 import (
 	"context"
