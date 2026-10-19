@@ -22,10 +22,10 @@ func NewChatService(redis cache.Redis, querier query.Querier, entropy entropy.Ge
 	return &ChatService{redis: redis, querier: querier, entropy: entropy}
 }
 
-func (services *ChatService) GetChats(ctx context.Context, gameID model.GameID, count int64) ([]model.Chat, error) {
+func (service *ChatService) GetChats(ctx context.Context, gameID model.GameID, count int64) ([]model.Chat, error) {
 	chatsZSet := cache.FmtGameChatsZSet(gameID)
 
-	strList, err := services.redis.PrimaryClient.ZRevRange(ctx, chatsZSet, 0, count).Result()
+	strList, err := service.redis.PrimaryClient.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
 		return nil, errutil.Wrap("retrieve chats", err, "count", count)
 	}
@@ -43,14 +43,14 @@ func (services *ChatService) GetChats(ctx context.Context, gameID model.GameID, 
 	return chats, nil
 }
 
-func (services *ChatService) InsertChat(ctx context.Context, gameID model.GameID, chat model.Chat) error {
+func (service *ChatService) InsertChat(ctx context.Context, gameID model.GameID, chat model.Chat) error {
 	bytes, err := model.SerializeChat(chat).MarshalVT()
 	if err != nil {
 		return errutil.Wrap("marshal chat", err)
 	}
 
 	chatsZSet := cache.FmtGameChatsZSet(gameID)
-	if err := services.redis.PrimaryClient.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
+	if err := service.redis.PrimaryClient.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
 		return errutil.Wrap("add chat to set", err, "chat", chat)
 	}
 

@@ -17,36 +17,36 @@ import (
 func setupUserTest(t slogutil.TestLogger) (*UserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewUserService(infra.Database)
+	service := NewUserService(infra.Database)
 
-	return services, infra
+	return service, infra
 }
 
 var testUserCmptOpts = cmpopts.IgnoreFields(model.User{}, "ID")
 var testVerifiedUserCmptOpts = cmpopts.IgnoreFields(VerifiedUser{}, "ID")
 
 func TestInsertThenVerify(t *testing.T) {
-	services, testinfra := setupUserTest(t)
+	service, testinfra := setupUserTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
 	user1 := "user1-testing"
 
-	users1, err := services.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
+	users1, err := service.InsertUser(ctx, UserInst{Username: user1, Password: "password1", Country: "us", JoinedOn: itest.TimeNow})
 	require.NoError(t, err)
 
-	verifyUser1, err := services.VerifyUser(ctx, user1, "password1")
+	verifyUser1, err := service.VerifyUser(ctx, user1, "password1")
 	require.NoError(t, err)
 
-	dbUser1, err := services.GetUserByID(ctx, verifyUser1.ID)
+	dbUser1, err := service.GetUserByID(ctx, verifyUser1.ID)
 	require.NoError(t, err)
 
 	var attemptsErrs []error
 	for range LoginAttemptsDivisor {
-		_, err := services.VerifyUser(ctx, user1, "wrong-password")
+		_, err := service.VerifyUser(ctx, user1, "wrong-password")
 		attemptsErrs = append(attemptsErrs, err)
 	}
-	_, errTooMany := services.VerifyUser(ctx, user1, "wrong-password")
+	_, errTooMany := service.VerifyUser(ctx, user1, "wrong-password")
 
 	var wantAttemptErrs []error
 	for range LoginAttemptsDivisor {
@@ -94,15 +94,15 @@ func TestUpdateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
-			services, testinfra := setupUserTest(t)
+			service, testinfra := setupUserTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
 
-			_, err := services.UpdateUser(ctx, tt.userID, tt.udpt)
+			_, err := service.UpdateUser(ctx, tt.userID, tt.udpt)
 			require.NoError(t, err)
 
-			user, err := services.GetUserByID(ctx, tt.userID)
+			user, err := service.GetUserByID(ctx, tt.userID)
 			require.NoError(t, err)
 
 			assert.Equal(t, tt.wantUsername, user.Username)
@@ -113,7 +113,7 @@ func TestUpdateUser(t *testing.T) {
 }
 
 func TestSelectOrInsertGoogleUser(t *testing.T) {
-	services, testinfra := setupUserTest(t)
+	service, testinfra := setupUserTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
@@ -121,13 +121,13 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 
 	inst := GoogleUserInst{Username: "username", Country: "us", JoinedOn: itest.TimeNow}
 
-	user1, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
+	user1, err := service.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	user2, err := services.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
+	user2, err := service.SelectOrInsertGoogleUser(ctx, testAccountID, inst)
 	require.NoError(t, err)
 
-	dbUser1, err := services.GetUserByID(ctx, user1.ID)
+	dbUser1, err := service.GetUserByID(ctx, user1.ID)
 	require.NoError(t, err)
 
 	verifiedUser := VerifiedUser{Username: "username", Country: "us"}
@@ -143,27 +143,27 @@ func TestSelectOrInsertGoogleUser(t *testing.T) {
 }
 
 func TestUpdatePasswordThenVerify(t *testing.T) {
-	services, testinfra := setupUserTest(t)
+	service, testinfra := setupUserTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
-	err := services.UpdateUserPassword(ctx, itest.TestUser[0].ID, "password-new")
+	err := service.UpdateUserPassword(ctx, itest.TestUser[0].ID, "password-new")
 	require.NoError(t, err)
 
-	u1, err := services.GetUserByID(ctx, itest.TestUser[0].ID)
+	u1, err := service.GetUserByID(ctx, itest.TestUser[0].ID)
 	require.NoError(t, err)
-	v1, err := services.VerifyUser(ctx, itest.TestUser[0].Username, "password-new")
+	v1, err := service.VerifyUser(ctx, itest.TestUser[0].Username, "password-new")
 	require.NoError(t, err)
 
 	assert.Equal(t, u1.ID, v1.ID)
 }
 
 func TestGetUserElos(t *testing.T) {
-	services, testinfra := setupUserTest(t)
+	service, testinfra := setupUserTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
-	stats, err := services.GetUserStats(ctx, 1)
+	stats, err := service.GetUserStats(ctx, 1)
 	require.NoError(t, err)
 
 	testutil.Equal(t, itest.TestUserStats[0], stats, cmpopts.IgnoreFields(model.ModeStats{}, "Rank"))

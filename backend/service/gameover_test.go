@@ -25,7 +25,7 @@ import (
 func setupGameoverTest(t slogutil.TestLogger) (*GameOverService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewGameoverService(
+	service := NewGameoverService(
 		infra.Database,
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
@@ -33,7 +33,7 @@ func setupGameoverTest(t slogutil.TestLogger) (*GameOverService, itest.TestInfra
 		NewChessRepoService(infra.Redis),
 	)
 
-	return services, infra
+	return service, infra
 }
 
 func TestHandleFinishedGameEvent(t *testing.T) {
@@ -106,10 +106,10 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupGameoverTest(t)
+			service, testinfra := setupGameoverTest(t)
 			defer testinfra.Close()
 
-			_, err := services.HandleFinishedGame(ctx, tt.event)
+			_, err := service.HandleFinishedGame(ctx, tt.event)
 			require.NoError(t, err)
 
 			modeLbZSet := cache.FmtLeaderboardZSet(tt.event.ReplayMode.String())
@@ -303,10 +303,10 @@ func TestInsertGameResult(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupGameoverTest(t)
+			service, testinfra := setupGameoverTest(t)
 			defer testinfra.Close()
 
-			changeSet, err := services.InsertGameResult(ctx, tt.resultInput)
+			changeSet, err := service.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
 			userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{

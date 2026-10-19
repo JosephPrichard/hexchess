@@ -98,17 +98,17 @@ func main() {
 	}
 
 	// execute the test seed script and measure results
-	services := newSeedServices(redisClient, databaseClient)
+	service := newSeedServices(redisClient, databaseClient)
 
 	// root node in the foreign key hierarchy tree
-	seedUsers(ctx, services.user)
+	seedUsers(ctx, service.user)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return seedChallenges(egCtx, services.challenge)
+		return seedChallenges(egCtx, service.challenge)
 	})
 	eg.Go(func() error {
-		return seedGameResults(egCtx, services.gameover, generateGameResults())
+		return seedGameResults(egCtx, service.gameover, generateGameResults())
 	})
 	eg.Go(func() error {
 		return seedTournaments(egCtx, databaseClient.QuerierMutator(), generateTournaments())
@@ -119,7 +119,7 @@ func main() {
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
-	if err := services.leaderboard.SyncLeaderboard(ctx); err != nil {
+	if err := service.leaderboard.SyncLeaderboard(ctx); err != nil {
 		slogutil.Fatal("jobs leaderboard", err)
 	}
 
@@ -205,9 +205,9 @@ func generateMode() model.GameMode {
 	}
 }
 
-func seedChallenges(ctx context.Context, services *service.ChallengeService) error {
+func seedChallenges(ctx context.Context, service *service.ChallengeService) error {
 	defer perf.New().Log()
-	return services.BatchInsertChallenges(ctx, generateChallengeInsts())
+	return service.BatchInsertChallenges(ctx, generateChallengeInsts())
 }
 
 func generateChallengeInsts() []service.ChallengeInst {

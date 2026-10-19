@@ -71,7 +71,7 @@ func StartRedisConsumers(config RedisConsumerConfig) {
 }
 
 type FinishedGameWorker struct {
-	services    *service.GameOverService
+	service     *service.GameOverService
 	replay      *service.ReplayService
 	broadcaster pubsub.Broadcaster
 }
@@ -83,7 +83,7 @@ func NewFinishedGameWorker(
 	broadcaster pubsub.Broadcaster,
 ) *FinishedGameWorker {
 	return &FinishedGameWorker{
-		services: service.NewGameoverService(
+		service: service.NewGameoverService(
 			database,
 			redis,
 			producers.NewRiverProducer(riverClient),
@@ -104,7 +104,7 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
 
 	// insert the finished game into the system of record
-	result, err := w.services.HandleFinishedGame(ctx, event)
+	result, err := w.service.HandleFinishedGame(ctx, event)
 	if err != nil {
 		return errutil.Wrap("insert finished game failed", err)
 	}
@@ -121,12 +121,12 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 }
 
 type UpdtGameMetadataWorker struct {
-	services *service.ChessMetaService
+	service *service.ChessMetaService
 }
 
 func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Generator, broadcaster pubsub.Broadcaster) *UpdtGameMetadataWorker {
 	return &UpdtGameMetadataWorker{
-		services: service.NewChessMetaService(database, entropy, broadcaster),
+		service: service.NewChessMetaService(database, entropy, broadcaster),
 	}
 }
 
@@ -138,5 +138,5 @@ func (w UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error 
 
 	slog.InfoContext(ctx, "handling update game metadata event", "gameID", event.GameID)
 
-	return w.services.UpdateGameMetadata(ctx, event)
+	return w.service.UpdateGameMetadata(ctx, event)
 }

@@ -19,7 +19,7 @@ type GamePlayService struct {
 	// infra
 	redis cache.Redis
 
-	// services
+	// service
 	chessState ChessUpdater
 }
 
@@ -31,7 +31,7 @@ func NewGameplayService(redis cache.Redis, chessState ChessUpdater) *GamePlaySer
 	return &GamePlayService{redis: redis, chessState: chessState}
 }
 
-func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {
+func (service *GamePlayService) JoinGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state by joining", "player", player.ID, "gameID", gameID)
 
@@ -74,7 +74,7 @@ func (services *GamePlayService) JoinGame(ctx context.Context, gameID model.Game
 		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
 		return produceUpdtGameMetadata(ctx, pipe, state)
 	}
-	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ type MoveResult struct {
 	Move  chess.HistMove
 }
 
-func (services *GamePlayService) MakeGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
+func (service *GamePlayService) MakeGameMove(ctx context.Context, gameID model.GameID, player model.PlayerState, move chess.Move) (MoveResult, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameID", gameID, "move", move)
 
@@ -148,7 +148,7 @@ func (services *GamePlayService) MakeGameMove(ctx context.Context, gameID model.
 		})
 		return errutil.Wrap("push finished game event", err)
 	}
-	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return MoveResult{}, err
 	}
@@ -166,7 +166,7 @@ var (
 	ErrNoUndo         = errors.New("no undo to accept or reject")
 )
 
-func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind model.UndoKind) (*model.ChessState, error) {
+func (service *GamePlayService) AttemptGameUndo(ctx context.Context, gameID model.GameID, player model.PlayerState, kind model.UndoKind) (*model.ChessState, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating game state with undo", "gameID", gameID)
 
@@ -196,7 +196,7 @@ func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID mod
 		}
 		return nil
 	}
-	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, nil)
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (services *GamePlayService) AttemptGameUndo(ctx context.Context, gameID mod
 	return state, nil
 }
 
-func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (model.EndKind, error) {
+func (service *GamePlayService) EndGame(ctx context.Context, gameID model.GameID, player model.PlayerState) (model.EndKind, error) {
 	update := func(state *model.ChessState) error {
 		slog.InfoContext(ctx, "updating end game", "gameID", gameID)
 
@@ -255,7 +255,7 @@ func (services *GamePlayService) EndGame(ctx context.Context, gameID model.GameI
 		})
 		return errutil.Wrap("push finished game event", err)
 	}
-	state, err := services.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
 	if err != nil {
 		return model.NotEnded, err
 	}

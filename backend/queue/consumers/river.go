@@ -70,7 +70,7 @@ func (*defaultErrorHandler) HandlePanic(ctx context.Context, job *rivertype.JobR
 
 type AdvanceTournamentWorker struct {
 	river.WorkerDefaults[queue.AdvanceTournamentJob]
-	orchestrator *service.TournamentAdvanceService
+	orchestrator *service.TournamentAdvancer
 }
 
 func NewAdvanceTournamentWorker(
@@ -79,7 +79,7 @@ func NewAdvanceTournamentWorker(
 	broadcaster pubsub.Broadcaster,
 ) *AdvanceTournamentWorker {
 	return &AdvanceTournamentWorker{
-		orchestrator: service.NewTournamentAdvanceService(
+		orchestrator: service.NewTournamentAdvancer(
 			database,
 			service.NewUserService(database),
 			service.NewGameCreateService(

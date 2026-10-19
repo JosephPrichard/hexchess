@@ -25,14 +25,14 @@ func NewOrphanService(aws cloud.AWSClient, querier query.Querier) *OrphanService
 	return &OrphanService{aws: aws, querier: querier}
 }
 
-func (services *OrphanService) ClearOrphanFiles(ctx context.Context, pageLength int32) error {
+func (service *OrphanService) ClearOrphanFiles(ctx context.Context, pageLength int32) error {
 	configs := []RemoveOrphansOpts{
 		{
-			Bucket:     services.aws.S3ProfileBucket,
+			Bucket:     service.aws.S3ProfileBucket,
 			Prefix:     ProfilePicPrefix,
 			PageLength: pageLength,
 			parseID:    ParseProfilePicKey,
-			selectIDs:  services.querier.SelectExistsUsersByIDs,
+			selectIDs:  service.querier.SelectExistsUsersByIDs,
 		},
 	}
 
@@ -42,7 +42,7 @@ func (services *OrphanService) ClearOrphanFiles(ctx context.Context, pageLength 
 
 	for i, config := range configs {
 		wg.Go(func() {
-			err := services.removeOrphanedObjects(ctx, config)
+			err := service.removeOrphanedObjects(ctx, config)
 			if err != nil {
 				slog.ErrorContext(ctx, "failed to remove orphaned objects", "config", config, "error", err)
 			}
@@ -65,10 +65,10 @@ type RemoveOrphansOpts struct {
 
 // removeOrphanedObjects is a generic algorithm to delete any orphaned keys by paginating all keys in a bucket
 // it assumes that we can parse the id from any given key, and that we can lookup if that key is valid or not from a database.
-func (services *OrphanService) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
+func (service *OrphanService) removeOrphanedObjects(ctx context.Context, opts RemoveOrphansOpts) error {
 	page := 0
 
-	paginator := s3.NewListObjectsV2Paginator(services.aws.S3Client, &s3.ListObjectsV2Input{
+	paginator := s3.NewListObjectsV2Paginator(service.aws.S3Client, &s3.ListObjectsV2Input{
 		Bucket:  aws.String(opts.Bucket),
 		Prefix:  aws.String(opts.Prefix),
 		MaxKeys: aws.Int32(opts.PageLength),
@@ -135,7 +135,7 @@ func (services *OrphanService) removeOrphanedObjects(ctx context.Context, opts R
 		// we could make this a background goroutine, but since latency does not matter (this is background job), we keep it sync for simplicity
 		slog.InfoContext(ctx, "deleting orphaned keys", "keys", orphanedKeyStrs, "bucket", opts.Bucket)
 
-		if _, err := services.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+		if _, err := service.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
 			Bucket: aws.String(opts.Bucket),
 			Delete: &s3Types.Delete{Objects: orphanedKeys},
 		}); err != nil {

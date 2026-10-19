@@ -25,7 +25,7 @@ func (server *HttpServer) HandleUploadProfilePic(w http.ResponseWriter, r *http.
 		return respError("contentLength", err)
 	}
 
-	uploadResp, err := server.services.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
+	uploadResp, err := server.service.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
 	if err != nil {
 		return errutil.Wrap("upload profile pic", err)
 	}
@@ -39,7 +39,7 @@ func (server *HttpServer) HandleGetProfilePic(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	userID := r.URL.Query().Get("userId")
 
-	s3URL, err := server.services.GetProfilePicURL(ctx, userID)
+	s3URL, err := server.service.GetProfilePicURL(ctx, userID)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to get profile pic key for user", "userID", userID, "error", err)
 

@@ -16,13 +16,13 @@ import (
 func setupChatsServicesTest(t slogutil.TestLogger) (*ChatService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewChatService(infra.Redis, infra.Querier(), entropy.RealSource{})
+	service := NewChatService(infra.Redis, infra.Querier(), entropy.RealSource{})
 
-	return services, infra
+	return service, infra
 }
 
 func TestEchoStateChats(t *testing.T) {
-	services, testinfra := setupChatsServicesTest(t)
+	service, testinfra := setupChatsServicesTest(t)
 	defer testinfra.Close()
 
 	id1 := model.NewGameID()
@@ -45,10 +45,10 @@ func TestEchoStateChats(t *testing.T) {
 	}
 
 	for _, chat := range chatsIn {
-		require.NoError(t, services.InsertChat(ctx, id1, chat))
+		require.NoError(t, service.InsertChat(ctx, id1, chat))
 	}
 
-	chatsOut, err := services.GetChats(ctx, id1, 3)
+	chatsOut, err := service.GetChats(ctx, id1, 3)
 	require.NoError(t, err)
 
 	wantChats := []model.Chat{

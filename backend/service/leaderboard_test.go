@@ -17,13 +17,13 @@ import (
 func setupLeaderboardTest(t slogutil.TestLogger) (*LeaderboardService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewLeaderboardService(infra.Redis, infra.Querier())
+	service := NewLeaderboardService(infra.Redis, infra.Querier())
 
-	return services, infra
+	return service, infra
 }
 
 func TestLeaderboard(t *testing.T) {
-	services, testinfra := setupLeaderboardTest(t)
+	service, testinfra := setupLeaderboardTest(t)
 	defer testinfra.Close()
 
 	id1 := int64(1)
@@ -41,14 +41,14 @@ func TestLeaderboard(t *testing.T) {
 		{model.ModeTimed1Plus0, id4, 1010},
 		{model.ModeTimed1Plus0, id1, 900},
 	} {
-		require.NoError(t, services.SetLeaderboard(ctx, change))
+		require.NoError(t, service.SetLeaderboard(ctx, change))
 	}
 
 	ranks := make([]map[string]LbRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := services.GetUserLeaderboardRanks(ctx, id, map[string]model.GameMode{
+		rank, err := service.GetUserLeaderboardRanks(ctx, id, map[string]model.GameMode{
 			"CORRESPONDENCE_7": model.ModeCorrespondence7,
 			"TIMED_1+0":        model.ModeTimed1Plus0,
 		})
@@ -64,7 +64,7 @@ func TestLeaderboard(t *testing.T) {
 		{model.ModeCorrespondence7, 1, 2},
 		{model.ModeTimed1Plus0, 0, 4},
 	} {
-		leaderboard, err := services.getLeaderboard(ctx, args.mode, args.offset, args.limit)
+		leaderboard, err := service.getLeaderboard(ctx, args.mode, args.offset, args.limit)
 		require.NoError(t, err)
 		leaderboards = append(leaderboards, leaderboard)
 	}
@@ -157,12 +157,12 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupLeaderboardTest(t)
+			service, testinfra := setupLeaderboardTest(t)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), slogutil.Trace, tt.name)
 
-			leaderboard, missingIDs, err := services.GetFullLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
+			leaderboard, missingIDs, err := service.GetFullLeaderboardUsers(ctx, tt.mode, tt.rankedUsers)
 
 			assert.Equal(t, tt.wantMissingIDs, missingIDs)
 			require.NoError(t, err)
@@ -172,11 +172,11 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 }
 
 func TestGetFuzzySearchLeaderboard(t *testing.T) {
-	services, testinfra := setupLeaderboardTest(t)
+	service, testinfra := setupLeaderboardTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
-	users, err := services.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
+	users, err := service.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
 	require.NoError(t, err)
 
 	wantUsers := []model.LbdUser{

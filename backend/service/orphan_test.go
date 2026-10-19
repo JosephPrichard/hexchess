@@ -18,13 +18,13 @@ import (
 func setupOrphanTest(t slogutil.TestLogger) (*OrphanService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewOrphanService(infra.AWS, infra.Querier())
+	service := NewOrphanService(infra.AWS, infra.Querier())
 
-	return services, infra
+	return service, infra
 }
 
 func TestRemoveOrphanedBucketObjects(t *testing.T) {
-	services, testinfra := setupOrphanTest(t)
+	service, testinfra := setupOrphanTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
@@ -44,7 +44,7 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 		},
 	})
 
-	err := services.ClearOrphanFiles(ctx, 1)
+	err := service.ClearOrphanFiles(ctx, 1)
 	require.NoError(t, err)
 
 	objects, err := testinfra.AWS.S3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{

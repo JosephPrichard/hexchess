@@ -21,26 +21,26 @@ func NewChessRepoService(redis cache.Redis) *ChessRepoService {
 	return &ChessRepoService{redis: redis}
 }
 
-func (services *ChessRepoService) IsGameAccessible(ctx context.Context, id model.GameID) bool {
+func (service *ChessRepoService) IsGameAccessible(ctx context.Context, id model.GameID) bool {
 	defer perf.WithContext(ctx).Log()
 
 	gameKey := cache.FmtGameKey(id)
-	exists, err := services.redis.PrimaryClient.Exists(ctx, gameKey).Result()
+	exists, err := service.redis.PrimaryClient.Exists(ctx, gameKey).Result()
 
 	return err == nil && exists == 1
 }
 
 var ErrNoChessState = errors.New("no chess state")
 
-func (services *ChessRepoService) GetChessState(ctx context.Context, id model.GameID) (*model.ChessState, error) {
-	return services.getChessState(ctx, services.redis.PrimaryClient, id)
+func (service *ChessRepoService) GetChessState(ctx context.Context, id model.GameID) (*model.ChessState, error) {
+	return service.getChessState(ctx, service.redis.PrimaryClient, id)
 }
 
 type RedisChessGetter interface {
 	Get(ctx context.Context, key string) *redis.StringCmd
 }
 
-func (services *ChessRepoService) getChessState(ctx context.Context, getter RedisChessGetter, id model.GameID) (*model.ChessState, error) {
+func (service *ChessRepoService) getChessState(ctx context.Context, getter RedisChessGetter, id model.GameID) (*model.ChessState, error) {
 	gameKey := cache.FmtGameKey(id)
 
 	bytes, err := getter.Get(ctx, gameKey).Bytes()
@@ -59,9 +59,9 @@ func (services *ChessRepoService) getChessState(ctx context.Context, getter Redi
 	return state, nil
 }
 
-func (services *ChessRepoService) SetChessState(ctx context.Context, id model.GameID, state *model.ChessState) error {
+func (service *ChessRepoService) SetChessState(ctx context.Context, id model.GameID, state *model.ChessState) error {
 	touch := time.Now()
-	return services.SetChessStatePiped(ctx, services.redis.PrimaryClient, id, state, touch)
+	return service.SetChessStatePiped(ctx, service.redis.PrimaryClient, id, state, touch)
 }
 
 type RedisChessSetter interface {
@@ -69,7 +69,7 @@ type RedisChessSetter interface {
 	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
 }
 
-func (services *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) error {
+func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) error {
 	defer perf.WithContext(ctx).Log()
 
 	bytes, err := model.MarshalChessState(state)
@@ -90,9 +90,9 @@ func (services *ChessRepoService) SetChessStatePiped(ctx context.Context, setter
 	return nil
 }
 
-func (services *ChessRepoService) SetChessStates(ctx context.Context, chessStates []model.ChessState) error {
+func (service *ChessRepoService) SetChessStates(ctx context.Context, chessStates []model.ChessState) error {
 	var createdGameID []string
-	pipe := services.redis.PrimaryClient.Pipeline()
+	pipe := service.redis.PrimaryClient.Pipeline()
 
 	for i := range chessStates {
 		state := &chessStates[i]
@@ -122,7 +122,7 @@ var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max re
 type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
-func (services *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
+func (service *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
 	defer perf.WithContext(ctx).Log()
 
 	gameKey := cache.FmtGameKey(gameID)
@@ -131,8 +131,8 @@ func (services *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameI
 		var ret *model.ChessState
 
 		// standard redis Watch+Tx optimistic locking pattern to prevent the 'LostUpdate' race condition
-		err := services.redis.PrimaryClient.Watch(ctx, func(txn *redis.Tx) error {
-			state, err := services.getChessState(ctx, txn, gameID)
+		err := service.redis.PrimaryClient.Watch(ctx, func(txn *redis.Tx) error {
+			state, err := service.getChessState(ctx, txn, gameID)
 			if err != nil {
 				return err
 			}
@@ -142,7 +142,7 @@ func (services *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameI
 			}
 
 			_, err = txn.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				err := services.SetChessStatePiped(ctx, pipe, gameID, state, time.Now())
+				err := service.SetChessStatePiped(ctx, pipe, gameID, state, time.Now())
 				if err != nil {
 					return err
 				}

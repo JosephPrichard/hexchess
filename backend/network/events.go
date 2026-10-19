@@ -26,11 +26,11 @@ const (
 func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) error {
 	ctx := client.ctx
 
-	activeCount, err := server.services.GetActiveCount(ctx)
+	activeCount, err := server.service.GetActiveCount(ctx)
 	if err != nil {
 		return errutil.Wrap("get active count", err)
 	}
-	gamesCount, err := server.services.GetGameMetadataCount(ctx)
+	gamesCount, err := server.service.GetGameMetadataCount(ctx)
 	if err != nil {
 		return errutil.Wrap("get chess state count", err)
 	}
@@ -73,14 +73,14 @@ func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) e
 	}
 	strUserID := strconv.Itoa(int(player.ID))
 
-	if _, err := server.services.AddActiveUser(ctx, strUserID); err != nil {
+	if _, err := server.service.AddActiveUser(ctx, strUserID); err != nil {
 		return errutil.Wrap("add active user", err)
 	}
 
 	client.event(MetaEvent, strUserID)
 
 	stop := timeutil.Schedule(RetainActiveUserPeriod, func() {
-		if err := server.services.RetainActiveUser(ctx, strUserID); err != nil {
+		if err := server.service.RetainActiveUser(ctx, strUserID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
 		}
 	})
@@ -117,7 +117,7 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 		slog.InfoContext(ctx, "finishing handle user events stream")
 
 		detachedCtx := context.WithoutCancel(ctx)
-		if _, err = server.services.RemoveActiveUser(detachedCtx, strUserID); err != nil {
+		if _, err = server.service.RemoveActiveUser(detachedCtx, strUserID); err != nil {
 			slog.ErrorContext(detachedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
 		}
 	}()

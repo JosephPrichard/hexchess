@@ -25,19 +25,19 @@ func NewChessTimerService(redis cache.Redis, partitionKey string) *TimerService 
 	}
 }
 
-func (services *TimerService) TryExpireTimers(ctx context.Context, expireBeforeTime time.Time) (any, error) {
+func (service *TimerService) TryExpireTimers(ctx context.Context, expireBeforeTime time.Time) (any, error) {
 	defer perf.New().Log()
 
 	expireBefore := strconv.Itoa(int(expireBeforeTime.UnixMilli()))
 
-	cmd := cache.PollGameTimers.Run(ctx, services.redis.PrimaryClient, services.zDequeueXAddKeys, expireBefore)
+	cmd := cache.PollGameTimers.Run(ctx, service.redis.PrimaryClient, service.zDequeueXAddKeys, expireBefore)
 	keys, err := cmd.Result()
 	if err != nil {
 		return nil, errutil.Wrap("executing poll game timers script", err,
-			"expireBefore", expireBefore, "zDequeueXAddKeys", services.zDequeueXAddKeys)
+			"expireBefore", expireBefore, "zDequeueXAddKeys", service.zDequeueXAddKeys)
 	}
 
 	slog.InfoContext(ctx, "expired timers from sorted set",
-		"dequeuedKeys", keys, "expireBefore", expireBefore, "zDequeueXAddKeys", services.zDequeueXAddKeys)
+		"dequeuedKeys", keys, "expireBefore", expireBefore, "zDequeueXAddKeys", service.zDequeueXAddKeys)
 	return keys, nil
 }

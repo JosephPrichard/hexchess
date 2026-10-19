@@ -21,13 +21,13 @@ import (
 func setupProfileTest(t slogutil.TestLogger) (*ProfileService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewProfileService(infra.AWS, async.AsyncDispatcher{}, entropy.RealSource{})
+	service := NewProfileService(infra.AWS, async.AsyncDispatcher{}, entropy.RealSource{})
 
-	return services, infra
+	return service, infra
 }
 
 func TestDeleteExpiredProfilePics(t *testing.T) {
-	services, testinfra := setupProfileTest(t)
+	service, testinfra := setupProfileTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
@@ -53,7 +53,7 @@ func TestDeleteExpiredProfilePics(t *testing.T) {
 		},
 	})
 
-	require.NoError(t, services.deleteExpiredProfilePics(ctx, 1))
+	require.NoError(t, service.deleteExpiredProfilePics(ctx, 1))
 
 	objects, err := testinfra.AWS.S3Client.ListObjectsV2(t.Context(), &s3.ListObjectsV2Input{
 		Bucket: aws.String(testinfra.AWS.S3ProfileBucket),

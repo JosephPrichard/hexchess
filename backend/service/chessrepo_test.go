@@ -21,13 +21,13 @@ import (
 func setupChessRepoTest(t slogutil.TestLogger) (*ChessRepoService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewChessRepoService(infra.Redis)
+	service := NewChessRepoService(infra.Redis)
 
-	return services, infra
+	return service, infra
 }
 
 func TestEchoChessState(t *testing.T) {
-	services, testinfra := setupChessRepoTest(t)
+	service, testinfra := setupChessRepoTest(t)
 	defer testinfra.Close()
 
 	id1 := model.NewGameID()
@@ -36,12 +36,12 @@ func TestEchoChessState(t *testing.T) {
 	s1 := model.NewChessState(model.StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := t.Context()
 
-	require.NoError(t, services.SetChessState(ctx, id1, s1))
+	require.NoError(t, service.SetChessState(ctx, id1, s1))
 
-	outState1, err := services.GetChessState(ctx, id1)
+	outState1, err := service.GetChessState(ctx, id1)
 	require.NoError(t, err)
 
-	_, errBadID := services.GetChessState(ctx, id2)
+	_, errBadID := service.GetChessState(ctx, id2)
 
 	assert.Equal(t, ErrNoChessState, errBadID)
 	assert.NotNil(t, outState1)
@@ -51,7 +51,7 @@ func TestEchoChessState(t *testing.T) {
 var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "StartTime")
 
 func TestUpdateChessState(t *testing.T) {
-	services, testinfra := setupChessRepoTest(t)
+	service, testinfra := setupChessRepoTest(t)
 	defer testinfra.Close()
 
 	testID := model.NewGameID()
@@ -60,7 +60,7 @@ func TestUpdateChessState(t *testing.T) {
 	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := t.Context()
 
-	require.NoError(t, services.SetChessState(ctx, testID, inState))
+	require.NoError(t, service.SetChessState(ctx, testID, inState))
 
 	update := func(state *model.ChessState) error {
 		state.EndState = model.Aborted // arbitrary state update
@@ -69,7 +69,7 @@ func TestUpdateChessState(t *testing.T) {
 	commit := func(pipe redis.Pipeliner, state *model.ChessState) error {
 		return pipe.Set(ctx, arbitraryKey, "test", 0).Err()
 	}
-	outState, err := services.UpdateChessStateTxn(ctx, testID, update, commit)
+	outState, err := service.UpdateChessStateTxn(ctx, testID, update, commit)
 	require.NoError(t, err)
 
 	wantState := inState.DeepCopy()
@@ -84,17 +84,17 @@ func TestUpdateChessState(t *testing.T) {
 }
 
 func TestUpdateChessState_Errors(t *testing.T) {
-	services, testinfra := setupChessRepoTest(t)
+	service, testinfra := setupChessRepoTest(t)
 	defer testinfra.Close()
 
 	testID := model.NewGameID()
 
 	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
-	require.NoError(t, services.SetChessState(context.Background(), testID, inState))
+	require.NoError(t, service.SetChessState(context.Background(), testID, inState))
 	ctx := t.Context()
 
 	t.Run("failing with unknown gameID", func(t *testing.T) {
-		_, err := services.UpdateChessStateTxn(ctx, model.NewGameID(), func(state *model.ChessState) error { return nil }, nil)
+		_, err := service.UpdateChessStateTxn(ctx, model.NewGameID(), func(state *model.ChessState) error { return nil }, nil)
 
 		assert.Equal(t, ErrNoChessState, err)
 	})
@@ -102,7 +102,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	t.Run("failing in error closure", func(t *testing.T) {
 		mockedErr := errors.New("failed in update closure")
 
-		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *model.ChessState) error {
+		_, err := service.UpdateChessStateTxn(ctx, testID, func(state *model.ChessState) error {
 			return mockedErr
 		}, nil)
 
@@ -110,8 +110,8 @@ func TestUpdateChessState_Errors(t *testing.T) {
 	})
 
 	t.Run("failing with interrupted update", func(t *testing.T) {
-		_, err := services.UpdateChessStateTxn(ctx, testID, func(state *model.ChessState) error {
-			require.NoError(t, services.SetChessState(ctx, testID, inState)) // the state value we set is arbitrary
+		_, err := service.UpdateChessStateTxn(ctx, testID, func(state *model.ChessState) error {
+			require.NoError(t, service.SetChessState(ctx, testID, inState)) // the state value we set is arbitrary
 			return nil
 		}, nil)
 

@@ -19,17 +19,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvanceService, itest.TestInfra) {
+func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvancer, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewTournamentAdvanceService(
+	service := NewTournamentAdvancer(
 		infra.Database,
 		NewUserService(infra.Database),
 		NewGameCreateService(infra.Redis, NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
 	)
 
-	return services, infra
+	return service, infra
 }
 
 var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(query.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
@@ -242,7 +242,7 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupAdvanceTest(t)
+			service, testinfra := setupAdvanceTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
@@ -251,7 +251,7 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 			if eventID == uuid.Nil {
 				eventID = uuid.New()
 			}
-			_, err := services.AdvanceTournament(ctx, tt.tournamentKey, eventID)
+			_, err := service.AdvanceTournament(ctx, tt.tournamentKey, eventID)
 
 			assert.Equal(t, tt.wantErr, leafError(err))
 
@@ -279,12 +279,12 @@ func leafError(err error) error {
 }
 
 func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
-	services, testinfra := setupAdvanceTest(t)
+	service, testinfra := setupAdvanceTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
 	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
-	gameIDs, err := services.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
+	gameIDs, err := service.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
 	require.NoError(t, err)
 
 	wantGameIDs := []model.GameID{itest.TestEventID_TournamentCreation_GameID}
@@ -311,7 +311,7 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 var cmpOptsFullMatch = cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
 
 func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
-	services, testinfra := setupAdvanceTest(t)
+	service, testinfra := setupAdvanceTest(t)
 	defer testinfra.Close()
 
 	ctx := t.Context()
@@ -347,7 +347,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 
 	assertBroadcasts := pubsub.ExpectBroadcastTournamentOutput(t, testinfra.Redis, tournamentKey.String(), wantTournamentOutputs)
 
-	_, err := services.AdvanceTournament(ctx, tournamentKey, eventID)
+	_, err := service.AdvanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
 
 	eventData, err := testinfra.Querier().SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})

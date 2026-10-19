@@ -179,8 +179,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			err = conn.WriteMessage(websocket.BinaryMessage, inputBytes)
 			require.NoError(t, err)
 
-			msgs := readGameOutputMsgs(t, conn, len(wantMsgs))
-			brdcasts := readGameOutputBroadcasts(ctx, len(wantBrdcasts), subChan)
+			msgs := readGameOutputMsgs(t, conn)
+			brdcasts := readGameOutputBroadcasts(ctx, subChan)
 
 			testutil.Equal(t, wantMsgs, msgs, gameOutputAssertionCmpOpts...)
 			testutil.Equal(t, wantBrdcasts, brdcasts, gameOutputAssertionCmpOpts...)
@@ -198,11 +198,15 @@ var gameOutputAssertionCmpOpts = []cmp.Option{
 	protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),
 }
 
-func readGameOutputMsgs(t *testing.T, conn *websocket.Conn, wantMsgs int) []*pb.GameOutput {
-	msgs := make([]*pb.GameOutput, 0, wantMsgs)
-	for range wantMsgs {
+func readGameOutputMsgs(t *testing.T, conn *websocket.Conn) []*pb.GameOutput {
+	conn.SetReadDeadline(time.Now().Add(time.Millisecond * 250)) // ctx does not auto-propagate from dialer
+
+	msgs := make([]*pb.GameOutput, 0)
+	for {
 		_, outputBytes, err := conn.ReadMessage()
-		require.NoError(t, err)
+		if err != nil {
+			break
+		}
 
 		output := &pb.GameOutput{}
 		require.NoError(t, proto.Unmarshal(outputBytes, output))
@@ -216,38 +220,35 @@ func readGameOutputMsgs(t *testing.T, conn *websocket.Conn, wantMsgs int) []*pb.
 	return msgs
 }
 
-func readGameOutputBroadcasts(ctx context.Context, wantBrdcasts int, subChan chan []byte) []any {
-	var broadcasts []any
-	for range wantBrdcasts {
-		var bytes []byte
+func readGameOutputBroadcasts(ctx context.Context, subChan chan []byte) []any {
+	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*250)
+	defer cancel()
 
+	var broadcasts []any
+	for {
 		select {
 		case <-ctx.Done():
+			slices.SortFunc(broadcasts, func(a any, b any) int {
+				return stlcmp.Compare(getBroadcastSortOrd(b), getBroadcastSortOrd(a))
+			})
 			return broadcasts
-		case bytes = <-subChan:
-		}
-
-		var pbGame pb.GameOutput
-		if err := proto.Unmarshal(bytes, &pbGame); err != nil {
-			broadcasts = append(broadcasts, err)
-		} else {
-			broadcasts = append(broadcasts, &pbGame)
-		}
-	}
-
-	getBroadcastSortOrd := func(b any) int {
-		switch o := b.(type) {
-		case *pb.GameOutput:
-			return getMessageSortOrd(o)
-		default:
-			return 0
+		case bytes := <-subChan:
+			var pbGame pb.GameOutput
+			if err := proto.Unmarshal(bytes, &pbGame); err != nil {
+				broadcasts = append(broadcasts, err)
+			} else {
+				broadcasts = append(broadcasts, &pbGame)
+			}
 		}
 	}
-	slices.SortFunc(broadcasts, func(a any, b any) int {
-		return stlcmp.Compare(getBroadcastSortOrd(b), getBroadcastSortOrd(a))
-	})
+}
 
-	return broadcasts
+func getBroadcastSortOrd(b any) int {
+	o, ok := b.(*pb.GameOutput)
+	if ok {
+		return getMessageSortOrd(o)
+	}
+	return 0
 }
 
 func getMessageSortOrd(o *pb.GameOutput) int {

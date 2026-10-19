@@ -13,13 +13,13 @@ import (
 func setupPersonaServices(t slogutil.TestLogger) (*PersonaService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewPersonaService(
+	service := NewPersonaService(
 		NewUserService(infra.Database),
 		NewLeaderboardService(infra.Redis, infra.Querier()),
 		NewSearchService(infra.Database),
 	)
 
-	return services, infra
+	return service, infra
 }
 
 func TestGetPersona(t *testing.T) {

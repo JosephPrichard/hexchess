@@ -88,8 +88,8 @@ func NewMatchmakerService(cfg *MatchmakerServiceConfig) *MatchmakerService {
 	return &MatchmakerService{nodeMap: nodeMap}
 }
 
-func (services *MatchmakerService) SendMatchRequest(request MatchmakingRequest) {
-	node := services.nodeMap[request.Mode]
+func (service *MatchmakerService) SendMatchRequest(request MatchmakingRequest) {
+	node := service.nodeMap[request.Mode]
 	if node == nil {
 		slog.Error("matchmaker service node does not exist for mode", "request", request)
 		return
@@ -97,8 +97,8 @@ func (services *MatchmakerService) SendMatchRequest(request MatchmakingRequest) 
 	node.requestChan <- request
 }
 
-func (services *MatchmakerService) Shutdown() {
-	for _, node := range services.nodeMap {
+func (service *MatchmakerService) Shutdown() {
+	for _, node := range service.nodeMap {
 		node.Shutdown()
 	}
 }
@@ -152,7 +152,7 @@ func (node *matchmakerNode) Run() {
 	for {
 		select {
 		case <-ticker.C:
-			node.tick()
+			//node.tick()
 		case request := <-node.requestChan:
 			node.handleRequest(request)
 		case <-node.stopChan:

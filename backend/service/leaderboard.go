@@ -35,8 +35,8 @@ type SetLbChangeSet struct {
 	EloDiff float64
 }
 
-func (services *LeaderboardService) SetLeaderboard(ctx context.Context, changes ...SetLbChangeSet) error {
-	pipe := services.redis.PrimaryClient.Pipeline()
+func (service *LeaderboardService) SetLeaderboard(ctx context.Context, changes ...SetLbChangeSet) error {
+	pipe := service.redis.PrimaryClient.Pipeline()
 
 	var outgoingChanges []SetLbChangeSet
 	for _, change := range changes {
@@ -71,7 +71,7 @@ func MapLeaderboardRank(rank int64) int64 {
 	return rank + 1
 }
 
-func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LbRank, error) {
+func (service *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LbRank, error) {
 	defer perf.WithContext(ctx).Log()
 
 	type getExec struct {
@@ -88,7 +88,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	ranks := make(map[string]LbRank)
 
 	// fetch and read ranks for each mode in a single pipeline
-	pipeline := services.redis.PrimaryClient.Pipeline()
+	pipeline := service.redis.PrimaryClient.Pipeline()
 	getExecs := make([]getExec, 0, len(modes))
 
 	for _, mode := range modes {
@@ -116,7 +116,7 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	}
 
 	// lazily initialize then fetch ranks for modes which were not retrieved in the calls above
-	pipeline = services.redis.PrimaryClient.Pipeline()
+	pipeline = service.redis.PrimaryClient.Pipeline()
 	var addExecs []addExec
 
 	for _, mode := range modes {
@@ -152,16 +152,16 @@ func (services *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context,
 	return ranks, nil
 }
 
-func (services *LeaderboardService) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
+func (service *LeaderboardService) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
 	modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
 
 	end := startRank - 1 + leaderboardElemCount
-	strUserIDs, err := services.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
+	strUserIDs, err := service.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
 		return Leaderboard{}, errutil.Wrap("retrieve reverse leaderboard by range", err)
 	}
 
-	totalLbdElemCount, err := services.redis.PrimaryClient.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
+	totalLbdElemCount, err := service.redis.PrimaryClient.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
 	if err != nil {
 		return Leaderboard{}, errutil.Wrap("count leaderboard", err)
 	}
@@ -185,7 +185,7 @@ func (services *LeaderboardService) getLeaderboard(ctx context.Context, mode mod
 	return leaderboard, nil
 }
 
-func (services *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode model.GameMode, page, perPage int64) (Leaderboard, error) {
+func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode model.GameMode, page, perPage int64) (Leaderboard, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if page < 1 {
@@ -193,18 +193,18 @@ func (services *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode
 	}
 	offset := (page - 1) * perPage
 
-	leaderboard, err := services.getLeaderboard(ctx, mode, offset, perPage)
+	leaderboard, err := service.getLeaderboard(ctx, mode, offset, perPage)
 	slogutil.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
 	return leaderboard, err
 }
 
-func (services *LeaderboardService) SyncLeaderboard(ctx context.Context) error {
+func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) error {
 	defer perf.WithContext(ctx).Log()
 
 	for _, mode := range model.GameModeEnums {
 		afterID := int64(0)
 		for {
-			rows, err := services.querier.SelectEloList(ctx, query.SelectEloListParams{ID: afterID, Mode: query.ModeEnum(mode.String()), Limit: 20})
+			rows, err := service.querier.SelectEloList(ctx, query.SelectEloListParams{ID: afterID, Mode: query.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
 				return errutil.Wrap("select elo list", err, "afterID", afterID)
 			}
@@ -219,7 +219,7 @@ func (services *LeaderboardService) SyncLeaderboard(ctx context.Context) error {
 			if len(changes) == 0 {
 				break
 			}
-			if err := services.SetLeaderboard(ctx, changes...); err != nil {
+			if err := service.SetLeaderboard(ctx, changes...); err != nil {
 				return errutil.Wrap("set leaderboard", err)
 			}
 		}
@@ -247,7 +247,7 @@ func MapLeaderboardUser(row query.SelectUserWithEloByIDRow) model.LbdUser {
 	}
 }
 
-func (services *LeaderboardService) GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error) {
+func (service *LeaderboardService) GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error) {
 	defer perf.WithContext(ctx).Log()
 
 	strUserID := strconv.Itoa(int(userID))
@@ -258,14 +258,14 @@ func (services *LeaderboardService) GetLeaderboardUser(ctx context.Context, user
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		userRow, err = services.querier.SelectUserWithEloByID(egCtx, query.SelectUserWithEloByIDParams{
+		userRow, err = service.querier.SelectUserWithEloByID(egCtx, query.SelectUserWithEloByIDParams{
 			ID:   userID,
 			Mode: query.ModeEnum(mode.String()),
 		})
 		return errutil.Wrap("select user with elos by userID", err, "userID", userID)
 	})
 	eg.Go(func() (err error) {
-		rankScore, err = services.redis.PrimaryClient.ZRankWithScore(egCtx, cache.FmtLeaderboardZSet(mode.String()), strUserID).Result()
+		rankScore, err = service.redis.PrimaryClient.ZRankWithScore(egCtx, cache.FmtLeaderboardZSet(mode.String()), strUserID).Result()
 		return errutil.Wrap("get user rank by userID", err, "userID", userID)
 	})
 
@@ -279,7 +279,7 @@ func (services *LeaderboardService) GetLeaderboardUser(ctx context.Context, user
 	return leaderboardUser, nil
 }
 
-func (services *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, mode model.GameMode, rankUsers []RankedUser) ([]model.LbdUser, []int64, error) {
+func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, mode model.GameMode, rankUsers []RankedUser) ([]model.LbdUser, []int64, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if len(rankUsers) == 0 {
@@ -290,7 +290,7 @@ func (services *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context,
 	for _, rankUser := range rankUsers {
 		ids = append(ids, rankUser.ID)
 	}
-	userRows, err := services.querier.SelectUserWithEloByIDs(ctx, query.SelectUserWithEloByIDsParams{
+	userRows, err := service.querier.SelectUserWithEloByIDs(ctx, query.SelectUserWithEloByIDsParams{
 		Ids:  ids,
 		Mode: query.ModeEnum(mode.String()),
 	})
@@ -333,7 +333,7 @@ const MaxSearchOffset = 1000
 
 var ErrSearchLimit = errors.New("search limit exceeded")
 
-func (services *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) ([]model.LbdUser, error) {
+func (service *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) ([]model.LbdUser, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if name == "" {
@@ -347,7 +347,7 @@ func (services *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Contex
 		return []model.LbdUser{}, nil
 	}
 
-	userRows, err := services.querier.SelectUsersBySimilarity(ctx, query.SelectUsersBySimilarityParams{
+	userRows, err := service.querier.SelectUsersBySimilarity(ctx, query.SelectUsersBySimilarityParams{
 		Username: name,
 		Limit:    perPage,
 		Offset:   offset,
@@ -360,7 +360,7 @@ func (services *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Contex
 	for _, row := range userRows {
 		userIDs = append(userIDs, row.ID)
 	}
-	eloRows, err := services.querier.SelectUserElosByIDs(ctx, userIDs)
+	eloRows, err := service.querier.SelectUserElosByIDs(ctx, userIDs)
 	if err != nil {
 		return nil, errutil.Wrap("select elos by user ids", err, "userIDs", userIDs)
 	}

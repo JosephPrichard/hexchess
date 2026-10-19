@@ -20,16 +20,16 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type RetrieveTournamentService struct {
+type TournamentRetriever struct {
 	querier query.Querier
 	redis   cache.Redis
 }
 
-func NewRetrieveTournamentService(querier query.Querier, redis cache.Redis) *RetrieveTournamentService {
-	return &RetrieveTournamentService{querier: querier, redis: redis}
+func NewRetrieveTournamentService(querier query.Querier, redis cache.Redis) *TournamentRetriever {
+	return &TournamentRetriever{querier: querier, redis: redis}
 }
 
-func (services *RetrieveTournamentService) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error) {
+func (service *TournamentRetriever) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (model.FullTournament, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var tournamentRow query.SelectTournamentByIDRow
@@ -39,19 +39,19 @@ func (services *RetrieveTournamentService) GetTournament(ctx context.Context, to
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		tournamentRow, err = services.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		tournamentRow, err = service.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		return errutil.Wrap(
 			"select tournament by key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
-		participantRows, err = services.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		participantRows, err = service.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		return errutil.Wrap(
 			"select participants by tournament key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
-		matchRows, err = services.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		matchRows, err = service.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 		return errutil.Wrap(
 			"select replay matches by tournament key", err, "key", tournamentKey)
 	})
@@ -68,7 +68,7 @@ func (services *RetrieveTournamentService) GetTournament(ctx context.Context, to
 
 	tournament := mapFullTournament(tournamentRow, matchRows, participantRows)
 
-	userLdbRanksMap, err := services.getParticipantsRank(ctx, tournament.Participants, tournament.Mode)
+	userLdbRanksMap, err := service.getParticipantsRank(ctx, tournament.Participants, tournament.Mode)
 	if err != nil {
 		return model.FullTournament{}, errutil.Wrap("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
 	}
@@ -80,13 +80,13 @@ func (services *RetrieveTournamentService) GetTournament(ctx context.Context, to
 	return tournament, nil
 }
 
-func (services *RetrieveTournamentService) getParticipantsRank(ctx context.Context, participants []model.Participant, mode model.GameMode) (map[int64]int64, error) {
+func (service *TournamentRetriever) getParticipantsRank(ctx context.Context, participants []model.Participant, mode model.GameMode) (map[int64]int64, error) {
 	type getExec struct {
 		userID int64
 		cmd    *redis.IntCmd
 	}
 
-	pipeline := services.redis.PrimaryClient.Pipeline()
+	pipeline := service.redis.PrimaryClient.Pipeline()
 
 	var getExecs []getExec
 	for _, participant := range participants {
@@ -119,7 +119,7 @@ func (services *RetrieveTournamentService) getParticipantsRank(ctx context.Conte
 	return leaderboardRanks, nil
 }
 
-func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) ([]model.Tournament, error) {
+func (service *TournamentRetriever) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) ([]model.Tournament, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if !afterID.Present {
@@ -129,7 +129,7 @@ func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, p
 	var tournaments []model.Tournament
 
 	if participantID.Present {
-		tournamentRows, err := services.querier.SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
+		tournamentRows, err := service.querier.SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
 			UserID:  participantID.Value,
 			AfterID: afterID.Value,
 			PerPage: perPage,
@@ -139,7 +139,7 @@ func (services *RetrieveTournamentService) GetTournaments(ctx context.Context, p
 		}
 		tournaments = mapTournamentsByParticipantRows(tournamentRows)
 	} else {
-		tournamentRows, err := services.querier.SelectTournaments(ctx, query.SelectTournamentsParams{
+		tournamentRows, err := service.querier.SelectTournaments(ctx, query.SelectTournamentsParams{
 			AfterID: afterID.Value,
 			PerPage: perPage,
 		})

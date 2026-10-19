@@ -14,9 +14,9 @@ import (
 func setupSearcherTest(t slogutil.TestLogger) (*ReplaySearchService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewSearchService(infra.Database)
+	service := NewSearchService(infra.Database)
 
-	return services, infra
+	return service, infra
 }
 
 func TestSearchReplaysByQuery(t *testing.T) {
@@ -52,12 +52,12 @@ func TestSearchReplaysByQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupSearcherTest(t)
+			service, testinfra := setupSearcherTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
 
-			replayList, err := services.SearchReplaysByQuery(ctx, tt.replayQuery)
+			replayList, err := service.SearchReplaysByQuery(ctx, tt.replayQuery)
 			require.NoError(t, err)
 
 			testutil.Equal(t, tt.wantReplays, replayList)

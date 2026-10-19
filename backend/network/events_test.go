@@ -2,6 +2,7 @@ package network_test
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"hexchess-svc/model"
@@ -16,65 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func scanEvents(t *testing.T, resp *http.Response, wantEvents int) []string {
-	ctx := t.Context()
-
-	defer resp.Body.Close()
-
-	var events []string
-	if wantEvents == 0 {
-		return events
-	}
-
-	var event string
-	var count int
-
-	linesChan := make(chan string)
-	scan := bufio.NewScanner(resp.Body)
-
-	go func() {
-		defer close(linesChan)
-		for scan.Scan() {
-			linesChan <- scan.Text()
-		}
-	}()
-
-	for {
-		var line string
-		var ok bool
-
-		select {
-		case <-ctx.Done():
-			return events
-		case line, ok = <-linesChan:
-			if !ok {
-				return events
-			}
-		}
-		//fmt.Printf("recv line: %s\n", line)
-
-		if line == "" {
-			continue
-		}
-		if event == "" {
-			event = line + "\n"
-		} else {
-			event += line + "\n"
-			events = append(events, event)
-			count++
-			event = ""
-		}
-		if count >= wantEvents {
-			break
-		}
-	}
-
-	if err := scan.Err(); err != nil {
-		t.Logf("scanner error: %v", err)
-	}
-	return events
-}
 
 func TestHandleCountEvents(t *testing.T) {
 	ctx := t.Context()
@@ -93,15 +35,23 @@ func TestHandleCountEvents(t *testing.T) {
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
-	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", network.ActiveCountEvent, `{"count":0}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", network.GamesCountEvent, `{"count":3}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", network.ActiveCountEvent, `{"count":2}`),
-		fmt.Sprintf("event: %s\ndata: %s\n", network.GamesCountEvent, `{"count":4}`),
+	wantLines := []string{
+		fmt.Sprintf("event: %s", network.ActiveCountEvent),
+		fmt.Sprintf("data: %s", `{"count":0}`),
+		"",
+		fmt.Sprintf("event: %s", network.GamesCountEvent),
+		fmt.Sprintf("data: %s", `{"count":3}`),
+		"",
+		fmt.Sprintf("event: %s", network.ActiveCountEvent),
+		fmt.Sprintf("data: %s", `{"count":2}`),
+		"",
+		fmt.Sprintf("event: %s", network.GamesCountEvent),
+		fmt.Sprintf("data: %s", `{"count":4}`),
+		"",
 	}
 
-	gotEvents := scanEvents(t, resp, len(wantEvents))
-	assert.Equal(t, wantEvents, gotEvents)
+	gotEvents := scanLines(t, resp)
+	assert.Equal(t, wantLines, gotEvents)
 }
 
 func TestHandleActiveConn(t *testing.T) {
@@ -160,18 +110,23 @@ func TestHandleUserEvents(t *testing.T) {
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
-	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", network.MetaEvent, "1"),
+	wantLines := []string{
+		fmt.Sprintf("event: %s", network.MetaEvent),
+		fmt.Sprintf("data: 1"),
+		"",
 	}
 
 	for _, challenge := range inputMessages[1:] {
 		challengeJson, err := json.Marshal(challenge)
 		require.NoError(t, err)
-		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", network.UserChallengeEvent, challengeJson))
+		wantLines = append(wantLines,
+			fmt.Sprintf("event: %s", network.UserChallengeEvent),
+			fmt.Sprintf("data: %s", challengeJson),
+			"")
 	}
 
-	gotEvents := scanEvents(t, resp, len(wantEvents))
-	assert.Equal(t, wantEvents, gotEvents)
+	gotEvents := scanLines(t, resp)
+	assert.Equal(t, wantLines, gotEvents)
 }
 
 func TestHandleTournamentEvents(t *testing.T) {
@@ -233,15 +188,64 @@ func TestHandleTournamentEvents(t *testing.T) {
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	// expect one event for each tournament input, plus the meta event
-	wantEvents := []string{
-		fmt.Sprintf("event: %s\ndata: %s\n", network.MetaEvent, keyString),
+	wantLines := []string{
+		fmt.Sprintf("event: %s", network.MetaEvent),
+		fmt.Sprintf("data: %s", keyString),
+		"",
 	}
 	for _, tournament := range inputTournaments[1:] {
 		jsonData, err := json.Marshal(tournament)
 		require.NoError(t, err)
-		wantEvents = append(wantEvents, fmt.Sprintf("event: %s\ndata: %s\n", network.TournamentEvent, jsonData))
+		wantLines = append(wantLines,
+			fmt.Sprintf("event: %s", network.TournamentEvent),
+			fmt.Sprintf("data: %s", jsonData),
+			"")
 	}
 
-	gotEvents := scanEvents(t, resp, len(wantEvents))
-	assert.Equal(t, wantEvents, gotEvents)
+	gotEvents := scanLines(t, resp)
+	assert.Equal(t, wantLines, gotEvents)
+}
+
+func scanLines(t *testing.T, resp *http.Response) []string {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*250)
+	defer cancel()
+
+	defer resp.Body.Close()
+
+	linesChan := make(chan string)
+
+	go func() {
+		// concurrently scan the SSE responses and send each line to the channel
+		scan := bufio.NewScanner(resp.Body)
+		defer close(linesChan)
+		for scan.Scan() {
+			linesChan <- scan.Text()
+		}
+		if err := scan.Err(); err != nil {
+			t.Logf("scanner error: %v", err)
+		}
+	}()
+
+	var lines []string
+
+	for {
+		var line string
+		var ok bool
+
+		// drain lines from scanner and propagate cancellation
+		select {
+		case <-ctx.Done():
+			return lines
+		case line, ok = <-linesChan:
+			if ok {
+				// for each event: we expect the following
+				// event:\n
+				// data:\n
+				// \n
+				lines = append(lines, line)
+			} else {
+				return lines
+			}
+		}
+	}
 }

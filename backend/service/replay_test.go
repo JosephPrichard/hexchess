@@ -19,19 +19,19 @@ import (
 func setupReplayTest(t slogutil.TestLogger) (*ReplayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewReplayService(infra.Database)
+	service := NewReplayService(infra.Database)
 
-	return services, infra
+	return service, infra
 }
 
 func TestGetReplay(t *testing.T) {
-	services, testinfra := setupReplayTest(t)
+	service, testinfra := setupReplayTest(t)
 	defer testinfra.Close()
 
 	t.Run("GetReplay", func(t *testing.T) {
 		ctx := t.Context()
 
-		actualReplay1, err := services.GetReplay(ctx, itest.FirstReplayID)
+		actualReplay1, err := service.GetReplay(ctx, itest.FirstReplayID)
 		require.NoError(t, err)
 
 		assert.Equal(t, itest.TestReplays[0], actualReplay1)
@@ -40,7 +40,7 @@ func TestGetReplay(t *testing.T) {
 	t.Run("GetReplayWithGuest", func(t *testing.T) {
 		ctx := t.Context()
 
-		actualReplay1, err := services.GetReplay(ctx, itest.GuestReplayID)
+		actualReplay1, err := service.GetReplay(ctx, itest.GuestReplayID)
 		require.NoError(t, err)
 
 		assert.Equal(t, itest.TestReplays[3], actualReplay1)
@@ -87,12 +87,12 @@ func TestRetrieveEloHistories(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 
-			services, testinfra := setupReplayTest(t)
+			service, testinfra := setupReplayTest(t)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), slogutil.Trace, test.name)
 
-			resp, err := services.RetrieveEloHistoryBuckets(ctx, test.params)
+			resp, err := service.RetrieveEloHistoryBuckets(ctx, test.params)
 			require.NoError(t, err)
 
 			testutil.Equal(t, test.wantEloBuckets, resp.EloHistories, cmpopts.IgnoreFields(EloHistoryBucket{}, "Timestamp"))

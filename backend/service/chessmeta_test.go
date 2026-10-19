@@ -19,9 +19,9 @@ import (
 func setupGameMetadataTest(t slogutil.TestLogger) (*ChessMetaService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewChessMetaService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(infra.Redis))
+	service := NewChessMetaService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(infra.Redis))
 
-	return services, infra
+	return service, infra
 }
 
 func TestGetGameMetadata(t *testing.T) {

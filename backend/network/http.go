@@ -18,7 +18,7 @@ import (
 )
 
 type HttpServer struct {
-	services      HttpServices
+	service       HttpServices
 	broadcasters  *pubsub.LocalBroadcasters
 	broadcaster   pubsub.Broadcaster
 	dispatcher    async.Dispatcher
@@ -42,9 +42,9 @@ type HttpServices struct {
 	*service.SessionService
 	*service.ActiveUserService
 	*service.ChatService
-	*service.UpdateTournamentService
-	*service.RetrieveTournamentService
-	*service.TournamentNotificationService
+	*service.TournamentUpdater
+	*service.TournamentRetriever
+	*service.TournamentNotifier
 	*service.PersonaService
 	*service.AuthTokenService
 }
@@ -144,13 +144,13 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 
 func NewHttpServer(config HttpServerConfig) HttpServer {
 	return HttpServer{
-		services:     NewHttpServices(config),
+		service:      NewHttpServices(config),
 		broadcaster:  config.Broadcaster,
 		broadcasters: config.Broadcasters,
 		dispatcher:   config.Dispatcher,
 		entropy:      config.Entropy,
 		authenticator: HttpAuthenticator{
-			services: service.NewSessionService(config.Redis),
+			service: service.NewSessionService(config.Redis),
 		},
 		staticData: NewStaticData(),
 	}
@@ -183,9 +183,9 @@ func NewHttpServices(setup HttpServerConfig) HttpServices {
 
 	sessionService := service.NewSessionService(setup.Redis)
 
-	updateTournamentService := service.NewUpdateTournamentService(setup.Database, setup.Redis, riverProducer)
+	updateTournamentService := service.NewTournamentUpdater(setup.Database, setup.Redis, riverProducer)
 	retrieveTournamentService := service.NewRetrieveTournamentService(setup.Database.Querier(), setup.Redis)
-	tournamentBroadcaster := service.NewTournamentBroadcaster(leaderboardService, setup.Broadcaster)
+	tournamentBroadcaster := service.NewTournamentNotifier(leaderboardService, setup.Broadcaster)
 
 	activeUserService := service.NewActiveUserService(setup.Redis, setup.Broadcaster)
 	chatService := service.NewChatService(setup.Redis, setup.Database.Querier(), setup.Entropy)
@@ -195,24 +195,24 @@ func NewHttpServices(setup HttpServerConfig) HttpServices {
 	authTokenService := service.NewAuthTokenService(setup.SDKs)
 
 	return HttpServices{
-		UserService:                   userService,
-		ReplayService:                 replayService,
-		ReplaySearchService:           replaySearchService,
-		ChallengeService:              challengeService,
-		LeaderboardService:            leaderboardService,
-		ChessMetaService:              chessMetaService,
-		ChessRepoService:              chessRepoService,
-		GamePlayService:               gameplayService,
-		GameCreateService:             gameCreateService,
-		OrphanService:                 orphanService,
-		ProfileService:                profileService,
-		SessionService:                sessionService,
-		UpdateTournamentService:       updateTournamentService,
-		RetrieveTournamentService:     retrieveTournamentService,
-		TournamentNotificationService: tournamentBroadcaster,
-		ActiveUserService:             activeUserService,
-		ChatService:                   chatService,
-		PersonaService:                participantService,
-		AuthTokenService:              authTokenService,
+		UserService:         userService,
+		ReplayService:       replayService,
+		ReplaySearchService: replaySearchService,
+		ChallengeService:    challengeService,
+		LeaderboardService:  leaderboardService,
+		ChessMetaService:    chessMetaService,
+		ChessRepoService:    chessRepoService,
+		GamePlayService:     gameplayService,
+		GameCreateService:   gameCreateService,
+		OrphanService:       orphanService,
+		ProfileService:      profileService,
+		SessionService:      sessionService,
+		TournamentUpdater:   updateTournamentService,
+		TournamentRetriever: retrieveTournamentService,
+		TournamentNotifier:  tournamentBroadcaster,
+		ActiveUserService:   activeUserService,
+		ChatService:         chatService,
+		PersonaService:      participantService,
+		AuthTokenService:    authTokenService,
 	}
 }

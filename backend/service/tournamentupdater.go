@@ -19,12 +19,12 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type UpdateTournamentService struct {
+type TournamentUpdater struct {
 	// infra
 	database.Database
 	redis cache.Redis
 
-	// services
+	// service
 	producer UpdateTournamentProducer
 }
 
@@ -32,8 +32,8 @@ type UpdateTournamentProducer interface {
 	ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
 }
 
-func NewUpdateTournamentService(database database.Database, redis cache.Redis, producer UpdateTournamentProducer) *UpdateTournamentService {
-	return &UpdateTournamentService{Database: database, redis: redis, producer: producer}
+func NewTournamentUpdater(database database.Database, redis cache.Redis, producer UpdateTournamentProducer) *TournamentUpdater {
+	return &TournamentUpdater{Database: database, redis: redis, producer: producer}
 }
 
 type TournamentInst struct {
@@ -53,7 +53,7 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 
 var InsertionStatus = model.TournamentLobby.String()
 
-func (services *UpdateTournamentService) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
+func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
@@ -70,7 +70,7 @@ func (services *UpdateTournamentService) CreateTournament(ctx context.Context, i
 		rounds = inst.Rounds
 	}
 
-	tournamentID, err := services.Mutator().InsertTournament(ctx, mutate.InsertTournamentParams{
+	tournamentID, err := service.Mutator().InsertTournament(ctx, mutate.InsertTournamentParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.Key, Valid: true},
 		Name:          inst.Name,
 		Rounds:        rounds,
@@ -90,8 +90,8 @@ func (services *UpdateTournamentService) CreateTournament(ctx context.Context, i
 	return tournamentID, nil
 }
 
-func (services *UpdateTournamentService) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
-	deletedIDs, err := services.Mutator().DeleteTournamentParticipant(ctx, mutate.DeleteTournamentParticipantParams{
+func (service *TournamentUpdater) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
+	deletedIDs, err := service.Mutator().DeleteTournamentParticipant(ctx, mutate.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
 	})
@@ -128,12 +128,12 @@ type JoinTournamentEvent struct {
 	Mode          model.GameMode
 }
 
-func (services *UpdateTournamentService) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
+func (service *TournamentUpdater) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var event JoinTournamentEvent
 
-	err := services.Database.ExecTx(ctx, database.TxArgs{
+	err := service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
@@ -194,12 +194,12 @@ type BeginTourneyCountdown struct {
 	TournamentKey uuid.UUID
 }
 
-func (services *UpdateTournamentService) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
+func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var tourneyCountdown BeginTourneyCountdown
 
-	err := services.Database.ExecTx(ctx, database.TxArgs{
+	err := service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and uses it to decide to begin the countdown, creating a scheduled event E1 and setting the status to S3
@@ -208,14 +208,14 @@ func (services *UpdateTournamentService) BeginTournamentCountdown(ctx context.Co
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
-			return services.beginTournamentCountdown(ctx, txn, query, tournamentKey, userID, &tourneyCountdown)
+			return service.beginTournamentCountdown(ctx, txn, query, tournamentKey, userID, &tourneyCountdown)
 		},
 	})
 
 	return tourneyCountdown, err
 }
 
-func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
+func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
 	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
 		return errutil.Wrap("select tournament by key", err, "key", tournamentKey)
@@ -242,7 +242,7 @@ func (services *UpdateTournamentService) beginTournamentCountdown(ctx context.Co
 		return errutil.Wrap("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 	}
 
-	if err := services.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
+	if err := service.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
 	}); err != nil {

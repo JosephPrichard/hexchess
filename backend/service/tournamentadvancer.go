@@ -22,12 +22,12 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type TournamentAdvanceService struct {
+type TournamentAdvancer struct {
 	// infra
 	database.Database
 	broadcaster pubsub.Broadcaster
 
-	// services
+	// service
 	user     UserGetter
 	gameplay GameCreator
 }
@@ -40,26 +40,26 @@ type GameCreator interface {
 	SetupGame(ctx context.Context, setup model.StateSetup) error
 }
 
-func NewTournamentAdvanceService(
+func NewTournamentAdvancer(
 	database database.Database,
 	user UserGetter,
 	gameplay GameCreator,
 	broadcaster pubsub.Broadcaster,
-) *TournamentAdvanceService {
-	return &TournamentAdvanceService{Database: database, user: user, gameplay: gameplay, broadcaster: broadcaster}
+) *TournamentAdvancer {
+	return &TournamentAdvancer{Database: database, user: user, gameplay: gameplay, broadcaster: broadcaster}
 }
 
-func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
+func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
 	defer perf.WithContext(ctx).Log()
 
 	// advance tournament on the database
-	matches, err := services.advanceTournament(ctx, tournamentKey, eventID)
+	matches, err := service.advanceTournament(ctx, tournamentKey, eventID)
 	if err != nil {
 		return nil, errutil.Wrap("advance tournament", err, "key", tournamentKey)
 	}
 
 	// create playable games correlated with the committed matches
-	userDataMap, err := services.constructMatchDataMap(ctx, matches)
+	userDataMap, err := service.constructMatchDataMap(ctx, matches)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 	eg, egCtx := errgroup.WithContext(ctx)
 	for i, match := range matches {
 		eg.Go(func() error {
-			return services.setupGame(egCtx, i, match, userDataMap)
+			return service.setupGame(egCtx, i, match, userDataMap)
 		})
 	}
 
@@ -76,7 +76,7 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 	}
 
 	// notify tournament participants that tournament has been progressed with new matches
-	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
+	service.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
 		Key:     tournamentKey.String(),
 		Kind:    model.TournamentMatchmakingKind,
 		Matches: matches,
@@ -91,12 +91,12 @@ func (services *TournamentAdvanceService) AdvanceTournament(ctx context.Context,
 
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (services *TournamentAdvanceService) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.FullMatch, error) {
+func (service *TournamentAdvancer) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.FullMatch, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var createdMatches []model.FullMatch
 
-	err := services.Database.ExecTx(ctx, database.TxArgs{
+	err := service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 selects participationIDs P1 and creates and inserts NextMatches M1
@@ -316,12 +316,12 @@ func insertTournamentMatches(
 	return matches, nil
 }
 
-func (services *TournamentAdvanceService) constructMatchDataMap(ctx context.Context, matches []model.FullMatch) (map[int64]model.User, error) {
+func (service *TournamentAdvancer) constructMatchDataMap(ctx context.Context, matches []model.FullMatch) (map[int64]model.User, error) {
 	userIDs := make([]int64, 0, len(matches)*2)
 	for _, match := range matches {
 		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
-	users, err := services.user.SelectUsersByIDs(ctx, userIDs)
+	users, err := service.user.SelectUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return nil, errutil.Wrap("select user player data by ids", err)
 	}
@@ -333,7 +333,7 @@ func (services *TournamentAdvanceService) constructMatchDataMap(ctx context.Cont
 	return userDataMap, nil
 }
 
-func (services *TournamentAdvanceService) setupGame(ctx context.Context, index int, match model.FullMatch, userDataMap map[int64]model.User) error {
+func (service *TournamentAdvancer) setupGame(ctx context.Context, index int, match model.FullMatch, userDataMap map[int64]model.User) error {
 	whitePlayerData, okWhite := userDataMap[match.WhiteID]
 	blackPlayerData, okBlack := userDataMap[match.BlackID]
 
@@ -346,7 +346,7 @@ func (services *TournamentAdvanceService) setupGame(ctx context.Context, index i
 		return fmt.Errorf("missing game mode for match: %+v", match)
 	}
 
-	err := services.gameplay.SetupGame(ctx, model.StateSetup{
+	err := service.gameplay.SetupGame(ctx, model.StateSetup{
 		ID:         match.GameID,
 		Mode:       match.GameMode.Value,
 		FirstColor: model.White,

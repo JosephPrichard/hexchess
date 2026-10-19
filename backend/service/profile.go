@@ -36,20 +36,20 @@ func NewProfileService(aws cloud.AWSClient, dispatcher async.Dispatcher, entropy
 	return &ProfileService{aws: aws, dispatcher: dispatcher, entropy: entropy}
 }
 
-func (services *ProfileService) deleteExpiredProfilePics(ctx context.Context, playerID int) error {
+func (service *ProfileService) deleteExpiredProfilePics(ctx context.Context, playerID int) error {
 	prefix := fmtProfilePicPrefix(strconv.Itoa(playerID))
 
 	// remove all but the newest keys. there should never be more 1000 keys, but if there are, this will never delete the newest Key
-	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(services.aws.S3ProfileBucket),
+	listOutput, err := service.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(service.aws.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return errutil.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
+		return errutil.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
-		"bucket", services.aws.S3ProfileBucket, "keys", keysOfObjects(listOutput.Contents))
+		"bucket", service.aws.S3ProfileBucket, "keys", keysOfObjects(listOutput.Contents))
 
 	if len(listOutput.Contents) == 0 {
 		return nil
@@ -60,11 +60,11 @@ func (services *ProfileService) deleteExpiredProfilePics(ctx context.Context, pl
 	slog.InfoContext(ctx, "deleting profile pics", "keys", keys)
 
 	if len(objectIdentifiers) > 0 {
-		if _, err := services.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-			Bucket: aws.String(services.aws.S3ProfileBucket),
+		if _, err := service.aws.S3Client.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+			Bucket: aws.String(service.aws.S3ProfileBucket),
 			Delete: &s3Types.Delete{Objects: objectIdentifiers},
 		}); err != nil {
-			return errutil.Wrap("delete profile pics by keys", err, "keys", keys, "bucket", services.aws.S3ProfileBucket)
+			return errutil.Wrap("delete profile pics by keys", err, "keys", keys, "bucket", service.aws.S3ProfileBucket)
 		}
 	}
 	return nil
@@ -82,7 +82,7 @@ var (
 	ErrProfilePicTooBig = fmt.Errorf("profile picture exceeds max size of %d bytes", MaxProfilePicSize)
 )
 
-func (services *ProfileService) UploadProfilePic(
+func (service *ProfileService) UploadProfilePic(
 	ctx context.Context,
 	uploader model.PlayerState,
 	file io.ReadCloser,
@@ -98,7 +98,7 @@ func (services *ProfileService) UploadProfilePic(
 	defer file.Close()
 	body := ioutil.NewLimitReader(cancel, file, MaxProfilePicSize)
 
-	key := fmtProfilePicKey(uploader.ID, services.entropy.NewUUID().String())
+	key := fmtProfilePicKey(uploader.ID, service.entropy.NewUUID().String())
 
 	var checksumAlgorithm s3Types.ChecksumAlgorithm
 	var checksumSHA256 *string
@@ -117,8 +117,8 @@ func (services *ProfileService) UploadProfilePic(
 	slog.InfoContext(ctx, "uploading profile pic",
 		"key", key, "uploader", uploader, "contentType", contentType, "contentChecksum", contentChecksum)
 
-	output, err := services.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket:            aws.String(services.aws.S3ProfileBucket),
+	output, err := service.aws.S3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:            aws.String(service.aws.S3ProfileBucket),
 		Key:               aws.String(key),
 		ContentType:       aws.String(contentType),
 		ContentLength:     aws.Int64(contentLength),
@@ -132,12 +132,12 @@ func (services *ProfileService) UploadProfilePic(
 		return UploadProfileResult{}, ErrProfilePicTooBig
 	}
 	if err != nil {
-		return UploadProfileResult{}, errutil.Wrap("put profile pic", err, "key", key, "bucket", services.aws.S3ProfileBucket)
+		return UploadProfileResult{}, errutil.Wrap("put profile pic", err, "key", key, "bucket", service.aws.S3ProfileBucket)
 	}
 
-	services.dispatcher.Go(func() {
+	service.dispatcher.Go(func() {
 		detachedCtx := context.WithoutCancel(ctx)
-		if err := services.deleteExpiredProfilePics(detachedCtx, int(uploader.ID)); err != nil {
+		if err := service.deleteExpiredProfilePics(detachedCtx, int(uploader.ID)); err != nil {
 			slog.ErrorContext(detachedCtx, "failed to remove expired profile pics", "uploader", uploader, "error", err)
 		}
 	})
@@ -148,16 +148,16 @@ func (services *ProfileService) UploadProfilePic(
 
 var ErrNoProfilePic = errors.New("no profile pic found for user")
 
-func (services *ProfileService) GetProfilePicURL(ctx context.Context, userID string) (string, error) {
+func (service *ProfileService) GetProfilePicURL(ctx context.Context, userID string) (string, error) {
 	// retrieves all profile pictures for any user and retrieves the most recent one. this runs on the assumption that we may not be deleting old profile pics.
 	prefix := fmtProfilePicPrefix(userID)
 
-	listOutput, err := services.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(services.aws.S3ProfileBucket),
+	listOutput, err := service.aws.S3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(service.aws.S3ProfileBucket),
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", errutil.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", services.aws.S3ProfileBucket)
+		return "", errutil.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)
@@ -166,12 +166,12 @@ func (services *ProfileService) GetProfilePicURL(ctx context.Context, userID str
 	}
 	slog.InfoContext(ctx, "get profile pic by most recent key", "key", mostRecentKey, "userID", userID)
 
-	presignOutput, err := services.aws.PresignClient.PresignGetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(services.aws.S3ProfileBucket),
+	presignOutput, err := service.aws.PresignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(service.aws.S3ProfileBucket),
 		Key:    aws.String(mostRecentKey),
 	})
 	if err != nil {
-		return "", errutil.Wrap("presign profile pic url by key", err, "key", mostRecentKey, "bucket", services.aws.S3ProfileBucket)
+		return "", errutil.Wrap("presign profile pic url by key", err, "key", mostRecentKey, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	s3URL := presignOutput.URL
@@ -179,8 +179,8 @@ func (services *ProfileService) GetProfilePicURL(ctx context.Context, userID str
 	return s3URL, nil
 }
 
-func (services *ProfileService) NewProfileURL(key string) string {
-	return fmt.Sprintf("%s/%s/%s", services.aws.S3Endpoint, services.aws.S3ProfileBucket, key)
+func (service *ProfileService) NewProfileURL(key string) string {
+	return fmt.Sprintf("%s/%s/%s", service.aws.S3Endpoint, service.aws.S3ProfileBucket, key)
 }
 
 // s3 URL prefixes

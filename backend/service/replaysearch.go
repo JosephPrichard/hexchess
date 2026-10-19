@@ -70,7 +70,7 @@ var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
 
 func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQuerySortKeyEntries) }
 
-func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qry ReplaysQuery) ([]model.FullReplay, error) {
+func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qry ReplaysQuery) ([]model.FullReplay, error) {
 	defer perf.WithContext(ctx).Log()
 
 	// get any userIDs requested through the username queries
@@ -80,7 +80,7 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 		{UsernameInput: qry.LoserName, UserIDOutput: &qry.LoserID},
 		{UsernameInput: qry.WinnerName, UserIDOutput: &qry.WinnerID},
 	}
-	err := services.getIDsByUsernames(ctx, byNameRequests)
+	err := service.getIDsByUsernames(ctx, byNameRequests)
 	if errors.Is(err, errUserNotFound) {
 		// if any username cannot be matched to an userID, the search query will never yield any replays
 		return []model.FullReplay{}, nil
@@ -125,7 +125,7 @@ func (services *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, q
 		// sort determines the 'ORDER BY' in the SQL query
 		SortKey: qry.Sort.String(),
 	}
-	replayRows, err := services.Querier().SelectReplaysByQuery(ctx, params)
+	replayRows, err := service.Querier().SelectReplaysByQuery(ctx, params)
 	if err != nil {
 		return nil, errutil.Wrap("select replays by query", err)
 	}
@@ -151,7 +151,7 @@ type IDByNameRequest struct {
 
 var errUserNotFound = errors.New("user not found")
 
-func (services *ReplaySearchService) getIDsByUsernames(ctx context.Context, requests []IDByNameRequest) error {
+func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, requests []IDByNameRequest) error {
 	var usernames []string
 	for _, request := range requests {
 		if !request.UsernameInput.Present || request.UserIDOutput.Present {
@@ -165,7 +165,7 @@ func (services *ReplaySearchService) getIDsByUsernames(ctx context.Context, requ
 
 	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "requests", requests)
 
-	userRows, err := services.Querier().SelectUserIDsByNames(ctx, usernames)
+	userRows, err := service.Querier().SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
 		return errutil.Wrap("select user ids by names", err, "usernames", usernames)
 	}

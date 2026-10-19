@@ -33,7 +33,7 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 		return ErrHttpConfirmPassword
 	}
 
-	user, err := server.services.InsertUser(ctx, service.UserInst{
+	user, err := server.service.InsertUser(ctx, service.UserInst{
 		Username: body.Username,
 		Password: body.Password,
 		Country:  model.DefaultCountry,
@@ -88,7 +88,7 @@ func (server *HttpServer) HandleLogin(w http.ResponseWriter, r *http.Request) er
 	if err := parseJSON(r, &body); err != nil {
 		return err
 	}
-	user, err := server.services.VerifyUser(ctx, body.Username, body.Password)
+	user, err := server.service.VerifyUser(ctx, body.Username, body.Password)
 	if err != nil {
 		return errutil.Wrap("verify user", err, "username", body.Username)
 	}
@@ -108,13 +108,13 @@ func (server *HttpServer) HandleGoogleLogin(w http.ResponseWriter, r *http.Reque
 		return err
 	}
 
-	payload, err := server.services.ValidateGoogleIDToken(ctx, body.Token)
+	payload, err := server.service.ValidateGoogleIDToken(ctx, body.Token)
 	if err != nil {
 		return errutil.Wrap("validate google login id token", err)
 	}
 	slog.InfoContext(ctx, "validated google account id token", "googleAccountID", payload.AccountID)
 
-	user, err := server.services.SelectOrInsertGoogleUser(ctx, payload.AccountID, service.GoogleUserInst{
+	user, err := server.service.SelectOrInsertGoogleUser(ctx, payload.AccountID, service.GoogleUserInst{
 		Username: payload.Username,
 		Country:  model.DefaultCountry,
 	})
@@ -145,14 +145,14 @@ func (server *HttpServer) HandleUpdatePassword(w http.ResponseWriter, r *http.Re
 		return ErrHttpConfirmPassword
 	}
 
-	user, err := server.services.VerifyUser(ctx, player.Name, body.Password)
+	user, err := server.service.VerifyUser(ctx, player.Name, body.Password)
 	if errors.Is(err, service.ErrUserNotFound) {
 		return ErrHttpInvalidLogin
 	} else if err != nil {
 		return errutil.Wrap("verify user", err)
 	}
 
-	if err := server.services.UpdateUserPassword(ctx, user.ID, body.NewPassword); err != nil {
+	if err := server.service.UpdateUserPassword(ctx, user.ID, body.NewPassword); err != nil {
 		return errutil.Wrap("update user password", err)
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", user)
@@ -179,7 +179,7 @@ func (server *HttpServer) HandleUpdateUser(w http.ResponseWriter, r *http.Reques
 		return err
 	}
 
-	user, err := server.services.UpdateUser(ctx, player.ID, service.UpdtUserParams{
+	user, err := server.service.UpdateUser(ctx, player.ID, service.UpdtUserParams{
 		Username: body.NewUsername,
 		Bio:      body.NewBio,
 		Country:  body.NewCountry,
@@ -212,7 +212,7 @@ func (server *HttpServer) HandleCreateTempSession(w http.ResponseWriter, r *http
 	sessions, tempSessionID := issueTempSession(session, w)
 	slog.InfoContext(ctx, "created sessions", "sessions", sessions, "tempSessionID", tempSessionID)
 
-	if err := server.services.SetSessions(ctx, sessions...); err != nil {
+	if err := server.service.SetSessions(ctx, sessions...); err != nil {
 		return errutil.Wrap("set sessions", err)
 	}
 
@@ -235,7 +235,7 @@ func (server *HttpServer) HandleRefreshSession(w http.ResponseWriter, r *http.Re
 		return err
 	}
 
-	if err := server.services.UpdateSessionEx(ctx, session.Token, SessionMaxAge); err != nil {
+	if err := server.service.UpdateSessionEx(ctx, session.Token, SessionMaxAge); err != nil {
 		return errutil.Wrap("update session with expiry", err, "expiry", SessionMaxAge)
 	}
 
@@ -260,7 +260,7 @@ func (server *HttpServer) HandleLogout(w http.ResponseWriter, r *http.Request) e
 	}
 	sessionID := cookie.Value
 
-	if err := server.services.DeleteSession(r.Context(), sessionID); err != nil {
+	if err := server.service.DeleteSession(r.Context(), sessionID); err != nil {
 		return errutil.Wrap("logging ext session", err, "sessionID", sessionID)
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
@@ -280,7 +280,7 @@ func (server *HttpServer) HandleGetSelf(w http.ResponseWriter, r *http.Request) 
 		return err
 	}
 
-	user, err := server.services.GetUserByID(ctx, player.ID)
+	user, err := server.service.GetUserByID(ctx, player.ID)
 	if err != nil {
 		return errutil.Wrap("get user by id", err, "player", player)
 	}
@@ -308,11 +308,11 @@ func (server *HttpServer) HandleGetLeaderboard(w http.ResponseWriter, r *http.Re
 		return err
 	}
 
-	leaderboard, err := server.services.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), defaultPaginationCount)
+	leaderboard, err := server.service.GetLeaderboardPage(ctx, query.Mode, int64(query.Page), defaultPaginationCount)
 	if err != nil {
 		return errutil.Wrap("get leaderboard page", err, "page", query.Page)
 	}
-	users, _, err := server.services.GetFullLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
+	users, _, err := server.service.GetFullLeaderboardUsers(ctx, query.Mode, leaderboard.RankedUsers)
 	if err != nil {
 		return errutil.Wrap("get full leaderboard users", err, "rankedUsers", leaderboard.RankedUsers)
 	}
@@ -338,7 +338,7 @@ func (server *HttpServer) HandleGetPersona(w http.ResponseWriter, r *http.Reques
 		return respError("id", fmt.Errorf("failed to parse integer: '%s'", userIDStr))
 	}
 
-	persona, err := server.services.GetPersona(ctx, int64(userID), defaultPaginationCount)
+	persona, err := server.service.GetPersona(ctx, int64(userID), defaultPaginationCount)
 	if errors.Is(err, service.ErrUserNotFound) {
 		return ErrHttpNotFoundUser
 	} else if err != nil {
@@ -367,7 +367,7 @@ func (server *HttpServer) HandleSearchPlayers(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	users, err := server.services.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
+	users, err := server.service.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
 	if err != nil {
 		return errutil.Wrap("search users by name", err, "name", name)
 	}
@@ -401,14 +401,14 @@ func (server *HttpServer) HandleUpdateChallenge(w http.ResponseWriter, r *http.R
 		return ErrHttpUpdateChallenge
 	}
 
-	deleteResult, err := server.services.DeleteChallenge(ctx, body.ChallengerID, body.ChallengeeID)
+	deleteResult, err := server.service.DeleteChallenge(ctx, body.ChallengerID, body.ChallengeeID)
 	if err != nil {
 		return errutil.Wrap("delete challenge", err)
 	}
 
 	var gameID model.GameID
 	if body.Action == Accept {
-		gameID, err = server.services.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
+		gameID, err = server.service.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
 		if err != nil {
 			return errutil.Wrap("create game", err, "deleteResult", deleteResult)
 		}
@@ -436,7 +436,7 @@ func (server *HttpServer) HandleCreateChallenge(w http.ResponseWriter, r *http.R
 		return err
 	}
 
-	challenge, err := server.services.InsertChallenge(ctx, service.ChallengeInst{
+	challenge, err := server.service.InsertChallenge(ctx, service.ChallengeInst{
 		ChallengerID: player.ID,
 		ChallengeeID: body.ChallengeeID,
 		Mode:         body.Mode,
@@ -479,9 +479,9 @@ func (server *HttpServer) HandleGetChallenges(w http.ResponseWriter, r *http.Req
 
 	switch participants {
 	case SentParticipantsTarget:
-		challengeList, err = server.services.GetChallengesByParticipant(ctx, service.Key{ChallengerID: player.ID, ChallengeeID: -1})
+		challengeList, err = server.service.GetChallengesByParticipant(ctx, service.Key{ChallengerID: player.ID, ChallengeeID: -1})
 	case ReceivedParticipantTarget:
-		challengeList, err = server.services.GetChallengesByParticipant(ctx, service.Key{ChallengerID: -1, ChallengeeID: player.ID})
+		challengeList, err = server.service.GetChallengesByParticipant(ctx, service.Key{ChallengerID: -1, ChallengeeID: player.ID})
 	}
 	if err != nil {
 		return errutil.Wrap("get challenges", err)
@@ -503,7 +503,7 @@ func (server *HttpServer) HandleCountUserChallenges(w http.ResponseWriter, r *ht
 	if err != nil {
 		return err
 	}
-	count, err := server.services.CountUserChallenges(ctx, player.ID)
+	count, err := server.service.CountUserChallenges(ctx, player.ID)
 	if err != nil {
 		return errutil.Wrap("count user challenges", err)
 	}
@@ -530,7 +530,7 @@ func (server *HttpServer) HandleCreateGame(w http.ResponseWriter, r *http.Reques
 		return err
 	}
 
-	gameID, err := server.services.CreateGame(ctx, body.FirstColor, body.Mode, &body.InitialBoard)
+	gameID, err := server.service.CreateGame(ctx, body.FirstColor, body.Mode, &body.InitialBoard)
 	if err != nil {
 		return errutil.Wrap("create game", err)
 	}
@@ -551,7 +551,7 @@ func (server *HttpServer) HandleGameExistence(w http.ResponseWriter, r *http.Req
 	gameIDStr := r.URL.Query().Get("gameId")
 	gameID := model.GameID(gameIDStr)
 
-	exists := server.services.IsGameAccessible(ctx, gameID)
+	exists := server.service.IsGameAccessible(ctx, gameID)
 
 	resp := ServiceResp{Status: http.StatusOK}
 	if exists {
@@ -587,7 +587,7 @@ func (server *HttpServer) HandleGetGameMetadata(w http.ResponseWriter, r *http.R
 	if err != nil {
 		return err
 	}
-	resp, err := server.services.GetGameMetadata(ctx, session, query.AfterOrdering, query.Count)
+	resp, err := server.service.GetGameMetadata(ctx, session, query.AfterOrdering, query.Count)
 	if err != nil {
 		return errutil.Wrap("get chess metas", err)
 	}
@@ -601,7 +601,7 @@ func (server *HttpServer) HandleGetGameChats(w http.ResponseWriter, r *http.Requ
 	gameIDStr := r.URL.Query().Get("gameId")
 	gameID := model.GameID(gameIDStr)
 
-	chats, err := server.services.GetChats(ctx, gameID, 100)
+	chats, err := server.service.GetChats(ctx, gameID, 100)
 	if err != nil {
 		return errutil.Wrap("get state chats", err)
 	}
@@ -629,9 +629,9 @@ func (server *HttpServer) HandleGetReplay(w http.ResponseWriter, r *http.Request
 
 	var replay model.FullReplay
 	if query.HasGameID {
-		replay, err = server.services.GetReplayByGameID(ctx, query.GameID)
+		replay, err = server.service.GetReplayByGameID(ctx, query.GameID)
 	} else {
-		replay, err = server.services.GetReplay(ctx, query.ReplayID)
+		replay, err = server.service.GetReplay(ctx, query.ReplayID)
 	}
 	if errors.Is(err, service.ErrNoReplay) {
 		return ErrHttpNotFoundReplay
@@ -654,7 +654,7 @@ func (server *HttpServer) HandleSearchReplays(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return err
 	}
-	replays, err := server.services.SearchReplaysByQuery(ctx, query)
+	replays, err := server.service.SearchReplaysByQuery(ctx, query)
 	if err != nil {
 		return errutil.Wrap("get replays by query", err, "query", query)
 	}
@@ -682,7 +682,7 @@ func (server *HttpServer) HandleGetEloHistories(w http.ResponseWriter, r *http.R
 		Months:    query.Months,
 		TimeUntil: time.Now(),
 	}
-	eloBucketsResp, err := server.services.RetrieveEloHistoryBuckets(ctx, params)
+	eloBucketsResp, err := server.service.RetrieveEloHistoryBuckets(ctx, params)
 	if err != nil {
 		return errutil.Wrap("retrieve elo histories buckets with params", err, "params", params)
 	}
@@ -701,7 +701,7 @@ func (server *HttpServer) HandleGetMoveReplay(w http.ResponseWriter, r *http.Req
 		return respError("replayId", fmt.Errorf("failed to parse integer: '%s'", replayIDStr))
 	}
 
-	bytes, err := server.services.GetMovesHistory(ctx, replayID)
+	bytes, err := server.service.GetMovesHistory(ctx, replayID)
 	if err != nil {
 		return err
 	}
@@ -737,7 +737,7 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 	}
 
 	tournamentKey := uuid.New()
-	tournamentID, err := server.services.CreateTournament(ctx, service.TournamentInst{
+	tournamentID, err := server.service.CreateTournament(ctx, service.TournamentInst{
 		Key:       tournamentKey,
 		Name:      body.Name,
 		Rounds:    body.Rounds,
@@ -775,7 +775,7 @@ func (server *HttpServer) HandleJoinTournament(w http.ResponseWriter, r *http.Re
 		return err
 	}
 
-	tournamentEvent, err := server.services.JoinTournament(ctx, service.JoinTournamentInst{
+	tournamentEvent, err := server.service.JoinTournament(ctx, service.JoinTournamentInst{
 		TournamentKey: tournamentKey,
 		JoiningUserID: player.ID,
 		InsertionTime: time.Now(),
@@ -787,7 +787,7 @@ func (server *HttpServer) HandleJoinTournament(w http.ResponseWriter, r *http.Re
 	slog.InfoContext(ctx, "participant joined tournament", "joiningID", player.ID, "key", tournamentKey)
 
 	server.dispatcher.Go(func() {
-		server.services.NotifyTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
+		server.service.NotifyTournamentParticipant(context.WithoutCancel(ctx), player.ID, tournamentEvent)
 	})
 
 	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
@@ -806,7 +806,7 @@ func (server *HttpServer) HandleBeginCountdownTournament(w http.ResponseWriter, 
 		return err
 	}
 
-	result, err := server.services.BeginTournamentCountdown(ctx, tournamentKey, player.ID)
+	result, err := server.service.BeginTournamentCountdown(ctx, tournamentKey, player.ID)
 	if err != nil {
 		return errutil.Wrap("begin tournament countdown by tournament id", err, "key", tournamentKey)
 	}
@@ -832,7 +832,7 @@ func (server *HttpServer) HandleGetTournament(w http.ResponseWriter, r *http.Req
 		return respError("tournamentKey", err)
 	}
 
-	tourney, err := server.services.GetTournament(ctx, tournamentKey)
+	tourney, err := server.service.GetTournament(ctx, tournamentKey)
 	if errors.Is(err, service.ErrTournamentNotFound) {
 		return ErrHttpNotFoundTournament
 	} else if err != nil {
@@ -857,7 +857,7 @@ func (server *HttpServer) HandleGetTournaments(w http.ResponseWriter, r *http.Re
 		return err
 	}
 
-	tournaments, err := server.services.GetTournaments(ctx, query.UserID, query.AfterID, defaultPaginationCount)
+	tournaments, err := server.service.GetTournaments(ctx, query.UserID, query.AfterID, defaultPaginationCount)
 	if err != nil {
 		return errutil.Wrap("get tournaments", err)
 	}
@@ -879,7 +879,7 @@ func (server *HttpServer) HandleLeaveTournament(w http.ResponseWriter, r *http.R
 	if err != nil {
 		return err
 	}
-	didLeave, err := server.services.LeaveTournament(ctx, tournamentKey, player.ID)
+	didLeave, err := server.service.LeaveTournament(ctx, tournamentKey, player.ID)
 	if err != nil {
 		return errutil.Wrap("leave tournament", err)
 	}
@@ -896,7 +896,7 @@ type GetUserActivityResp struct {
 func (server *HttpServer) HandleUserActivityCheck(w http.ResponseWriter, r *http.Request) error {
 	userID := r.URL.Query().Get("userId")
 
-	isActive := server.services.IsActiveUser(r.Context(), userID)
+	isActive := server.service.IsActiveUser(r.Context(), userID)
 
 	writeJSON(w, http.StatusOK, GetUserActivityResp{IsUserActive: isActive})
 	//w.Header().Set("Cache-Control", "public, max-age=30")

@@ -12,19 +12,19 @@ import (
 func setupCreateTest(t slogutil.TestLogger) (*GameCreateService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewGameCreateService(
+	service := NewGameCreateService(
 		infra.Redis,
 		NewChessRepoService(infra.Redis),
 	)
 
-	return services, infra
+	return service, infra
 }
 
 func TestCreateGame(t *testing.T) {
-	services, testinfra := setupCreateTest(t)
+	service, testinfra := setupCreateTest(t)
 	defer testinfra.Close()
 
-	gameID, err := services.CreateGame(t.Context(), model.White, model.ModeCorrespondence1, nil)
+	gameID, err := service.CreateGame(t.Context(), model.White, model.ModeCorrespondence1, nil)
 	require.NoError(t, err)
 
 	wantGame := model.NewChessState(model.StateSetup{

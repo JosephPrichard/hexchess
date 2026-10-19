@@ -26,9 +26,9 @@ import (
 func setupChallengeTest(t slogutil.TestLogger) (*ChallengeService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewChallengeService(infra.Database, entropy.RealSource{})
+	service := NewChallengeService(infra.Database, entropy.RealSource{})
 
-	return services, infra
+	return service, infra
 }
 
 func TestInsertChallenge(t *testing.T) {
@@ -65,12 +65,12 @@ func TestInsertChallenge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupChallengeTest(t)
+			service, testinfra := setupChallengeTest(t)
 			defer testinfra.Close()
 
 			ctx := context.WithValue(t.Context(), slogutil.Trace, tt.name)
 
-			_, err := services.InsertChallenge(ctx, ChallengeInst{
+			_, err := service.InsertChallenge(ctx, ChallengeInst{
 				ChallengerID: tt.challengerID,
 				ChallengeeID: tt.challengeeID,
 				Mode:         model.ModeCorrespondence7,
@@ -125,42 +125,42 @@ func TestMapChallengeInsertErr(t *testing.T) {
 
 func TestGetChallengesByParticipant(t *testing.T) {
 	// gets only expired challenges
-	services, testinfra := setupChallengeTest(t)
+	service, testinfra := setupChallengeTest(t)
 	defer testinfra.Close()
 
-	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+	service.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
 	ctx := t.Context()
 
-	challenges, err := services.GetChallengesByParticipant(ctx, Key{int64(5), -1})
+	challenges, err := service.GetChallengesByParticipant(ctx, Key{int64(5), -1})
 	require.NoError(t, err)
 
 	testutil.Equal(t, []model.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challenges)
 }
 
 func TestDeleteExpiredChallenges(t *testing.T) {
-	services, testinfra := setupChallengeTest(t)
+	service, testinfra := setupChallengeTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
 	// gets only expired challenges
-	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+	service.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
 
-	require.NoError(t, services.DeleteExpiredChallenges(ctx, 5))
+	require.NoError(t, service.DeleteExpiredChallenges(ctx, 5))
 
 	// gets ALL challenges to check that we deleted expired challenges
-	services.entropy = &entropy.StableSource{CurrTime: time.Unix(0, 0)}
+	service.entropy = &entropy.StableSource{CurrTime: time.Unix(0, 0)}
 
-	challengesDel, err := services.GetChallengesByParticipant(ctx, Key{int64(5), -1})
+	challengesDel, err := service.GetChallengesByParticipant(ctx, Key{int64(5), -1})
 	require.NoError(t, err)
 
 	assert.Equal(t, []model.Challenge{itest.TestChallenge[2], itest.TestChallenge[3]}, challengesDel)
 }
 
 func TestDeleteChallenge(t *testing.T) {
-	services, testinfra := setupChallengeTest(t)
+	service, testinfra := setupChallengeTest(t)
 	defer testinfra.Close()
 
-	services.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+	service.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
 	ctx := t.Context()
 
 	key := Key{ChallengerID: 1, ChallengeeID: 2}
@@ -168,7 +168,7 @@ func TestDeleteChallenge(t *testing.T) {
 	challengeBefore, err := testinfra.Querier().SelectChallenge(ctx, query.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
-	dr, err := services.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
+	dr, err := service.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
 	require.NoError(t, err)
 
 	_, errAfterDelete := testinfra.Querier().SelectChallenge(ctx, query.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})

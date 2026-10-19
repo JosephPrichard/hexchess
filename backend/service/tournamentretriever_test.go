@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupRetrieveTournamentTest(t slogutil.TestLogger) (*RetrieveTournamentService, itest.TestInfra) {
+func setupRetrieveTournamentTest(t slogutil.TestLogger) (*TournamentRetriever, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewRetrieveTournamentService(
+	service := NewRetrieveTournamentService(
 		infra.Database.Querier(),
 		infra.Redis,
 	)
 
-	return services, infra
+	return service, infra
 }
 
 func TestGetTournament(t *testing.T) {
@@ -49,12 +49,12 @@ func TestGetTournament(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupRetrieveTournamentTest(t)
+			service, testinfra := setupRetrieveTournamentTest(t)
 			defer testinfra.Close()
 
 			ctx := t.Context()
 
-			resp, err := services.GetTournament(ctx, tt.tournamentKey)
+			resp, err := service.GetTournament(ctx, tt.tournamentKey)
 			assert.Equal(t, tt.wantError, err)
 
 			testutil.Equal(t, tt.wantResp, resp)
@@ -97,10 +97,10 @@ func TestGetTournaments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			services, testinfra := setupRetrieveTournamentTest(t)
+			service, testinfra := setupRetrieveTournamentTest(t)
 			defer testinfra.Close()
 
-			tournaments, err := services.GetTournaments(t.Context(), tt.userID, tt.afterID, 10)
+			tournaments, err := service.GetTournaments(t.Context(), tt.userID, tt.afterID, 10)
 			require.NoError(t, err)
 
 			testutil.Equal(t, tt.wantResp, tournaments)

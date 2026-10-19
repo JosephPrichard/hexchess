@@ -18,26 +18,26 @@ import (
 	"time"
 )
 
-func setupUpdateTournamentTest(t slogutil.TestLogger) (*UpdateTournamentService, itest.TestInfra) {
+func setupUpdateTournamentTest(t slogutil.TestLogger) (*TournamentUpdater, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewUpdateTournamentService(
+	service := NewTournamentUpdater(
 		infra.Database,
 		infra.Redis,
 		producers.NewRiverProducer(&producers.NoopRiverClient{}),
 	)
 
-	return services, infra
+	return service, infra
 }
 
 func TestCreateTournament(t *testing.T) {
-	services, testinfra := setupUpdateTournamentTest(t)
+	service, testinfra := setupUpdateTournamentTest(t)
 	defer testinfra.Close()
 	ctx := t.Context()
 
 	key := uuid.New()
 
-	tournamentID, err := services.CreateTournament(ctx, TournamentInst{
+	tournamentID, err := service.CreateTournament(ctx, TournamentInst{
 		Key:       key,
 		Name:      "Tournaments 1",
 		Rounds:    2,
@@ -68,7 +68,7 @@ func TestCreateTournament(t *testing.T) {
 }
 
 func TestBeginTournamentCountdown(t *testing.T) {
-	services, testinfra := setupUpdateTournamentTest(t)
+	service, testinfra := setupUpdateTournamentTest(t)
 	defer testinfra.Close()
 
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			result, err := services.BeginTournamentCountdown(ctx, tt.tournamentKey, tt.userID)
+			result, err := service.BeginTournamentCountdown(ctx, tt.tournamentKey, tt.userID)
 
 			assert.Equal(t, tt.wantBeginTourneyCountdown, result)
 			assert.Equal(t, tt.wantErr, err)
@@ -136,7 +136,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(query.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
-	services, testinfra := setupUpdateTournamentTest(t)
+	service, testinfra := setupUpdateTournamentTest(t)
 	defer testinfra.Close()
 
 	tests := []struct {
@@ -185,7 +185,7 @@ func TestJoinTournament(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			result, err := services.JoinTournament(ctx, tt.inst)
+			result, err := service.JoinTournament(ctx, tt.inst)
 
 			assert.Equal(t, tt.wantResult, result)
 			assert.Equal(t, tt.wantErr, err)

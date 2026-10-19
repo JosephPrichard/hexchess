@@ -153,11 +153,11 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 }
 
 func (server *HttpServer) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
-	player, err = server.services.GetSession(ctx, sessionID)
+	player, err = server.service.GetSession(ctx, sessionID)
 	if err != nil {
 		return player, errutil.Wrap("get session in game init phase", err)
 	}
-	chessState, err := server.services.JoinGame(ctx, gameID, player)
+	chessState, err := server.service.JoinGame(ctx, gameID, player)
 	if err != nil {
 		return player, errutil.Wrap("join game in init game phase", err)
 	}
@@ -218,7 +218,7 @@ func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input message
 }
 
 func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID string) error {
-	endState, err := server.services.EndGame(ctx, ctx.GameID, ctx.Player)
+	endState, err := server.service.EndGame(ctx, ctx.GameID, ctx.Player)
 	if err != nil {
 		return errutil.Wrap("forfeit game", err, "gameID", ctx.GameID)
 	}
@@ -233,7 +233,7 @@ func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID str
 }
 
 func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
-	moveResult, err := server.services.MakeGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
+	moveResult, err := server.service.MakeGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return errutil.Wrap("make move on game", err, "gameID", ctx.GameID)
 	}
@@ -258,7 +258,7 @@ func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.Chat
 	}
 	outputChat := model.SerializeGameOutputChat(model.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
 
-	if err := server.services.InsertChat(ctx, ctx.GameID, chat); err != nil {
+	if err := server.service.InsertChat(ctx, ctx.GameID, chat); err != nil {
 		return errutil.Wrap("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
@@ -272,7 +272,7 @@ func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 		return err
 	}
 
-	chessState, err := server.services.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
+	chessState, err := server.service.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
 		return errutil.Wrap("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}

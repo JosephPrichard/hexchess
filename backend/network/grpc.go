@@ -35,19 +35,19 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 		// both close operations are idempotent
 		cancelRequest := service.MatchmakingRequest{Kind: service.CancelMatchRequest, UserID: state.matchmakeID.UserID, Mode: state.matchmakeID.Mode}
 		state.service.SendMatchRequest(cancelRequest) // send close signal to reader
-		cancel() // send close signal to writer
+		cancel()                                      // send close signal to writer
 	}
 
 	// writer: send matchmaking service responses through stream
 	go func() {
 		defer cleanup()
-		
+
 		for matchResponse := range state.responseChan {
 			response := mapMatchmakingResponse(matchResponse)
-			slog.InfoContext(ctx, "sending matchmaking stream response", "state", state, "response", response)
+			slog.InfoContext(ctx, "sending matchmaking stream response", "response", response)
 
 			if err := stream.Send(response); err != nil {
-				slog.ErrorContext(ctx, "failed to send matchmaking stream response", "state", state, "error", err)
+				slog.ErrorContext(ctx, "failed to send matchmaking stream response", "error", err)
 			}
 		}
 	}()
@@ -64,11 +64,11 @@ ReadLoop:
 			if err == io.EOF {
 				break ReadLoop
 			} else if err != nil {
-				slog.WarnContext(ctx, "failed to receive matchmaking stream request", "state", state, "error", err)
+				slog.WarnContext(ctx, "failed to receive matchmaking stream request", "error", err)
 				return err
 			}
 
-			slog.InfoContext(ctx, "handling matchmaking stream request", "state", state, "request", request)
+			slog.InfoContext(ctx, "handling matchmaking stream request", "request", request)
 			handleMatchmakingRequest(ctx, state, request)
 		}
 	}
@@ -108,9 +108,9 @@ func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState
 		}
 		state.service.SendMatchRequest(beginRequest)
 	case *rpc.MatchmakingRequest_Confirm:
-		if value.Confirm.Accept {	
+		if value.Confirm.Accept {
 			confirmRequest := service.MatchmakingRequest{
-				Kind:   service.ConfirmMatchRequest, 
+				Kind:   service.ConfirmMatchRequest,
 				UserID: state.matchmakeID.UserID,
 				Mode:   state.matchmakeID.Mode,
 			}

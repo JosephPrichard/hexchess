@@ -20,13 +20,13 @@ var testPartitionKey = model.GameIDPartitions()[0]
 func setupTimersTest(t slogutil.TestLogger) (*TimerService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewChessTimerService(infra.Redis, testPartitionKey)
+	service := NewChessTimerService(infra.Redis, testPartitionKey)
 
-	return services, infra
+	return service, infra
 }
 
 func TestTryExpireTimers(t *testing.T) {
-	services, infra := setupTimersTest(t)
+	service, infra := setupTimersTest(t)
 	defer infra.Close()
 
 	gameID1 := model.NewGameID().String()
@@ -52,7 +52,7 @@ func TestTryExpireTimers(t *testing.T) {
 	err := infra.Redis.PrimaryClient.XGroupCreateMkStream(t.Context(), finishGamesStream, consumerGroup, "0").Err()
 	require.NoError(t, err)
 
-	expiredKeys, err := services.TryExpireTimers(t.Context(), time.Unix(1_000, 0))
+	expiredKeys, err := service.TryExpireTimers(t.Context(), time.Unix(1_000, 0))
 	require.NoError(t, err)
 
 	wantExpiredKeys := []any{gameID1, gameID2}

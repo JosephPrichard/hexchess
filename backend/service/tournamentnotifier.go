@@ -7,11 +7,11 @@ import (
 	"log/slog"
 )
 
-type TournamentNotificationService struct {
+type TournamentNotifier struct {
 	// infra
 	broadcaster pubsub.Broadcaster
 
-	// services
+	// service
 	leaderboard TournamentLeaderboardGetter
 }
 
@@ -19,20 +19,20 @@ type TournamentLeaderboardGetter interface {
 	GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error)
 }
 
-func NewTournamentBroadcaster(
+func NewTournamentNotifier(
 	leaderboard TournamentLeaderboardGetter,
 	broadcaster pubsub.Broadcaster,
-) *TournamentNotificationService {
-	return &TournamentNotificationService{leaderboard: leaderboard, broadcaster: broadcaster}
+) *TournamentNotifier {
+	return &TournamentNotifier{leaderboard: leaderboard, broadcaster: broadcaster}
 }
 
-func (services *TournamentNotificationService) NotifyTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
-	leaderboardUser, err := services.leaderboard.GetLeaderboardUser(ctx, playerID, event.Mode)
+func (service *TournamentNotifier) NotifyTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
+	leaderboardUser, err := service.leaderboard.GetLeaderboardUser(ctx, playerID, event.Mode)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)
 		return
 	}
-	services.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
+	service.broadcaster.BroadcastTournament(ctx, model.TournamentOutput{
 		Key:             event.TournamentKey.String(),
 		Kind:            model.TournamentParticipantKind,
 		LeaderboardUser: leaderboardUser,

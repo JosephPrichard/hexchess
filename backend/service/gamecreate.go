@@ -15,7 +15,7 @@ type GameCreateService struct {
 	// infra
 	redis cache.Redis
 
-	// services
+	// service
 	chessState ChessSetter
 }
 
@@ -27,13 +27,13 @@ func NewGameCreateService(redis cache.Redis, chessState ChessSetter) *GameCreate
 	return &GameCreateService{redis: redis, chessState: chessState}
 }
 
-func (services *GameCreateService) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
+func (service *GameCreateService) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
 	gameID := model.NewGameID()
-	err := services.SetupGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
+	err := service.SetupGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
 	return gameID, err
 }
 
-func (services *GameCreateService) SetupGame(ctx context.Context, setup model.StateSetup) error {
+func (service *GameCreateService) SetupGame(ctx context.Context, setup model.StateSetup) error {
 	gameID := setup.ID
 
 	state := model.NewChessState(setup)
@@ -41,12 +41,12 @@ func (services *GameCreateService) SetupGame(ctx context.Context, setup model.St
 
 	pipeliner := func(pipe redis.Pipeliner) error {
 		now := time.Now()
-		if err := services.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
+		if err := service.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
 			return errutil.Wrap("set chess state", err, "gameID", gameID)
 		}
 		return produceUpdtGameMetadata(ctx, pipe, state)
 	}
 
-	_, err := services.redis.PrimaryClient.TxPipelined(ctx, pipeliner)
+	_, err := service.redis.PrimaryClient.TxPipelined(ctx, pipeliner)
 	return err
 }

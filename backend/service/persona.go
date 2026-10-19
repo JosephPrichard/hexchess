@@ -34,7 +34,7 @@ func NewPersonaService(user PersonaUserGetter, leaderboard LeaderboardGetter, re
 	return &PersonaService{user: user, leaderboard: leaderboard, replays: replay}
 }
 
-func (services *PersonaService) GetPersona(ctx context.Context, userID int64, perPage int32) (model.Persona, error) {
+func (service *PersonaService) GetPersona(ctx context.Context, userID int64, perPage int32) (model.Persona, error) {
 	defer perf.WithContext(ctx).Log()
 
 	var userData model.User
@@ -45,22 +45,22 @@ func (services *PersonaService) GetPersona(ctx context.Context, userID int64, pe
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		userData, err = services.user.GetUserByID(egCtx, userID)
+		userData, err = service.user.GetUserByID(egCtx, userID)
 		return errutil.Wrap("get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
-		stats, err = services.user.GetUserStats(egCtx, userID)
+		stats, err = service.user.GetUserStats(egCtx, userID)
 		return errutil.Wrap("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
-		lbRanks, err = services.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
+		lbRanks, err = service.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
 		return errutil.Wrap("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
-		replayList, err = services.replays.SearchReplaysByQuery(egCtx, ReplaysQuery{
+		replayList, err = service.replays.SearchReplaysByQuery(egCtx, ReplaysQuery{
 			UserID:  opt.Some(userID),
 			PerPage: perPage,
 		})

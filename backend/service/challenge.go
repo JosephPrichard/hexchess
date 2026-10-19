@@ -46,7 +46,7 @@ type ChallengeInst struct {
 	MadeOn       time.Time       `json:"madeOn"`
 }
 
-func (services *ChallengeService) InsertChallenge(ctx context.Context, inst ChallengeInst) (model.Challenge, error) {
+func (service *ChallengeService) InsertChallenge(ctx context.Context, inst ChallengeInst) (model.Challenge, error) {
 	defer perf.WithContext(ctx).Log()
 
 	if inst.ChallengerID == inst.ChallengeeID {
@@ -56,7 +56,7 @@ func (services *ChallengeService) InsertChallenge(ctx context.Context, inst Chal
 		inst.MadeOn = time.Now()
 	}
 
-	row, dbErr := services.Mutator().InsertChallenge(ctx, mutate.InsertChallengeParams{
+	row, dbErr := service.Mutator().InsertChallenge(ctx, mutate.InsertChallengeParams{
 		ChallengerID: inst.ChallengerID,
 		ChallengeeID: inst.ChallengeeID,
 		Mode:         mutate.ModeEnum(inst.Mode.String()),
@@ -89,7 +89,7 @@ func (services *ChallengeService) InsertChallenge(ctx context.Context, inst Chal
 	return challenge, nil
 }
 
-func (services *ChallengeService) BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error {
+func (service *ChallengeService) BatchInsertChallenges(ctx context.Context, insts []ChallengeInst) error {
 	batches := make([]mutate.BatchInsertChallengeParams, 0, len(insts))
 
 	for _, inst := range insts {
@@ -109,7 +109,7 @@ func (services *ChallengeService) BatchInsertChallenges(ctx context.Context, ins
 
 	var insertErrs []error
 
-	services.Mutator().BatchInsertChallenge(ctx, batches).Exec(func(i int, err error) {
+	service.Mutator().BatchInsertChallenge(ctx, batches).Exec(func(i int, err error) {
 		if err != nil {
 			insertErrs = append(insertErrs, fmt.Errorf("batch insert challenge with inst %+v: %w", insts[i], err))
 		}
@@ -130,12 +130,12 @@ type Key struct {
 }
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
-func (services *ChallengeService) GetChallengesByParticipant(ctx context.Context, key Key) ([]model.Challenge, error) {
+func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context, key Key) ([]model.Challenge, error) {
 	defer perf.WithContext(ctx).Log()
 
-	since := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
+	since := service.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	rows, err := services.Querier().SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
+	rows, err := service.Querier().SelectChallengesByParticipant(ctx, query.SelectChallengesByParticipantParams{
 		ChallengerID: database.OptInt8(key.ChallengerID),
 		ChallengeeID: database.OptInt8(key.ChallengeeID),
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
@@ -173,12 +173,12 @@ type DeleteResult struct {
 	FirstColor   model.GameColor
 }
 
-func (services *ChallengeService) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
+func (service *ChallengeService) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (DeleteResult, error) {
 	defer perf.WithContext(ctx).Log()
 
 	params := mutate.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
-	challengeRow, err := services.Mutator().DeleteChallenge(ctx, params)
+	challengeRow, err := service.Mutator().DeleteChallenge(ctx, params)
 	if database.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
@@ -198,13 +198,13 @@ func (services *ChallengeService) DeleteChallenge(ctx context.Context, challenge
 	return delResult, err
 }
 
-func (services *ChallengeService) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
+func (service *ChallengeService) DeleteExpiredChallenges(ctx context.Context, userID int64) error {
 	defer perf.WithContext(ctx).Log()
 
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
-	beforeTime := services.entropy.GetTime().Add(-ExpireChallengeMaxAge)
+	beforeTime := service.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
-	err := services.Mutator().DeleteExpiredChallenges(ctx, mutate.DeleteExpiredChallengesParams{
+	err := service.Mutator().DeleteExpiredChallenges(ctx, mutate.DeleteExpiredChallengesParams{
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
@@ -212,6 +212,6 @@ func (services *ChallengeService) DeleteExpiredChallenges(ctx context.Context, u
 	return nil
 }
 
-func (services *ChallengeService) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
-	return services.Querier().CountReceivedChallenges(ctx, userID)
+func (service *ChallengeService) CountUserChallenges(ctx context.Context, userID int64) (int64, error) {
+	return service.Querier().CountReceivedChallenges(ctx, userID)
 }

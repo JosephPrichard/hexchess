@@ -68,7 +68,7 @@ func issueTempSession(sessionPlayer model.PlayerState, w http.ResponseWriter) ([
 }
 
 type HttpAuthenticator struct {
-	services *service.SessionService
+	service *service.SessionService
 }
 
 type Session struct {
@@ -82,7 +82,7 @@ func (auth *HttpAuthenticator) GetSession(ctx context.Context, r *http.Request) 
 		return Session{}, service.ErrSessionNotFound
 	}
 	sessionToken := cookie.Value
-	player, err := auth.services.GetSession(ctx, sessionToken)
+	player, err := auth.service.GetSession(ctx, sessionToken)
 	return Session{Player: player, Token: sessionToken}, errutil.Wrap("get session player", err)
 }
 
@@ -104,7 +104,7 @@ func (auth *HttpAuthenticator) GetSessionPlayer(ctx context.Context, r *http.Req
 
 func (auth *HttpAuthenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
 	sessionToken := NewSessionID()
-	if err := auth.services.SetSessions(ctx, service.SessionInst{
+	if err := auth.service.SetSessions(ctx, service.SessionInst{
 		SessionID: sessionToken,
 		Player:    player,
 		Expiry:    SessionMaxAge,

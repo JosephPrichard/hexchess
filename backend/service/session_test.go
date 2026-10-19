@@ -15,13 +15,13 @@ import (
 func setupTest(t slogutil.TestLogger) (*SessionService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewSessionService(infra.Redis)
+	service := NewSessionService(infra.Redis)
 
-	return services, infra
+	return service, infra
 }
 
 func TestSessions(t *testing.T) {
-	services, testinfra := setupTest(t)
+	service, testinfra := setupTest(t)
 	defer testinfra.Close()
 
 	playerIn := model.NewPlayer(1, "testing-session", "country")
@@ -30,18 +30,18 @@ func TestSessions(t *testing.T) {
 	sessionID3 := "session3"
 	ctx := t.Context()
 
-	require.NoError(t, services.SetSessions(ctx, SessionInst{sessionID1, playerIn, 100 * time.Second}))
-	require.NoError(t, services.SetSessions(ctx, SessionInst{sessionID2, playerIn, 100 * time.Second}))
-	require.NoError(t, services.SetSessions(ctx, SessionInst{sessionID3, playerIn, 100 * time.Second}))
+	require.NoError(t, service.SetSessions(ctx, SessionInst{sessionID1, playerIn, 100 * time.Second}))
+	require.NoError(t, service.SetSessions(ctx, SessionInst{sessionID2, playerIn, 100 * time.Second}))
+	require.NoError(t, service.SetSessions(ctx, SessionInst{sessionID3, playerIn, 100 * time.Second}))
 
-	playerOut, err := services.GetSession(ctx, sessionID1)
+	playerOut, err := service.GetSession(ctx, sessionID1)
 	require.NoError(t, err)
 
-	require.NoError(t, services.DeleteSession(ctx, sessionID2))
-	require.NoError(t, services.UpdateSessionEx(ctx, sessionID3, 0))
+	require.NoError(t, service.DeleteSession(ctx, sessionID2))
+	require.NoError(t, service.UpdateSessionEx(ctx, sessionID3, 0))
 
-	_, badIDErr1 := services.GetSession(ctx, sessionID2)
-	_, badIDErr2 := services.GetSession(ctx, sessionID3)
+	_, badIDErr1 := service.GetSession(ctx, sessionID2)
+	_, badIDErr2 := service.GetSession(ctx, sessionID3)
 
 	assert.Equal(t, ErrSessionNotFound, badIDErr1)
 	assert.Equal(t, ErrSessionNotFound, badIDErr2)

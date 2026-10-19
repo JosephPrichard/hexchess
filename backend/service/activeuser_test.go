@@ -16,34 +16,34 @@ import (
 func setupActiveTest(t slogutil.TestLogger) (*ActiveUserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewActiveUserService(infra.Redis, pubsub.NewSyncBroadcaster(infra.Redis))
+	service := NewActiveUserService(infra.Redis, pubsub.NewSyncBroadcaster(infra.Redis))
 
-	return services, infra
+	return service, infra
 }
 
 func TestActiveUser(t *testing.T) {
-	services, testinfra := setupActiveTest(t)
+	service, testinfra := setupActiveTest(t)
 	defer testinfra.Close()
 
-	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 5))}
+	service.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 5))}
 	ctx := t.Context()
 
-	_, err := services.AddActiveUser(ctx, "1")
+	_, err := service.AddActiveUser(ctx, "1")
 	require.NoError(t, err)
-	countAfterAdding, err := services.AddActiveUser(ctx, "2")
+	countAfterAdding, err := service.AddActiveUser(ctx, "2")
 	require.NoError(t, err)
 
-	countAfterRemoval, err := services.RemoveActiveUser(ctx, "2")
+	countAfterRemoval, err := service.RemoveActiveUser(ctx, "2")
 	require.NoError(t, err)
 
 	// adds and does not expire
-	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 2))}
-	countAfterRemoveAndAdd, err := services.AddActiveUser(ctx, "3")
+	service.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 2))}
+	countAfterRemoveAndAdd, err := service.AddActiveUser(ctx, "3")
 	require.NoError(t, err)
 
 	// gets and expires the active user we just added, without expiring any others
-	services.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 3))}
-	countAfterExpiry, err := services.GetActiveCount(ctx)
+	service.entropy = &entropy.StableSource{CurrTime: time.UnixMilli(int64(ActiveUserMaxAge * 3))}
+	countAfterExpiry, err := service.GetActiveCount(ctx)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(2), countAfterAdding)

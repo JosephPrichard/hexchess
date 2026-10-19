@@ -17,16 +17,16 @@ import (
 func setupGameplayTest(t slogutil.TestLogger) (*GamePlayService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	services := NewGameplayService(
+	service := NewGameplayService(
 		infra.Redis,
 		NewChessRepoService(infra.Redis),
 	)
 
-	return services, infra
+	return service, infra
 }
 
 func TestJoinGame(t *testing.T) {
-	services, testinfra := setupGameplayTest(t)
+	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	whiteGame := model.NewChessState(model.StateSetup{
@@ -78,7 +78,7 @@ func TestJoinGame(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			updatedState, err := services.JoinGame(ctx, tt.gameID, tt.joinPlayer)
+			updatedState, err := service.JoinGame(ctx, tt.gameID, tt.joinPlayer)
 
 			assert.Equal(t, tt.wantErr, err)
 			testutil.Equal(t, tt.wantGame, updatedState, cmpOptsChessState)
@@ -88,7 +88,7 @@ func TestJoinGame(t *testing.T) {
 }
 
 func TestAttemptUndo(t *testing.T) {
-	services, testinfra := setupGameplayTest(t)
+	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	noMovesGame := model.NewChessState(model.StateSetup{
@@ -238,7 +238,7 @@ func TestAttemptUndo(t *testing.T) {
 
 			for _, subTest := range tt.tests {
 
-				updatedState, err := services.AttemptGameUndo(ctx, tt.gameID, subTest.player, subTest.kind)
+				updatedState, err := service.AttemptGameUndo(ctx, tt.gameID, subTest.player, subTest.kind)
 
 				assert.Equal(t, subTest.wantErr, err)
 
@@ -306,7 +306,7 @@ func TestNewMove(t *testing.T) {
 		s.EndState = model.Finished
 	})
 
-	services, testinfra := setupGameplayTest(t)
+	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	setChessStates(t, testinfra.Redis, stateWhiteTurn, stateEnded, stateNotStarted, stateIntoCheckmate)
@@ -380,7 +380,7 @@ func TestNewMove(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.WithValue(t.Context(), slogutil.Trace, tt.name)
 
-			moveResult, err := services.MakeGameMove(ctx, tt.stateID, tt.player, tt.move)
+			moveResult, err := service.MakeGameMove(ctx, tt.stateID, tt.player, tt.move)
 
 			assert.Equal(t, tt.wantErr, err)
 			assertRedisChess(t, testinfra.Redis, tt.wantGame, cmpOptsChessState)
@@ -392,7 +392,7 @@ func TestNewMove(t *testing.T) {
 }
 
 func TestForfeit(t *testing.T) {
-	services, testinfra := setupGameplayTest(t)
+	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	abortGame := model.NewChessState(model.StateSetup{
@@ -417,7 +417,7 @@ func TestForfeit(t *testing.T) {
 	t.Run("Abort", func(t *testing.T) {
 		ctx := t.Context()
 
-		endState, err := services.EndGame(ctx, abortGame.ID, abortGame.WhitePlayer)
+		endState, err := service.EndGame(ctx, abortGame.ID, abortGame.WhitePlayer)
 		require.NoError(t, err)
 		assert.Equal(t, model.Aborted, endState)
 
@@ -430,7 +430,7 @@ func TestForfeit(t *testing.T) {
 	t.Run("Forfeit", func(t *testing.T) {
 		ctx := t.Context()
 
-		endState, err := services.EndGame(ctx, forfeitGame.ID, forfeitGame.BlackPlayer)
+		endState, err := service.EndGame(ctx, forfeitGame.ID, forfeitGame.BlackPlayer)
 		require.NoError(t, err)
 		assert.Equal(t, model.Finished, endState)
 
@@ -442,7 +442,7 @@ func TestForfeit(t *testing.T) {
 }
 
 func TestForfeit_Errors(t *testing.T) {
-	services, testinfra := setupGameplayTest(t)
+	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
 	endedGame := model.NewChessState(model.StateSetup{
@@ -502,7 +502,7 @@ func TestForfeit_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := t.Context()
 
-			_, forfeitErr := services.EndGame(ctx, tt.gameID, model.PlayerState{ID: 1, Present: true})
+			_, forfeitErr := service.EndGame(ctx, tt.gameID, model.PlayerState{ID: 1, Present: true})
 
 			assert.Equal(t, tt.wantErr, forfeitErr)
 		})

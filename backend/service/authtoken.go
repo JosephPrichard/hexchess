@@ -13,6 +13,6 @@ func NewAuthTokenService(sdks cloud.SDKs) *AuthTokenService {
 	return &AuthTokenService{sdks}
 }
 
-func (services *AuthTokenService) ValidateGoogleIDToken(ctx context.Context, token string) (cloud.GoogleIDTokenResp, error) {
-	return services.sdks.ValidateGoogleIDToken(ctx, token)
+func (service *AuthTokenService) ValidateGoogleIDToken(ctx context.Context, token string) (cloud.GoogleIDTokenResp, error) {
+	return service.sdks.ValidateGoogleIDToken(ctx, token)
 }

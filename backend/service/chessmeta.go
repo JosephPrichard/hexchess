@@ -34,15 +34,15 @@ func NewChessMetaService(
 	return &ChessMetaService{Database: database, entropy: entropy, broadcaster: broadcaster}
 }
 
-func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) error {
+func (service *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) error {
 	defer perf.WithContext(ctx).Log()
 
-	updtResult, err := services.Mutator().UpdateGameMeta(ctx, mutate.UpdateGameMetaParams{
+	updtResult, err := service.Mutator().UpdateGameMeta(ctx, mutate.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
 		WhiteID:   pgtype.Int8{Int64: updt.WhitePlayer.Value, Valid: updt.WhitePlayer.Present},
 		BlackID:   pgtype.Int8{Int64: updt.BlackPlayer.Value, Valid: updt.BlackPlayer.Present},
 		Mode:      mutate.ModeEnum(updt.Mode.String()),
-		UpdatedOn: pgtype.Timestamptz{Time: services.entropy.GetTime(), Valid: true},
+		UpdatedOn: pgtype.Timestamptz{Time: service.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
 		return errutil.Wrap("update game metadata", err, "updt", updt)
@@ -50,7 +50,7 @@ func (services *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt m
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
 	if updtResult.IsNewRow {
-		services.broadcaster.BroadcastGameCount(context.WithoutCancel(ctx), updtResult.Count)
+		service.broadcaster.BroadcastGameCount(context.WithoutCancel(ctx), updtResult.Count)
 	}
 	return nil
 }
@@ -60,7 +60,7 @@ type ChessMetasResp struct {
 	UserChessMetas []model.ChessMeta
 }
 
-func (services *ChessMetaService) GetGameMetadata(
+func (service *ChessMetaService) GetGameMetadata(
 	ctx context.Context, player model.PlayerState, afterOrdering opt.Option[int64], count int32,
 ) (ChessMetasResp, error) {
 	defer perf.WithContext(ctx).Log()
@@ -71,13 +71,13 @@ func (services *ChessMetaService) GetGameMetadata(
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		chessMetas, err = services.getGameMetadata(egCtx, opt.None[int64](), afterOrdering, opt.Some[int32](count))
+		chessMetas, err = service.getGameMetadata(egCtx, opt.None[int64](), afterOrdering, opt.Some[int32](count))
 		return errutil.Wrap(
 			"get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
 		eg.Go(func() (err error) {
-			userChessMetas, err = services.getGameMetadata(ctx, opt.Some[int64](player.ID), opt.None[int64](), opt.None[int32]())
+			userChessMetas, err = service.getGameMetadata(ctx, opt.Some[int64](player.ID), opt.None[int64](), opt.None[int32]())
 			return errutil.Wrap(
 				"get user game metadata", err, "userID", player.ID)
 		})
@@ -89,10 +89,10 @@ func (services *ChessMetaService) GetGameMetadata(
 	return ChessMetasResp{ChessMetas: chessMetas, UserChessMetas: userChessMetas}, nil
 }
 
-func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int64, error) {
+func (service *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int64, error) {
 	defer perf.WithContext(ctx).Log()
 
-	count, err := services.Querier().SelectGameMetasCount(ctx)
+	count, err := service.Querier().SelectGameMetasCount(ctx)
 	if err != nil {
 		return 0, errutil.Wrap("count chess metadatas", err)
 	}
@@ -101,7 +101,7 @@ func (services *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int
 	return count, nil
 }
 
-func (services *ChessMetaService) getGameMetadata(
+func (service *ChessMetaService) getGameMetadata(
 	ctx context.Context, userID opt.Option[int64], afterOrdering opt.Option[int64], count opt.Option[int32],
 ) ([]model.ChessMeta, error) {
 	afterOrderingDB := int64(math.MaxInt64)
@@ -109,7 +109,7 @@ func (services *ChessMetaService) getGameMetadata(
 		afterOrderingDB = afterOrdering.Value
 	}
 
-	rows, err := services.Querier().SelectGameMetas(ctx, query.SelectGameMetasParams{
+	rows, err := service.Querier().SelectGameMetas(ctx, query.SelectGameMetasParams{
 		ParticipantID: database.MapOptInt8(userID),
 		AfterOrdering: afterOrderingDB,
 		PerPage:       database.MapOptInt4(count),
