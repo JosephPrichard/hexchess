@@ -1,7 +1,7 @@
 package service
 
 import (
-	"hexchess-svc/database/query"
+	"hexchess-svc/database/dbassert"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
@@ -48,10 +48,10 @@ func TestCreateTournament(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	tournament, err := testinfra.Querier().SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
+	tournament, err := testinfra.Querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
 	require.NoError(t, err)
 
-	wantTournament := query.SelectTournamentByIDRow{
+	wantTournament := dbassert.Tournament{
 		ID:            tournamentID,
 		Name:          "Tournaments 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
@@ -77,7 +77,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		userID                    int64
 		wantBeginTourneyCountdown BeginTourneyCountdown
 		wantErr                   error
-		wantTournamentStatus      query.SelectTournamentStatusRow
+		wantTournamentStatus      dbassert.TournamentStatusEnum
 	}{
 		{
 			name:          "StatusPreconditionFailed_Scheduled",
@@ -108,9 +108,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			tournamentKey:             itest.Tournament0LobbyKey,
 			userID:                    1,
 			wantBeginTourneyCountdown: BeginTourneyCountdown{TournamentKey: itest.Tournament0LobbyKey},
-			wantTournamentStatus: query.SelectTournamentStatusRow{
-				Status: query.TournamentStatusEnumSCHEDULED,
-			},
+			wantTournamentStatus:      dbassert.TournamentStatusEnumSCHEDULED,
 		},
 	}
 
@@ -124,16 +122,16 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err)
 
 			if tt.wantErr == nil {
-				status, err := testinfra.Querier().SelectTournamentStatus(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				tournament, err := testinfra.Querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
 				require.NoError(t, err)
 
-				testutil.Equal(t, tt.wantTournamentStatus, status)
+				testutil.Equal(t, tt.wantTournamentStatus, tournament.Status)
 			}
 		})
 	}
 }
 
-var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(query.TournamentParticipant{}, "JoinedOn")
+var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(dbassert.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
 	service, testinfra := setupUpdateTournamentTest(t)
@@ -144,7 +142,7 @@ func TestJoinTournament(t *testing.T) {
 		inst             JoinTournamentInst
 		wantResult       JoinTournamentEvent
 		wantErr          error
-		wantParticipants []query.TournamentParticipant
+		wantParticipants []dbassert.TournamentParticipant
 	}{
 		{
 			name: "StatusPreconditionFailed",
@@ -172,7 +170,7 @@ func TestJoinTournament(t *testing.T) {
 				InsertionTime: time.Now(),
 			},
 			wantResult: JoinTournamentEvent{TournamentKey: itest.Tournament0LobbyKey, Mode: model.ModeCorrespondence1},
-			wantParticipants: []query.TournamentParticipant{
+			wantParticipants: []dbassert.TournamentParticipant{
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament0LobbyKey, Valid: true},
 					UserID:        1,
@@ -191,7 +189,7 @@ func TestJoinTournament(t *testing.T) {
 			assert.Equal(t, tt.wantErr, err)
 
 			if tt.wantErr == nil {
-				participants, err := testinfra.Querier().SelectParticipants(ctx, pgtype.UUID{Bytes: tt.inst.TournamentKey, Valid: true})
+				participants, err := testinfra.Querier.SelectParticipants(ctx, pgtype.UUID{Bytes: tt.inst.TournamentKey, Valid: true})
 				require.NoError(t, err)
 
 				testutil.Equal(t, tt.wantParticipants, participants, sqlcTournamentParticipantCmpOpts)

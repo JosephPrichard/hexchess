@@ -4,7 +4,7 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
-	"hexchess-svc/database/query"
+	"hexchess-svc/database/dbassert"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/opt"
@@ -83,7 +83,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: worker.Handle,
 
-		querier:    testinfra.QuerierMutator(),
+		querier:    testinfra.Database.QuerierMutator(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -96,15 +96,15 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	consumer.ConsumePartition(string(partitionID))
 
-	userElos, err := testinfra.Querier().SelectUserModeElosByIDs(ctx, query.SelectUserModeElosByIDsParams{
+	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, dbassert.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
-		Mode: "CORRESPONDENCE_1",
+		Mode: dbassert.ModeEnumCORRESPONDENCE1,
 	})
 	require.NoError(t, err)
 
-	wantUserElos := []query.SelectUserModeElosByIDsRow{
-		{UserID: whiteUser0.ID, Elo: 1015, HighestElo: 1015, Wins: 1},
-		{UserID: blackUser1.ID, Elo: 985, HighestElo: 1000, Losses: 1},
+	wantUserElos := []dbassert.UserModeElo{
+		{UserID: whiteUser0.ID, Mode: dbassert.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},
+		{UserID: blackUser1.ID, Mode: dbassert.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1},
 	}
 	assert.Equal(t, wantUserElos, userElos)
 
@@ -144,7 +144,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: worker.Handle,
 
-		querier:    testinfra.QuerierMutator(),
+		querier:    testinfra.Database.QuerierMutator(),
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -156,10 +156,10 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	}
 	consumer.ConsumePartition(string(partitionID))
 
-	gameRow, err := testinfra.Querier().SelectGameMeta(ctx, gameID.String())
+	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
-	wantGameRow := query.GamesMetadatum{
+	wantGameRow := dbassert.GamesMetadatum{
 		Ordering:  4,
 		GameID:    gameID.String(),
 		Mode:      "CORRESPONDENCE_1",

@@ -22,9 +22,7 @@ type Querier interface {
 	SelectGameMetas(ctx context.Context, arg SelectGameMetasParams) ([]SelectGameMetasRow, error)
 	SelectGameMetasCount(ctx context.Context) (int64, error)
 	SelectLoginByName(ctx context.Context, username string) (SelectLoginByNameRow, error)
-	SelectMatches(ctx context.Context, tournamentkey pgtype.UUID) ([]TournamentMatch, error)
 	SelectMatchesByTournamentID(ctx context.Context, tournamentkey pgtype.UUID) ([]SelectMatchesByTournamentIDRow, error)
-	SelectParticipants(ctx context.Context, tournamentkey pgtype.UUID) ([]TournamentParticipant, error)
 	SelectParticipantsForMatchmakingByTournamentID(ctx context.Context, tournamentkey pgtype.UUID) ([]SelectParticipantsForMatchmakingByTournamentIDRow, error)
 	SelectParticipantsWithUserByTournamentID(ctx context.Context, tournamentkey pgtype.UUID) ([]SelectParticipantsWithUserByTournamentIDRow, error)
 	//     tm.mode
@@ -36,7 +34,6 @@ type Querier interface {
 	SelectReplayMatchesByTournamentID(ctx context.Context, tournamentkey pgtype.UUID) ([]SelectReplayMatchesByTournamentIDRow, error)
 	SelectReplayMoveHistoriesByIDs(ctx context.Context, replayids []int64) ([]ReplayMoveHistory, error)
 	SelectReplayMoveHistoryByID(ctx context.Context, replayid int64) (ReplayMoveHistory, error)
-	SelectReplayRowByID(ctx context.Context, id int64) (Replay, error)
 	SelectReplaysByQuery(ctx context.Context, arg SelectReplaysByQueryParams) ([]SelectReplaysByQueryRow, error)
 	SelectReplaysExistsByIDs(ctx context.Context, ids []int64) ([]int64, error)
 	SelectTournamentByGameID(ctx context.Context, gameid string) (pgtype.UUID, error)

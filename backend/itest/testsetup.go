@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
+	"hexchess-svc/database/dbassert"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
@@ -27,9 +28,11 @@ const (
 )
 
 type TestInfra struct {
-	database.Database
-	Redis cache.Redis
-	AWS   cloud.AWSClient
+	Querier dbassert.Querier
+
+	Database database.Database
+	Redis    cache.Redis
+	AWS      cloud.AWSClient
 }
 
 func (i TestInfra) Close() {
@@ -44,14 +47,16 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 
 	var infra TestInfra
 
-	infra.Database = database.NewDatabase(database.DatabasePools{Read: pgPool, Write: pgPool})
+	// assertion clients for testing
+	infra.Querier = dbassert.New(pgPool)
 
+	// infrastructure clients
+	infra.Database = database.NewDatabase(database.DatabasePools{Read: pgPool, Write: pgPool})
 	infra.Redis = cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   []string{redisAddr},
 		PubsubAddr:    redisAddr,
 		ActiveProfile: config.Local,
 	})
-
 	infra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		AWSEndpoint:   localstackAddr,
 		AWSRegion:     "us-east-1",

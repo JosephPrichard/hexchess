@@ -15,7 +15,7 @@ func setupPersonaServices(t slogutil.TestLogger) (*PersonaService, itest.TestInf
 
 	service := NewPersonaService(
 		NewUserService(infra.Database),
-		NewLeaderboardService(infra.Redis, infra.Querier()),
+		NewLeaderboardService(infra.Redis, infra.Database.Querier()),
 		NewSearchService(infra.Database),
 	)
 

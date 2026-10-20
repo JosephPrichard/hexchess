@@ -273,35 +273,6 @@ func (q *Queries) SelectReplayMoveHistoryByID(ctx context.Context, replayid int6
 	return i, err
 }
 
-const selectReplayRowByID = `-- name: SelectReplayRowByID :one
-SELECT id, white_id, black_id, mode, result, cause, played_on, win_elo_diff, lose_elo_diff, white_elo, black_elo, game_id, turn_count, rating, played_on_as_days
-FROM replays r
-WHERE r.id = $1
-`
-
-func (q *Queries) SelectReplayRowByID(ctx context.Context, id int64) (Replay, error) {
-	row := q.db.QueryRow(ctx, selectReplayRowByID, id)
-	var i Replay
-	err := row.Scan(
-		&i.ID,
-		&i.WhiteID,
-		&i.BlackID,
-		&i.Mode,
-		&i.Result,
-		&i.Cause,
-		&i.PlayedOn,
-		&i.WinEloDiff,
-		&i.LoseEloDiff,
-		&i.WhiteElo,
-		&i.BlackElo,
-		&i.GameID,
-		&i.TurnCount,
-		&i.Rating,
-		&i.PlayedOnAsDays,
-	)
-	return i, err
-}
-
 const selectReplaysByQuery = `-- name: SelectReplaysByQuery :many
 SELECT r.id,
        r.white_id,

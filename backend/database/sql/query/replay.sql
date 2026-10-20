@@ -9,11 +9,6 @@ FROM replay_move_histories
 WHERE replay_id = sqlc.arg('replayID')
 ORDER BY replay_id DESC LIMIT 1;
 
--- name: SelectReplayRowByID :one
-SELECT *
-FROM replays r
-WHERE r.id = sqlc.arg('id');
-
 -- name: SelectReplayByID :one
 SELECT r.id,
        r.white_id,

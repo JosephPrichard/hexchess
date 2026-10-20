@@ -11,40 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const selectMatches = `-- name: SelectMatches :many
-SELECT ordering, tournament_key, round, game_id, created_on, white_id, black_id
-FROM tournament_matches
-WHERE tournament_key = $1::uuid
-`
-
-func (q *Queries) SelectMatches(ctx context.Context, tournamentkey pgtype.UUID) ([]TournamentMatch, error) {
-	rows, err := q.db.Query(ctx, selectMatches, tournamentkey)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TournamentMatch
-	for rows.Next() {
-		var i TournamentMatch
-		if err := rows.Scan(
-			&i.Ordering,
-			&i.TournamentKey,
-			&i.Round,
-			&i.GameID,
-			&i.CreatedOn,
-			&i.WhiteID,
-			&i.BlackID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const selectMatchesByTournamentID = `-- name: SelectMatchesByTournamentID :many
 SELECT tm.round,
        tm.white_id,
@@ -91,32 +57,6 @@ func (q *Queries) SelectMatchesByTournamentID(ctx context.Context, tournamentkey
 			&i.WhiteElo,
 			&i.BlackElo,
 		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const selectParticipants = `-- name: SelectParticipants :many
-SELECT tournament_key, user_id, joined_on
-FROM tournament_participants
-WHERE tournament_key = $1::uuid
-`
-
-func (q *Queries) SelectParticipants(ctx context.Context, tournamentkey pgtype.UUID) ([]TournamentParticipant, error) {
-	rows, err := q.db.Query(ctx, selectParticipants, tournamentkey)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TournamentParticipant
-	for rows.Next() {
-		var i TournamentParticipant
-		if err := rows.Scan(&i.TournamentKey, &i.UserID, &i.JoinedOn); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

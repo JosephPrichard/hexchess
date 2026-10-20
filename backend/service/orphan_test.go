@@ -18,7 +18,7 @@ import (
 func setupOrphanTest(t slogutil.TestLogger) (*OrphanService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewOrphanService(infra.AWS, infra.Querier())
+	service := NewOrphanService(infra.AWS, infra.Database.Querier())
 
 	return service, infra
 }

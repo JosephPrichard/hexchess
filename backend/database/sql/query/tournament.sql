@@ -3,16 +3,6 @@ SELECT status, winner_id
 FROM tournaments
 WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
 
--- name: SelectParticipants :many
-SELECT *
-FROM tournament_participants
-WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
-
--- name: SelectMatches :many
-SELECT *
-FROM tournament_matches
-WHERE tournament_key = sqlc.arg('tournamentKey')::uuid;
-
 -- name: SelectTournamentByID :one
 SELECT id,
        tournament_key,

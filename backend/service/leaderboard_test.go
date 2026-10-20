@@ -17,7 +17,7 @@ import (
 func setupLeaderboardTest(t slogutil.TestLogger) (*LeaderboardService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewLeaderboardService(infra.Redis, infra.Querier())
+	service := NewLeaderboardService(infra.Redis, infra.Database.Querier())
 
 	return service, infra
 }

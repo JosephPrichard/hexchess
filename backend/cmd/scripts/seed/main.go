@@ -98,17 +98,17 @@ func main() {
 	}
 
 	// execute the test seed script and measure results
-	service := newSeedServices(redisClient, databaseClient)
+	services := newSeedServices(redisClient, databaseClient)
 
 	// root node in the foreign key hierarchy tree
-	seedUsers(ctx, service.user)
+	seedUsers(ctx, services.user)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return seedChallenges(egCtx, service.challenge)
+		return seedChallenges(egCtx, services.challenge)
 	})
 	eg.Go(func() error {
-		return seedGameResults(egCtx, service.gameover, generateGameResults())
+		return seedGameResults(egCtx, services.gameover, generateGameResults())
 	})
 	eg.Go(func() error {
 		return seedTournaments(egCtx, databaseClient.QuerierMutator(), generateTournaments())
@@ -119,7 +119,7 @@ func main() {
 	}
 
 	// syncs the stat updates written in the game results into the leaderboard.
-	if err := service.leaderboard.SyncLeaderboard(ctx); err != nil {
+	if err := services.leaderboard.SyncLeaderboard(ctx); err != nil {
 		slogutil.Fatal("jobs leaderboard", err)
 	}
 

@@ -18,3 +18,12 @@ sql:
         sql_package: "pgx/v5"
         out: "./mutate"
         emit_interface: true
+  - engine: "postgresql"
+    queries: "./sql/dbassert"
+    schema: "./sql/schema.sql"
+    gen:
+      go:
+        package: "dbassert"
+        sql_package: "pgx/v5"
+        out: "./dbassert"
+        emit_interface: true
