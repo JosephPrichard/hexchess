@@ -45,8 +45,8 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			resp := ServiceViewFromErr(err)
 			writeJSON(w, resp.Status, resp)
 
-			slogutil.Error(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", err,
-				"path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
+			slog.Log(ctx, LevelFromStatus(resp.Status),
+				"failed to handle REST call", "error", err, "path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
 		} else {
 			slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 		}
@@ -85,7 +85,7 @@ func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
 			resp := ServiceViewFromErr(err)
 
-			slogutil.Error(ctx, LevelFromStatus(resp.Status), "sse request failed", err, "method", r.Method, "url", r.URL)
+			slog.Log(ctx, LevelFromStatus(resp.Status), "sse request failed", "error", err, "method", r.Method, "url", r.URL)
 
 			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
 		}

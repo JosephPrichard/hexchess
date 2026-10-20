@@ -67,7 +67,7 @@ func (service *ChallengeService) InsertChallenge(ctx context.Context, inst Chall
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
 			return model.Challenge{}, svcErr
 		}
-		return model.Challenge{}, errutil.Wrap("insert challenge", dbErr, "inst", inst)
+		return model.Challenge{}, errutil.New("insert challenge", dbErr, "inst", inst)
 	}
 
 	challenge := model.Challenge{
@@ -116,7 +116,11 @@ func (service *ChallengeService) BatchInsertChallenges(ctx context.Context, inst
 	})
 	err := errors.Join(insertErrs...)
 
-	slogutil.Log(ctx, "batch inserted challenges", err)
+	if err == nil {
+		slog.InfoContext(ctx, "batch inserted challenges")
+	} else {
+		slog.ErrorContext(ctx, "failed to batch inserted challenges", "error", err)
+	}
 	return err
 }
 
@@ -141,7 +145,7 @@ func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
-		return nil, errutil.Wrap("get challenges by participant", err, "key", key)
+		return nil, errutil.New("get challenges by participant", err, "key", key)
 	}
 
 	challenges := make([]model.Challenge, 0, len(rows))
@@ -182,7 +186,7 @@ func (service *ChallengeService) DeleteChallenge(ctx context.Context, challenger
 	if database.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, errutil.Wrap("delete challenge", err, "params", params)
+		return DeleteResult{}, errutil.New("delete challenge", err, "params", params)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)
@@ -208,7 +212,7 @@ func (service *ChallengeService) DeleteExpiredChallenges(ctx context.Context, us
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
-	slogutil.Log(ctx, "deleted expired challenges", err, "userID", userID, "expireTime", beforeTime)
+	slog.Log(ctx, slogutil.Level(err), "deleted expired challenges", "error", err, "userID", userID, "expireTime", beforeTime)
 	return nil
 }
 

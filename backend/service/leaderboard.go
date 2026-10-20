@@ -49,7 +49,7 @@ func (service *LeaderboardService) SetLeaderboard(ctx context.Context, changes .
 		outgoingChanges = append(outgoingChanges, change)
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return errutil.Wrap("set leaderboard users", err)
+		return errutil.New("set leaderboard users", err)
 	}
 
 	slog.InfoContext(ctx, "set leaderboard users", "changes", outgoingChanges)
@@ -110,7 +110,7 @@ func (service *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context, 
 		if errors.Is(err, redis.Nil) {
 			continue
 		} else if err != nil {
-			return nil, errutil.Wrap("get leaderboard rank", err)
+			return nil, err
 		}
 		ranks[exec.mode] = LbRank{Rank: MapLeaderboardRank(rankScore.Rank), Score: rankScore.Score}
 	}
@@ -139,11 +139,11 @@ func (service *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context, 
 
 	for _, exec := range addExecs {
 		if _, err := exec.addCmd.Result(); err != nil {
-			return nil, errutil.Wrap("add leaderboard rank", err)
+			return nil, err
 		}
 		rankScore, err := exec.getCmd.Result()
 		if err != nil {
-			return nil, errutil.Wrap("get leaderboard rank", err)
+			return nil, err
 		}
 		ranks[exec.mode.String()] = LbRank{Rank: MapLeaderboardRank(rankScore.Rank), Score: rankScore.Score}
 	}
@@ -158,19 +158,19 @@ func (service *LeaderboardService) getLeaderboard(ctx context.Context, mode mode
 	end := startRank - 1 + leaderboardElemCount
 	strUserIDs, err := service.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
 	if err != nil {
-		return Leaderboard{}, errutil.Wrap("retrieve reverse leaderboard by range", err)
+		return Leaderboard{}, errutil.New("retrieve reverse leaderboard by range", err)
 	}
 
 	totalLbdElemCount, err := service.redis.PrimaryClient.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
 	if err != nil {
-		return Leaderboard{}, errutil.Wrap("count leaderboard", err)
+		return Leaderboard{}, errutil.New("count leaderboard", err)
 	}
 
 	users := make([]RankedUser, 0, len(strUserIDs))
 	for i, strUserID := range strUserIDs {
 		userID, err := strconv.Atoi(strUserID)
 		if err != nil {
-			return Leaderboard{}, errutil.Wrap("parse user id", err, "strUserID", strUserID)
+			return Leaderboard{}, errutil.New("parse user id", err, "strUserID", strUserID)
 		}
 		users = append(users, RankedUser{ID: int64(userID), Rank: startRank + int64(i) + 1})
 	}
@@ -194,7 +194,8 @@ func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode 
 	offset := (page - 1) * perPage
 
 	leaderboard, err := service.getLeaderboard(ctx, mode, offset, perPage)
-	slogutil.Log(ctx, "retrieved leaderboard page", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
+
+	slog.Log(ctx, slogutil.Level(err), "failed to retrieved leaderboard page", "error", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
 	return leaderboard, err
 }
 
@@ -206,7 +207,7 @@ func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) error {
 		for {
 			rows, err := service.querier.SelectEloList(ctx, query.SelectEloListParams{ID: afterID, Mode: query.ModeEnum(mode.String()), Limit: 20})
 			if err != nil {
-				return errutil.Wrap("select elo list", err, "afterID", afterID)
+				return errutil.New("select elo list", err, "afterID", afterID)
 			}
 			var changes []SetLbChangeSet
 			for i, row := range rows {
@@ -220,7 +221,7 @@ func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) error {
 				break
 			}
 			if err := service.SetLeaderboard(ctx, changes...); err != nil {
-				return errutil.Wrap("set leaderboard", err)
+				return errutil.New("set leaderboard", err)
 			}
 		}
 	}
@@ -262,11 +263,11 @@ func (service *LeaderboardService) GetLeaderboardUser(ctx context.Context, userI
 			ID:   userID,
 			Mode: query.ModeEnum(mode.String()),
 		})
-		return errutil.Wrap("select user with elos by userID", err, "userID", userID)
+		return errutil.New("select user with elos by userID", err, "userID", userID)
 	})
 	eg.Go(func() (err error) {
 		rankScore, err = service.redis.PrimaryClient.ZRankWithScore(egCtx, cache.FmtLeaderboardZSet(mode.String()), strUserID).Result()
-		return errutil.Wrap("get user rank by userID", err, "userID", userID)
+		return errutil.New("get user rank by userID", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -295,7 +296,7 @@ func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, 
 		Mode: query.ModeEnum(mode.String()),
 	})
 	if err != nil {
-		return nil, nil, errutil.Wrap("select many users", err, "userIDs", ids)
+		return nil, nil, errutil.New("select many users", err, "userIDs", ids)
 	}
 
 	leaderboardUsers := make([]model.LbdUser, 0, len(rankUsers))
@@ -353,7 +354,7 @@ func (service *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context
 		Offset:   offset,
 	})
 	if err != nil {
-		return nil, errutil.Wrap("select users by similarity", err)
+		return nil, errutil.New("select users by similarity", err)
 	}
 
 	var userIDs []int64
@@ -362,7 +363,7 @@ func (service *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context
 	}
 	eloRows, err := service.querier.SelectUserElosByIDs(ctx, userIDs)
 	if err != nil {
-		return nil, errutil.Wrap("select elos by user ids", err, "userIDs", userIDs)
+		return nil, errutil.New("select elos by user ids", err, "userIDs", userIDs)
 	}
 
 	eloAggrMap := make(map[int64]struct {

@@ -13,7 +13,7 @@ func (server *HttpServer) HandleUploadProfilePic(w http.ResponseWriter, r *http.
 
 	player, err := server.authenticator.GetSessionPlayer(ctx, r)
 	if err != nil {
-		return errutil.Wrap("get session player", err)
+		return errutil.New("get session player", err)
 	}
 
 	contentChecksum := r.Header.Get("Content-Digest")
@@ -27,7 +27,7 @@ func (server *HttpServer) HandleUploadProfilePic(w http.ResponseWriter, r *http.
 
 	uploadResp, err := server.service.UploadProfilePic(ctx, player, r.Body, contentType, contentLengthInt64, contentChecksum)
 	if err != nil {
-		return errutil.Wrap("upload profile pic", err)
+		return errutil.New("upload profile pic", err)
 	}
 	slog.InfoContext(ctx, "uploaded profile pic", "uploadResp", uploadResp)
 

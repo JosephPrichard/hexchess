@@ -56,7 +56,7 @@ func (p *RiverProducer) ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx
 		_, err = p.riverClient.Insert(ctx, job, opts)
 	}
 	if err != nil {
-		return errutil.Wrap("publish advance tournament", err)
+		return errutil.New("publish advance tournament", err)
 	}
 
 	slog.InfoContext(ctx, "pushed advance tournament event", "args", args)

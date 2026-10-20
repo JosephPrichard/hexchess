@@ -47,12 +47,12 @@ func (service *ChessRepoService) getChessState(ctx context.Context, getter Redis
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrNoChessState
 	} else if err != nil {
-		return nil, errutil.Wrap("get chess state in redis", err)
+		return nil, errutil.New("get chess state in redis", err)
 	}
 
 	state, err := model.UnmarshalChessState(bytes)
 	if err != nil {
-		return nil, errutil.Wrap("unmarshal chess state", err)
+		return nil, errutil.New("unmarshal chess state", err)
 	}
 
 	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
@@ -74,7 +74,7 @@ func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter 
 
 	bytes, err := model.MarshalChessState(state)
 	if err != nil {
-		return errutil.Wrap("marshal chess state", err)
+		return errutil.New("marshal chess state", err)
 	}
 
 	gameKey := cache.FmtGameKey(id)
@@ -99,7 +99,7 @@ func (service *ChessRepoService) SetChessStates(ctx context.Context, chessStates
 
 		bytes, err := model.MarshalChessState(state)
 		if err != nil {
-			return errutil.Wrap("marshal chess state", err)
+			return errutil.New("marshal chess state", err)
 		}
 		gameKey := cache.FmtGameKey(state.ID)
 		pipe.SetNX(ctx, gameKey, bytes, 0)

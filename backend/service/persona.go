@@ -46,17 +46,17 @@ func (service *PersonaService) GetPersona(ctx context.Context, userID int64, per
 
 	eg.Go(func() (err error) {
 		userData, err = service.user.GetUserByID(egCtx, userID)
-		return errutil.Wrap("get user", err, "userID", userID)
+		return errutil.New("get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = service.user.GetUserStats(egCtx, userID)
-		return errutil.Wrap("get user stats", err, "userID", userID)
+		return errutil.New("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		lbRanks, err = service.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		return errutil.Wrap("get user leaderboard ranks", err, "userID", userID)
+		return errutil.New("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
@@ -64,7 +64,7 @@ func (service *PersonaService) GetPersona(ctx context.Context, userID int64, per
 			UserID:  opt.Some(userID),
 			PerPage: perPage,
 		})
-		return errutil.Wrap("get user replays", err, "userID", userID)
+		return errutil.New("get user replays", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {

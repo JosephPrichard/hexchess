@@ -45,7 +45,7 @@ func (service *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt mo
 		UpdatedOn: pgtype.Timestamptz{Time: service.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
-		return errutil.Wrap("update game metadata", err, "updt", updt)
+		return errutil.New("update game metadata", err, "updt", updt)
 	}
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
@@ -72,13 +72,13 @@ func (service *ChessMetaService) GetGameMetadata(
 
 	eg.Go(func() (err error) {
 		chessMetas, err = service.getGameMetadata(egCtx, opt.None[int64](), afterOrdering, opt.Some[int32](count))
-		return errutil.Wrap(
+		return errutil.New(
 			"get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
 		eg.Go(func() (err error) {
 			userChessMetas, err = service.getGameMetadata(ctx, opt.Some[int64](player.ID), opt.None[int64](), opt.None[int32]())
-			return errutil.Wrap(
+			return errutil.New(
 				"get user game metadata", err, "userID", player.ID)
 		})
 	}
@@ -94,7 +94,7 @@ func (service *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int6
 
 	count, err := service.Querier().SelectGameMetasCount(ctx)
 	if err != nil {
-		return 0, errutil.Wrap("count chess metadatas", err)
+		return 0, errutil.New("count chess metadatas", err)
 	}
 
 	slog.InfoContext(ctx, "selected chess metadatas count", "count", count)
@@ -115,7 +115,7 @@ func (service *ChessMetaService) getGameMetadata(
 		PerPage:       database.MapOptInt4(count),
 	})
 	if err != nil {
-		return nil, errutil.Wrap("select game metas", err, "userID", userID)
+		return nil, errutil.New("select game metas", err, "userID", userID)
 	}
 
 	var chessMetas []model.ChessMeta

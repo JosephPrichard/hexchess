@@ -40,7 +40,7 @@ func mapGetReplayResult[ID any](ctx context.Context, id ID, row query.SelectRepl
 	if database.IsErrNoRows(err) {
 		return model.FullReplay{}, ErrNoReplay
 	} else if err != nil {
-		return model.FullReplay{}, errutil.Wrap("select replay by id", err, "id", id)
+		return model.FullReplay{}, errutil.New("select replay by id", err, "id", id)
 	}
 	replay := mapFullReplayByIDRow(row)
 	slog.InfoContext(ctx, "selected replay by userID", "replay", replay, "userID", id)
@@ -86,7 +86,7 @@ func mapReplayByIDRow(row query.SelectReplayByIDRow) model.Replay {
 func (service *ReplayService) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
 	row, err := service.Querier().SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
-		return nil, errutil.Wrap("select replay move histories", err, "replayID", replayID)
+		return nil, errutil.New("select replay move histories", err, "replayID", replayID)
 	}
 	slog.InfoContext(ctx, "selected replay move histories", "replayID", replayID)
 	return row.Data, nil
@@ -133,7 +133,7 @@ func (service *ReplayService) RetrieveEloHistoryBuckets(ctx context.Context, par
 		PlayedAfter: playedAfter,
 	})
 	if err != nil {
-		return RetrieveEloHistoryResp{}, errutil.Wrap("select replay elos for user", err, "userID", params.UserID, "playedAfter", playedAfter)
+		return RetrieveEloHistoryResp{}, errutil.New("select replay elos for user", err, "userID", params.UserID, "playedAfter", playedAfter)
 	}
 	slog.InfoContext(ctx, "selected elo replay histories", "userID", params.UserID, "playedAfter", playedAfter, "eloRows", eloRows)
 

@@ -3,6 +3,7 @@ package slogutil
 import (
 	"context"
 	"errors"
+	"hexchess-svc/utils/errutil"
 	"log/slog"
 	"os"
 )
@@ -21,13 +22,11 @@ type staticLogData struct {
 
 func NewLogRecordHandler(serviceName string, h slog.Handler) slog.Handler {
 	return &LogRecordHandler{
-		Handler: h,
-		staticLogData: staticLogData{
-			serviceName:         serviceName,
-			awsRegion:           os.Getenv("AWS_REGION"),
-			awsExecutionEnv:     os.Getenv("AWS_EXECUTION_ENV"),
-			ecsTaskMetadataBody: getEcsMetadata(),
-		},
+		Handler:             h,
+		serviceName:         serviceName,
+		awsRegion:           os.Getenv("AWS_REGION"),
+		awsExecutionEnv:     os.Getenv("AWS_EXECUTION_ENV"),
+		ecsTaskMetadataBody: getEcsMetadata(),
 	}
 }
 
@@ -51,6 +50,21 @@ func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
 	}
 	if h.staticLogData.ecsTaskMetadataBody != nil {
 		r.Add("ecsTaskMetadata", h.staticLogData.ecsTaskMetadataBody)
+	}
+
+	// walks each service error tree provided in the log invocation and flattens it into slog key value pairs
+	serviceErrorValues := make(map[string]any)
+
+	r.Attrs(func(attr slog.Attr) bool {
+		value := attr.Value.Any()
+		if serviceError, ok := value.(*errutil.ServiceError); ok {
+			serviceError.Walk(serviceErrorValues)
+		}
+		return true
+	})
+
+	for key, value := range serviceErrorValues {
+		r.Add(key, value)
 	}
 
 	return h.Handler.Handle(ctx, r)

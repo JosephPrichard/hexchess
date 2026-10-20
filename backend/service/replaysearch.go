@@ -127,7 +127,7 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 	}
 	replayRows, err := service.Querier().SelectReplaysByQuery(ctx, params)
 	if err != nil {
-		return nil, errutil.Wrap("select replays by query", err)
+		return nil, errutil.New("select replays by query", err)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -167,7 +167,7 @@ func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, reque
 
 	userRows, err := service.Querier().SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return errutil.Wrap("select user ids by names", err, "usernames", usernames)
+		return errutil.New("select user ids by names", err, "usernames", usernames)
 	}
 
 	userIDs := make(map[string]int64)

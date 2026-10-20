@@ -33,7 +33,7 @@ func (service *TimerService) TryExpireTimers(ctx context.Context, expireBeforeTi
 	cmd := cache.PollGameTimers.Run(ctx, service.redis.PrimaryClient, service.zDequeueXAddKeys, expireBefore)
 	keys, err := cmd.Result()
 	if err != nil {
-		return nil, errutil.Wrap("executing poll game timers script", err,
+		return nil, errutil.New("executing poll game timers script", err,
 			"expireBefore", expireBefore, "zDequeueXAddKeys", service.zDequeueXAddKeys)
 	}
 

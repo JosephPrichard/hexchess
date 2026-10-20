@@ -15,10 +15,13 @@ import (
 )
 
 func init() {
+	// initialize a sane default for the logger in cases where a log configuration is not manually configured - tests, scripts, etc.
 	stderrHandler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
-	slog.SetDefault(slog.New(stderrHandler))
+	slog.SetDefault(slog.New(
+		NewLogRecordHandler("Default", stderrHandler),
+	))
 }
 
 func InitLoggers(serviceName string, oltpEndpoint string, activeProfile config.Profile) func() {
@@ -29,6 +32,7 @@ func InitLoggers(serviceName string, oltpEndpoint string, activeProfile config.P
 	handlers := []slog.Handler{stderrHandler}
 	shutdown := func() {}
 
+	// define a logging configuration that is properly configured to interopt with oltp
 	if oltpEndpoint != "" {
 		otelResource, err := resource.New(context.Background(),
 			resource.WithAttributes(semconv.ServiceName(serviceName), semconv.DeploymentEnvironment(activeProfile.String())),

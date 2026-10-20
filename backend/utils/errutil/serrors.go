@@ -3,7 +3,7 @@ package errutil
 import (
 	"errors"
 	"fmt"
-	"slices"
+	"maps"
 )
 
 type ServiceError struct {
@@ -19,7 +19,7 @@ func (e *ServiceError) Error() string {
 	return e.Err.Error()
 }
 
-func Wrap(message string, err error, values ...any) error {
+func New(message string, err error, values ...any) error {
 	if err == nil {
 		return nil
 	}
@@ -30,29 +30,22 @@ func Wrap(message string, err error, values ...any) error {
 		return &ServiceError{Err: err}
 	}
 
-	v := map[string]any{}
+	valuesMap := map[string]any{}
 
 	for i := 0; i+1 < len(values); i += 2 {
-		valueStr, ok := values[i].(string)
-		if !ok {
-			valueStr = "!BADKEY"
-		}
-		v[valueStr] = values[i+1]
+		key := fmt.Sprintf("%s", values[i])
+		valuesMap[key] = values[i+1]
 	}
 
-	return &ServiceError{Err: err, Values: v}
+	return &ServiceError{Err: err, Values: valuesMap}
 }
 
-func WalkValues(err error, values *[]any) {
+func (e *ServiceError) Walk(values map[string]any) {
+	var err error = e
 	for {
-		if serr, ok := errors.AsType[*ServiceError](err); ok {
-			for k, v := range serr.Values {
-				if slices.Contains(*values, any(k)) {
-					continue
-				}
-				*values = append(*values, k, v)
-			}
-			err = serr.Err
+		if serviceError, ok := errors.AsType[*ServiceError](err); ok {
+			maps.Copy(values, serviceError.Values)
+			err = serviceError.Err
 		} else {
 			break
 		}
