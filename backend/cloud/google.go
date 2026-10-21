@@ -40,12 +40,12 @@ const UsernameClaim string = "email"
 func (google *GoogleSDK) ValidateGoogleIDToken(ctx context.Context, token string) (GoogleIDTokenResp, error) {
 	payload, err := google.validator.Validate(ctx, token, google.apiKey)
 	if err != nil {
-		return GoogleIDTokenResp{}, errutil.New("validate google id token", err, "token", token)
+		return GoogleIDTokenResp{}, errutil.Wrap("validate google id token", err, "token", token)
 	}
 	googleAccountID := payload.Subject
 	username, ok := payload.Claims[UsernameClaim].(string)
 	if !ok {
-		return GoogleIDTokenResp{}, errutil.New("validate google id token", err, "token", token, "payload", payload, "claim", UsernameClaim)
+		return GoogleIDTokenResp{}, errutil.Wrap("validate google id token", err, "token", token, "payload", payload, "claim", UsernameClaim)
 	}
 	return GoogleIDTokenResp{AccountID: googleAccountID, Username: username}, nil
 }

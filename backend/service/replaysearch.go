@@ -70,8 +70,8 @@ var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
 
 func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQuerySortKeyEntries) }
 
-func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qry ReplaysQuery) ([]model.FullReplay, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qry ReplaysQuery) (_ []model.FullReplay, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	// get any userIDs requested through the username queries
 	byNameRequests := []IDByNameRequest{
@@ -80,7 +80,7 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 		{UsernameInput: qry.LoserName, UserIDOutput: &qry.LoserID},
 		{UsernameInput: qry.WinnerName, UserIDOutput: &qry.WinnerID},
 	}
-	err := service.getIDsByUsernames(ctx, byNameRequests)
+	err = service.getIDsByUsernames(ctx, byNameRequests)
 	if errors.Is(err, errUserNotFound) {
 		// if any username cannot be matched to an userID, the search query will never yield any replays
 		return []model.FullReplay{}, nil
@@ -127,7 +127,7 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 	}
 	replayRows, err := service.Querier().SelectReplaysByQuery(ctx, params)
 	if err != nil {
-		return nil, errutil.New("select replays by query", err)
+		return nil, errutil.Wrap("select replays by query", err)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -167,7 +167,7 @@ func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, reque
 
 	userRows, err := service.Querier().SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return errutil.New("select user ids by names", err, "usernames", usernames)
+		return errutil.Wrap("select user ids by names", err, "usernames", usernames)
 	}
 
 	userIDs := make(map[string]int64)

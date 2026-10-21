@@ -45,7 +45,7 @@ func (service *ProfileService) deleteExpiredProfilePics(ctx context.Context, pla
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return errutil.New("list profile pics by prefix", err, "prefix", prefix, "bucket", service.aws.S3ProfileBucket)
+		return errutil.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	slog.InfoContext(ctx, "listed profile pics for deletion", "prefix", prefix,
@@ -64,7 +64,7 @@ func (service *ProfileService) deleteExpiredProfilePics(ctx context.Context, pla
 			Bucket: aws.String(service.aws.S3ProfileBucket),
 			Delete: &s3Types.Delete{Objects: objectIdentifiers},
 		}); err != nil {
-			return errutil.New("delete profile pics by keys", err, "keys", keys, "bucket", service.aws.S3ProfileBucket)
+			return errutil.Wrap("delete profile pics by keys", err, "keys", keys, "bucket", service.aws.S3ProfileBucket)
 		}
 	}
 	return nil
@@ -89,8 +89,8 @@ func (service *ProfileService) UploadProfilePic(
 	contentType string,
 	contentLength int64,
 	contentChecksum string,
-) (UploadProfileResult, error) {
-	defer perf.WithContext(ctx).Log()
+) (_ UploadProfileResult, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -132,7 +132,7 @@ func (service *ProfileService) UploadProfilePic(
 		return UploadProfileResult{}, ErrProfilePicTooBig
 	}
 	if err != nil {
-		return UploadProfileResult{}, errutil.New("put profile pic", err, "key", key, "bucket", service.aws.S3ProfileBucket)
+		return UploadProfileResult{}, errutil.Wrap("put profile pic", err, "key", key, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	service.dispatcher.Go(func() {
@@ -157,7 +157,7 @@ func (service *ProfileService) GetProfilePicURL(ctx context.Context, userID stri
 		Prefix: aws.String(prefix),
 	})
 	if err != nil {
-		return "", errutil.New("list profile pics by prefix", err, "prefix", prefix, "bucket", service.aws.S3ProfileBucket)
+		return "", errutil.Wrap("list profile pics by prefix", err, "prefix", prefix, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	mostRecentKey := findMostRecentKey(listOutput.Contents)
@@ -171,7 +171,7 @@ func (service *ProfileService) GetProfilePicURL(ctx context.Context, userID stri
 		Key:    aws.String(mostRecentKey),
 	})
 	if err != nil {
-		return "", errutil.New("presign profile pic url by key", err, "key", mostRecentKey, "bucket", service.aws.S3ProfileBucket)
+		return "", errutil.Wrap("presign profile pic url by key", err, "key", mostRecentKey, "bucket", service.aws.S3ProfileBucket)
 	}
 
 	s3URL := presignOutput.URL
@@ -202,7 +202,7 @@ func ParseProfilePicKey(key string) (int64, error) {
 	}
 	userID, err := strconv.ParseInt(tokens[2], 10, 64)
 	if err != nil {
-		return 0, errutil.New("profile Key userID is not a valid integer", err, "key", key)
+		return 0, errutil.Wrap("profile Key userID is not a valid integer", err, "key", key)
 	}
 	return userID, nil
 }

@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
-	"log/slog"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -23,7 +23,7 @@ type PersonaUserGetter interface {
 }
 
 type LeaderboardGetter interface {
-	GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LbRank, error)
+	GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]LeaderboardRank, error)
 }
 
 type ReplayQuerier interface {
@@ -34,29 +34,32 @@ func NewPersonaService(user PersonaUserGetter, leaderboard LeaderboardGetter, re
 	return &PersonaService{user: user, leaderboard: leaderboard, replays: replay}
 }
 
-func (service *PersonaService) GetPersona(ctx context.Context, userID int64, perPage int32) (model.Persona, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *PersonaService) GetPersona(ctx context.Context, userID int64, perPage int32) (_ model.Persona, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	var userData model.User
 	var stats model.UserStats
 	var replayList []model.FullReplay
-	var lbRanks map[string]LbRank
+	leaderboardRanks := make(map[string]LeaderboardRank)
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
 		userData, err = service.user.GetUserByID(egCtx, userID)
-		return errutil.New("get user", err, "userID", userID)
+		return errutil.Wrap(
+			"get user", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = service.user.GetUserStats(egCtx, userID)
-		return errutil.New("get user stats", err, "userID", userID)
+		return errutil.Wrap(
+			"get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
-		lbRanks, err = service.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
-		return errutil.New("get user leaderboard ranks", err, "userID", userID)
+		leaderboardRanks, err = service.leaderboard.GetUserLeaderboardRanks(egCtx, userID, model.GameModeEnums)
+		return errutil.Wrap(
+			"get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
@@ -64,7 +67,7 @@ func (service *PersonaService) GetPersona(ctx context.Context, userID int64, per
 			UserID:  opt.Some(userID),
 			PerPage: perPage,
 		})
-		return errutil.New("get user replays", err, "userID", userID)
+		return errutil.Wrap("get user replays", err, "userID", userID)
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -73,10 +76,9 @@ func (service *PersonaService) GetPersona(ctx context.Context, userID int64, per
 
 	for i := range stats.ModeStats {
 		modeStats := &stats.ModeStats[i]
-		rank, ok := lbRanks[modeStats.Mode.String()]
+		rank, ok := leaderboardRanks[modeStats.Mode.String()]
 		if !ok {
-			slog.WarnContext(ctx, "missing leaderboard rank for full user", "mode", modeStats.Mode)
-			continue
+			return model.Persona{}, fmt.Errorf("user %d leaderboard rank is missing for mode: %s", userID, modeStats.Mode)
 		}
 		modeStats.Rank = rank.Rank
 	}

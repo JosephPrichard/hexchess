@@ -44,7 +44,7 @@ func TestLeaderboard(t *testing.T) {
 		require.NoError(t, service.SetLeaderboard(ctx, change))
 	}
 
-	ranks := make([]map[string]LbRank, 0)
+	ranks := make([]map[string]LeaderboardRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
 	for _, id := range []int64{id1, id2, id3, id4} {
@@ -69,7 +69,7 @@ func TestLeaderboard(t *testing.T) {
 		leaderboards = append(leaderboards, leaderboard)
 	}
 
-	wantRanks := []map[string]LbRank{
+	wantRanks := []map[string]LeaderboardRank{
 		{
 			model.ModeCorrespondence7.String(): {Rank: 1, Score: 1500},
 			model.ModeTimed1Plus0.String():     {Rank: 3, Score: 900}, // id1 has a value of "3" since id3 has not been lazily initialized yet

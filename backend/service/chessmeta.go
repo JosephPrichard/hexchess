@@ -34,8 +34,8 @@ func NewChessMetaService(
 	return &ChessMetaService{Database: database, entropy: entropy, broadcaster: broadcaster}
 }
 
-func (service *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) error {
-	defer perf.WithContext(ctx).Log()
+func (service *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) (err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	updtResult, err := service.Mutator().UpdateGameMeta(ctx, mutate.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
@@ -45,7 +45,7 @@ func (service *ChessMetaService) UpdateGameMetadata(ctx context.Context, updt mo
 		UpdatedOn: pgtype.Timestamptz{Time: service.entropy.GetTime(), Valid: true},
 	})
 	if err != nil {
-		return errutil.New("update game metadata", err, "updt", updt)
+		return errutil.Wrap("update game metadata", err, "updt", updt)
 	}
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "updtResult", updtResult)
 
@@ -60,10 +60,8 @@ type ChessMetasResp struct {
 	UserChessMetas []model.ChessMeta
 }
 
-func (service *ChessMetaService) GetGameMetadata(
-	ctx context.Context, player model.PlayerState, afterOrdering opt.Option[int64], count int32,
-) (ChessMetasResp, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *ChessMetaService) GetGameMetadata(ctx context.Context, player model.PlayerState, afterOrdering opt.Option[int64], count int32) (_ ChessMetasResp, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	var chessMetas []model.ChessMeta
 	var userChessMetas []model.ChessMeta
@@ -72,13 +70,13 @@ func (service *ChessMetaService) GetGameMetadata(
 
 	eg.Go(func() (err error) {
 		chessMetas, err = service.getGameMetadata(egCtx, opt.None[int64](), afterOrdering, opt.Some[int32](count))
-		return errutil.New(
+		return errutil.Wrap(
 			"get all game metadata after ordering", err, "afterOrdering", afterOrdering)
 	})
 	if player.Present {
 		eg.Go(func() (err error) {
 			userChessMetas, err = service.getGameMetadata(ctx, opt.Some[int64](player.ID), opt.None[int64](), opt.None[int32]())
-			return errutil.New(
+			return errutil.Wrap(
 				"get user game metadata", err, "userID", player.ID)
 		})
 	}
@@ -89,12 +87,12 @@ func (service *ChessMetaService) GetGameMetadata(
 	return ChessMetasResp{ChessMetas: chessMetas, UserChessMetas: userChessMetas}, nil
 }
 
-func (service *ChessMetaService) GetGameMetadataCount(ctx context.Context) (int64, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *ChessMetaService) GetGameMetadataCount(ctx context.Context) (_ int64, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	count, err := service.Querier().SelectGameMetasCount(ctx)
 	if err != nil {
-		return 0, errutil.New("count chess metadatas", err)
+		return 0, errutil.Wrap("count chess metadatas", err)
 	}
 
 	slog.InfoContext(ctx, "selected chess metadatas count", "count", count)
@@ -115,7 +113,7 @@ func (service *ChessMetaService) getGameMetadata(
 		PerPage:       database.MapOptInt4(count),
 	})
 	if err != nil {
-		return nil, errutil.New("select game metas", err, "userID", userID)
+		return nil, errutil.Wrap("select game metas", err, "userID", userID)
 	}
 
 	var chessMetas []model.ChessMeta

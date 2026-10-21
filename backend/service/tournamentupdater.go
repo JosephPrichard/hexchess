@@ -53,8 +53,8 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 
 var InsertionStatus = model.TournamentLobby.String()
 
-func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst TournamentInst) (int64, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst TournamentInst) (_ int64, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
 		return 0, ErrInvalidRounds
@@ -83,7 +83,7 @@ func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst Tou
 		Ruleset:       mutate.TournamentRulesetEnum(inst.Ruleset.String()),
 	})
 	if err != nil {
-		return 0, errutil.New("insert tournament", err, "inst", inst)
+		return 0, errutil.Wrap("insert tournament", err, "inst", inst)
 	}
 
 	slog.InfoContext(ctx, "created tournament", "tournamentKey", tournamentID, "inst", inst)
@@ -96,7 +96,7 @@ func (service *TournamentUpdater) LeaveTournament(ctx context.Context, tournamen
 		UserID:        userID,
 	})
 	if err != nil {
-		return false, errutil.New("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
+		return false, errutil.Wrap("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "deleted tournament participant", "key", tournamentKey, "deletedIDs", deletedIDs)
@@ -128,12 +128,10 @@ type JoinTournamentEvent struct {
 	Mode          model.GameMode
 }
 
-func (service *TournamentUpdater) JoinTournament(ctx context.Context, inst JoinTournamentInst) (JoinTournamentEvent, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *TournamentUpdater) JoinTournament(ctx context.Context, inst JoinTournamentInst) (event JoinTournamentEvent, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
-	var event JoinTournamentEvent
-
-	err := service.Database.ExecTx(ctx, database.TxArgs{
+	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and participant count P1, then inserts participants to create new participant count P2
@@ -146,7 +144,7 @@ func (service *TournamentUpdater) JoinTournament(ctx context.Context, inst JoinT
 		},
 	})
 
-	return event, err
+	return
 }
 
 func joinTournament(ctx context.Context, query database.QuerierMutator, inst JoinTournamentInst, event *JoinTournamentEvent) error {
@@ -154,7 +152,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 	if database.IsErrNoRows(err) {
 		return ErrTournamentNotFound
 	} else if err != nil {
-		return errutil.New("select tournament", err, "tournamentKey", inst.TournamentKey)
+		return errutil.Wrap("select tournament", err, "tournamentKey", inst.TournamentKey)
 	}
 
 	gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
@@ -182,7 +180,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 		if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
 			return svcErr
 		}
-		return errutil.New("insert tournament participant", dbErr, "inst", inst)
+		return errutil.Wrap("insert tournament participant", dbErr, "inst", inst)
 	}
 
 	slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
@@ -194,12 +192,10 @@ type BeginTourneyCountdown struct {
 	TournamentKey uuid.UUID
 }
 
-func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (BeginTourneyCountdown, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (tourneyCountdown BeginTourneyCountdown, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
-	var tourneyCountdown BeginTourneyCountdown
-
-	err := service.Database.ExecTx(ctx, database.TxArgs{
+	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 reads status S1 and uses it to decide to begin the countdown, creating a scheduled event E1 and setting the status to S3
@@ -212,13 +208,13 @@ func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, 
 		},
 	})
 
-	return tourneyCountdown, err
+	return
 }
 
 func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
 	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return errutil.New("select tournament by key", err, "key", tournamentKey)
+		return errutil.Wrap("select tournament by key", err, "key", tournamentKey)
 	}
 
 	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
@@ -239,14 +235,14 @@ func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, 
 		Status:             mutate.TournamentStatusEnum(nextTournamentStatus.String()),
 		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 	}); err != nil {
-		return errutil.New("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
+		return errutil.Wrap("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 	}
 
 	if err := service.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
 	}); err != nil {
-		return errutil.New("publish advance tournament event", err, "key", tournamentKey)
+		return errutil.Wrap("publish advance tournament event", err, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)

@@ -55,26 +55,26 @@ type FinishedGameResult struct {
 	GameID   model.GameID `json:"gameId"`
 }
 
-func (service *GameOverService) HandleFinishedGame(ctx context.Context, event model.FinishGameEvent) (FinishedGameResult, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *GameOverService) HandleFinishedGame(ctx context.Context, event model.FinishGameEvent) (_ FinishedGameResult, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	if err := service.backfillEvent(ctx, &event); err != nil {
-		return FinishedGameResult{}, errutil.New("backfill finish game event", err, "event", event)
+		return FinishedGameResult{}, errutil.Wrap("backfill finish game event", err, "event", event)
 	}
 
 	changeSet, err := service.InsertGameResult(ctx, event)
 	if err != nil {
-		return FinishedGameResult{}, errutil.New("insert finish game tx", err)
+		return FinishedGameResult{}, errutil.Wrap("insert finish game tx", err)
 	}
 
 	// persist history of a finished game (move and board data)
 	moveHistBlob, err := model.MarshalMoveHistory(chess.MoveHistory{InitialBoard: event.InitialBoard, MoveSeq: event.Moves})
 	if err != nil {
-		return FinishedGameResult{}, errutil.New("marshal move histories", err)
+		return FinishedGameResult{}, errutil.Wrap("marshal move histories", err)
 	}
 	// note: this happens outside the transaction, so we do need to hold a lock for an expended period of time.
 	if err := service.upsertReplayMoveHistories(ctx, changeSet.ReplayID, moveHistBlob); err != nil {
-		return FinishedGameResult{}, errutil.New("insert replay move histories", err)
+		return FinishedGameResult{}, errutil.Wrap("insert replay move histories", err)
 	}
 
 	if err := service.publishTournamentEvent(ctx, event); err != nil {
@@ -87,7 +87,7 @@ func (service *GameOverService) HandleFinishedGame(ctx context.Context, event mo
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.WinID, EloDiff: changeSet.WinEloDiff},
 		UpdtLbChangeSet{Mode: event.ReplayMode, ID: changeSet.LoseID, EloDiff: changeSet.LoseEloDiff},
 	); err != nil {
-		return FinishedGameResult{}, errutil.New("incr leaderboard", err, "changeSet", changeSet)
+		return FinishedGameResult{}, errutil.Wrap("incr leaderboard", err, "changeSet", changeSet)
 	}
 
 	slog.InfoContext(ctx, "completed inserting finished game event", "key", event.GameID)
@@ -99,7 +99,7 @@ func (service *GameOverService) backfillEvent(ctx context.Context, event *model.
 		// event is not fully provided on TIMEOUT cause, since it is published from a trigger
 		state, err := service.chessState.GetChessState(ctx, event.GameID)
 		if err != nil {
-			return errutil.New("get chess state", err, "gameID", event.GameID)
+			return errutil.Wrap("get chess state", err, "gameID", event.GameID)
 		}
 
 		// we need to compute who wins - it depends on who's turn the timer ran out on
@@ -127,14 +127,14 @@ func (service *GameOverService) publishTournamentEvent(ctx context.Context, even
 	case database.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", event.GameID)
 	case err != nil:
-		return errutil.New("select tournament by game id", err, "gameID", event.GameID)
+		return errutil.Wrap("select tournament by game id", err, "gameID", event.GameID)
 	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
 		// note: if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
 		if err := service.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
 			TournamentKey: tournamentKey.Bytes,
 		}); err != nil {
-			return errutil.New("publish scheduled tournament event", err)
+			return errutil.Wrap("publish scheduled tournament event", err)
 		}
 	}
 	return nil
@@ -145,7 +145,7 @@ func (service *GameOverService) upsertReplayMoveHistories(ctx context.Context, r
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {
-		return errutil.New("insert replay move histories", err)
+		return errutil.Wrap("insert replay move histories", err)
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func (service *GameOverService) updateLeaderboard(ctx context.Context, changes .
 		pipe.ZIncrBy(ctx, modeLbZSet, change.EloDiff, strconv.Itoa(int(change.ID)))
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		return errutil.New("incr leaderboard user", err)
+		return errutil.Wrap("incr leaderboard user", err)
 	}
 
 	slog.InfoContext(ctx, "updated leaderboard user", "changes", changes)
@@ -201,14 +201,12 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 	return changeSet.LoseEloDiff == 0 && changeSet.WinEloDiff == 0
 }
 
-func (service *GameOverService) InsertGameResult(ctx context.Context, event model.FinishGameEvent) (GameResultChangeSet, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *GameOverService) InsertGameResult(ctx context.Context, event model.FinishGameEvent) (changeSet GameResultChangeSet, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	gameResult := createGameResult(event)
 
-	var changeSet GameResultChangeSet
-
-	err := service.Database.ExecTx(ctx, database.TxArgs{
+	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// RepeatableRead is required to prevent the following race conditions
 		// Case 1 (Lost Update):
 		// T1 selects the user elos E1 and calculating and insert user elos E2
@@ -221,7 +219,7 @@ func (service *GameOverService) InsertGameResult(ctx context.Context, event mode
 		},
 	})
 
-	return changeSet, err
+	return
 }
 
 func insertGameResult(ctx context.Context, querier database.QuerierMutator, gameResult GameResult, changeSet *GameResultChangeSet) error {
@@ -234,7 +232,7 @@ func insertGameResult(ctx context.Context, querier database.QuerierMutator, game
 		*changeSet = GameResultChangeSet{ReplayID: existingReplayID, AlreadyExists: true}
 		return nil
 	} else if !database.IsErrNoRows(err) {
-		return errutil.New("select has replay with gameID", err)
+		return errutil.Wrap("select has replay with gameID", err)
 	}
 
 	// select the current state of stats for each game participant
@@ -246,7 +244,7 @@ func insertGameResult(ctx context.Context, querier database.QuerierMutator, game
 		Mode: query.ModeEnum(gameResult.ReplayMode.String()),
 	})
 	if err != nil {
-		return errutil.New("select users elo", err, "userIDs", userIDs)
+		return errutil.Wrap("select users elo", err, "userIDs", userIDs)
 	}
 
 	// compute and update the next state of stats for each game participant
@@ -266,7 +264,7 @@ func insertGameResult(ctx context.Context, querier database.QuerierMutator, game
 	replayInst := createInsertReplayParams(gameResult, *changeSet)
 	replayID, err := querier.InsertReplay(ctx, replayInst)
 	if err != nil {
-		return errutil.New("insert replay for result", err, "result", gameResult)
+		return errutil.Wrap("insert replay for result", err, "result", gameResult)
 	}
 
 	changeSet.ReplayID = replayID

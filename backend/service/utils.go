@@ -1,6 +1,13 @@
 package service
 
-import s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/redis/go-redis/v9"
+)
 
 func keysOfObjects(objects []s3Types.Object) []string {
 	var s []string
@@ -22,4 +29,11 @@ func keysOfObjectIDs(objects []s3Types.ObjectIdentifier) []string {
 		s = append(s, *o.Key)
 	}
 	return s
+}
+
+func pipelineExec(ctx context.Context, pipeline redis.Pipeliner) error {
+	if _, err := pipeline.Exec(ctx); err != nil && !errors.Is(redis.Nil, err) {
+		return fmt.Errorf("pipeline exec: %w", err)
+	}
+	return nil
 }

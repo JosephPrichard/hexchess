@@ -49,13 +49,13 @@ func NewTournamentAdvancer(
 	return &TournamentAdvancer{Database: database, user: user, gameplay: gameplay, broadcaster: broadcaster}
 }
 
-func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.GameID, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) (_ []model.GameID, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	// advance tournament on the database
 	matches, err := service.advanceTournament(ctx, tournamentKey, eventID)
 	if err != nil {
-		return nil, errutil.New("advance tournament", err, "key", tournamentKey)
+		return nil, errutil.Wrap("advance tournament", err, "key", tournamentKey)
 	}
 
 	// create playable games correlated with the committed matches
@@ -91,12 +91,10 @@ func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tourna
 
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
-func (service *TournamentAdvancer) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) ([]model.FullMatch, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *TournamentAdvancer) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) (createdMatches []model.FullMatch, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
-	var createdMatches []model.FullMatch
-
-	err := service.Database.ExecTx(ctx, database.TxArgs{
+	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Write Skew):
 		// T1 selects participationIDs P1 and creates and inserts NextMatches M1
@@ -114,13 +112,13 @@ func (service *TournamentAdvancer) advanceTournament(ctx context.Context, tourna
 		},
 	})
 
-	return createdMatches, err
+	return
 }
 
 func advanceTournament(ctx context.Context, query database.QuerierMutator, tournamentKey uuid.UUID, eventID uuid.UUID, createdMatches *[]model.FullMatch) error {
 	previousEvent, err := selectPreviousAdvanceEvent(ctx, query, eventID)
 	if err != nil {
-		return errutil.New("select previous advance tournament event", err, "eventID", eventID)
+		return errutil.Wrap("select previous advance tournament event", err, "eventID", eventID)
 	}
 	if previousEvent != nil {
 		*createdMatches = previousEvent.Creations
@@ -129,7 +127,7 @@ func advanceTournament(ctx context.Context, query database.QuerierMutator, tourn
 
 	tournament, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return errutil.New("select tournament by key", err, "key", tournamentKey)
+		return errutil.Wrap("select tournament by key", err, "key", tournamentKey)
 	}
 	status := enum.Expect(tournament.Status, model.TournamentStatusEnums)
 
@@ -139,13 +137,13 @@ func advanceTournament(ctx context.Context, query database.QuerierMutator, tourn
 	case model.TournamentScheduled:
 		output, err := advanceScheduledTournament(ctx, query, tournament)
 		if err != nil {
-			return errutil.New("advance scheduled tournament", err)
+			return errutil.Wrap("advance scheduled tournament", err)
 		}
 		matchmaking = output
 	case model.TournamentInProgress:
 		output, err := advanceInProgressTournament(ctx, query, tournament)
 		if err != nil {
-			return errutil.New("advance in progress tournament", err)
+			return errutil.Wrap("advance in progress tournament", err)
 		}
 		matchmaking = output
 	default:
@@ -184,7 +182,7 @@ func advanceScheduledTournament(ctx context.Context, query database.QuerierMutat
 
 	participantRows, err := query.SelectParticipantsForMatchmakingByTournamentID(ctx, tournament.TournamentKey)
 	if err != nil {
-		return MatchmakingOutput{}, errutil.New("select participant ids by tournament key", err, "tournamentKey", tournament.TournamentKey)
+		return MatchmakingOutput{}, errutil.Wrap("select participant ids by tournament key", err, "tournamentKey", tournament.TournamentKey)
 	}
 
 	participants := make([]FirstMatchParticipant, 0, len(participantRows))
@@ -210,7 +208,7 @@ func advanceInProgressTournament(ctx context.Context, query database.QuerierMuta
 
 	matchRows, err := query.SelectMatchesByTournamentID(ctx, tournament.TournamentKey)
 	if err != nil {
-		return MatchmakingOutput{}, errutil.New("select matches by tournament key", err, "tournamentKey", tournament.TournamentKey)
+		return MatchmakingOutput{}, errutil.Wrap("select matches by tournament key", err, "tournamentKey", tournament.TournamentKey)
 	}
 
 	completedMatches := make([]CompletedPrevMatch, 0, len(matchRows))
@@ -298,7 +296,7 @@ func insertTournamentMatches(
 		ID:   pgtype.UUID{Bytes: eventID, Valid: true},
 		Data: eventInput,
 	}); err != nil {
-		return nil, errutil.New("insert event with data", err, "eventID", eventID, "matchCreations", matches)
+		return nil, errutil.Wrap("insert event with data", err, "eventID", eventID, "matchCreations", matches)
 	}
 
 	// step 3: update tournament status
@@ -310,7 +308,7 @@ func insertTournamentMatches(
 		Rounds:        pgtype.Int4{Int32: output.TotalRounds, Valid: true},
 		WinnerID:      pgtype.Int8{Int64: output.WinnerID, Valid: shouldUpdateWinnerID},
 	}); err != nil {
-		return nil, errutil.New("update tournament status", err, "key", tournamentKey, "output", output)
+		return nil, errutil.Wrap("update tournament status", err, "key", tournamentKey, "output", output)
 	}
 
 	return matches, nil
@@ -323,7 +321,7 @@ func (service *TournamentAdvancer) constructMatchDataMap(ctx context.Context, ma
 	}
 	users, err := service.user.SelectUsersByIDs(ctx, userIDs)
 	if err != nil {
-		return nil, errutil.New("select user player data by ids", err)
+		return nil, errutil.Wrap("select user player data by ids", err)
 	}
 	userDataMap := make(map[int64]model.User)
 	for _, userAccount := range users {
@@ -354,7 +352,7 @@ func (service *TournamentAdvancer) setupGame(ctx context.Context, index int, mat
 		Black:      model.NewPlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 	})
 	if err != nil {
-		return errutil.New("create game", err, "index", index, "gameID", match.GameID)
+		return errutil.Wrap("create game", err, "index", index, "gameID", match.GameID)
 	}
 
 	return nil

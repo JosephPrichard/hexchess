@@ -42,7 +42,7 @@ func (service *GameCreateService) SetupGame(ctx context.Context, setup model.Sta
 	pipeliner := func(pipe redis.Pipeliner) error {
 		now := time.Now()
 		if err := service.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
-			return errutil.New("set chess state", err, "gameID", gameID)
+			return errutil.Wrap("set chess state", err, "gameID", gameID)
 		}
 		return produceUpdtGameMetadata(ctx, pipe, state)
 	}

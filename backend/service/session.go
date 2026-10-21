@@ -32,12 +32,12 @@ func (service *SessionService) GetSession(ctx context.Context, sessionID string)
 		if errors.Is(err, redis.Nil) {
 			return model.PlayerState{}, ErrSessionNotFound
 		}
-		return model.PlayerState{}, errutil.New("get session", err, "sessionID", sessionID)
+		return model.PlayerState{}, errutil.Wrap("get session", err, "sessionID", sessionID)
 	}
 
 	player, err := model.UnmarshalPlayer(bytes)
 	if err != nil {
-		return model.PlayerState{}, errutil.New("unmarshal session", err)
+		return model.PlayerState{}, errutil.Wrap("unmarshal session", err)
 	}
 	slog.InfoContext(ctx, "retrieved session", "sessionID", sessionID, "sessionKey", sessionKey, "player", player)
 	return player, nil
@@ -64,7 +64,7 @@ func (service *SessionService) SetSessions(ctx context.Context, insts ...Session
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		return errutil.New("set many sessions", err)
+		return errutil.Wrap("set many sessions", err)
 	}
 	return nil
 }
@@ -72,7 +72,7 @@ func (service *SessionService) SetSessions(ctx context.Context, insts ...Session
 func (service *SessionService) UpdateSessionEx(ctx context.Context, sessionID string, expiry time.Duration) error {
 	sessionKey := cache.FmtSessionKey(sessionID)
 	if err := service.redis.PrimaryClient.Expire(ctx, sessionKey, expiry).Err(); err != nil {
-		return errutil.New("update session expiry", err)
+		return errutil.Wrap("update session expiry", err)
 	}
 	slog.InfoContext(ctx, "updated session expiry", "sessionID", sessionID)
 	return nil
@@ -81,7 +81,7 @@ func (service *SessionService) UpdateSessionEx(ctx context.Context, sessionID st
 func (service *SessionService) DeleteSession(ctx context.Context, sessionID string) error {
 	sessionKey := cache.FmtSessionKey(sessionID)
 	if err := service.redis.PrimaryClient.Del(ctx, sessionKey).Err(); err != nil {
-		return errutil.New("delete session", err, "sessionID", sessionID)
+		return errutil.Wrap("delete session", err, "sessionID", sessionID)
 	}
 	slog.InfoContext(ctx, "deleted session", "sessionID", sessionID)
 	return nil

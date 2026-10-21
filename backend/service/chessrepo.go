@@ -47,12 +47,12 @@ func (service *ChessRepoService) getChessState(ctx context.Context, getter Redis
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrNoChessState
 	} else if err != nil {
-		return nil, errutil.New("get chess state in redis", err)
+		return nil, errutil.Wrap("get chess state in redis", err)
 	}
 
 	state, err := model.UnmarshalChessState(bytes)
 	if err != nil {
-		return nil, errutil.New("unmarshal chess state", err)
+		return nil, errutil.Wrap("unmarshal chess state", err)
 	}
 
 	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
@@ -69,12 +69,12 @@ type RedisChessSetter interface {
 	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
 }
 
-func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) error {
-	defer perf.WithContext(ctx).Log()
+func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) (err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	bytes, err := model.MarshalChessState(state)
 	if err != nil {
-		return errutil.New("marshal chess state", err)
+		return errutil.Wrap("marshal chess state", err)
 	}
 
 	gameKey := cache.FmtGameKey(id)
@@ -99,7 +99,7 @@ func (service *ChessRepoService) SetChessStates(ctx context.Context, chessStates
 
 		bytes, err := model.MarshalChessState(state)
 		if err != nil {
-			return errutil.New("marshal chess state", err)
+			return errutil.Wrap("marshal chess state", err)
 		}
 		gameKey := cache.FmtGameKey(state.ID)
 		pipe.SetNX(ctx, gameKey, bytes, 0)
@@ -122,8 +122,8 @@ var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max re
 type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
-func (service *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (*model.ChessState, error) {
-	defer perf.WithContext(ctx).Log()
+func (service *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (_ *model.ChessState, err error) {
+	defer perf.WithContext(ctx).LogMaybe(err)
 
 	gameKey := cache.FmtGameKey(gameID)
 

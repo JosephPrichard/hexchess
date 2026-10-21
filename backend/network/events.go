@@ -28,11 +28,11 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 
 	activeCount, err := server.service.GetActiveCount(ctx)
 	if err != nil {
-		return errutil.New("get active count", err)
+		return errutil.Wrap("get active count", err)
 	}
 	gamesCount, err := server.service.GetGameMetadataCount(ctx)
 	if err != nil {
-		return errutil.New("get chess state count", err)
+		return errutil.Wrap("get chess state count", err)
 	}
 
 	writeCountEvent(client, pubsub.GlobalActiveEvent, activeCount)
@@ -74,7 +74,7 @@ func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) e
 	strUserID := strconv.Itoa(int(player.ID))
 
 	if _, err := server.service.AddActiveUser(ctx, strUserID); err != nil {
-		return errutil.New("add active user", err)
+		return errutil.Wrap("add active user", err)
 	}
 
 	client.event(MetaEvent, strUserID)
