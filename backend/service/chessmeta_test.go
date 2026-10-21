@@ -1,7 +1,7 @@
 package service
 
 import (
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -80,7 +80,7 @@ func TestUpdateGameMetadata(t *testing.T) {
 	gameMeta, err := testinfra.Querier.SelectGameMeta(ctx, itest.GameID1.String())
 	require.NoError(t, err)
 
-	actualGameMeta := dbassert.GamesMetadatum{
+	actualGameMeta := testquery.GamesMetadatum{
 		GameID:    gameMeta.GameID,
 		Ordering:  5,
 		Mode:      "CORRESPONDENCE_1",

@@ -3,7 +3,7 @@ package service
 import (
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -132,8 +132,8 @@ func TestInsertGameResult(t *testing.T) {
 	tests := []struct {
 		name         string
 		resultInput  model.FinishGameEvent
-		wantUserElos []dbassert.UserModeElo
-		wantReplay   dbassert.Replay
+		wantUserElos []testquery.UserModeElo
+		wantReplay   testquery.Replay
 		wantChange   GameResultChangeSet
 	}{
 		{
@@ -147,11 +147,11 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeTimed1Plus0,
 				InsertedTime: now,
 			},
-			wantUserElos: []dbassert.UserModeElo{
-				{UserID: testUser0.ID, Mode: dbassert.ModeEnumTIMED10, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
-				{UserID: testUser1.ID, Mode: dbassert.ModeEnumTIMED10, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumTIMED10, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
+				{UserID: testUser1.ID, Mode: testquery.ModeEnumTIMED10, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
 			},
-			wantReplay: dbassert.Replay{
+			wantReplay: testquery.Replay{
 				GameID:      "game1",
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -180,11 +180,11 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence1,
 				InsertedTime: now,
 			},
-			wantUserElos: []dbassert.UserModeElo{
-				{UserID: testUser0.ID, Mode: dbassert.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
-				{UserID: testUser1.ID, Mode: dbassert.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
+				{UserID: testUser1.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
 			},
-			wantReplay: dbassert.Replay{
+			wantReplay: testquery.Replay{
 				GameID:      "game2",
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -217,11 +217,11 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []dbassert.UserModeElo{
-				{UserID: testUser0.ID, Mode: dbassert.ModeEnumCORRESPONDENCE7, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
-				{UserID: testUser1.ID, Mode: dbassert.ModeEnumCORRESPONDENCE7, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE7, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
+				{UserID: testUser1.ID, Mode: testquery.ModeEnumCORRESPONDENCE7, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
 			},
-			wantReplay: dbassert.Replay{
+			wantReplay: testquery.Replay{
 				GameID:      "game3",
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -254,10 +254,10 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []dbassert.UserModeElo{
-				{UserID: testUser0.ID, Mode: dbassert.ModeEnumCORRESPONDENCE7, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE7, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
 			},
-			wantReplay: dbassert.Replay{
+			wantReplay: testquery.Replay{
 				GameID:      itest.FirstReplayGameID,
 				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
 				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
@@ -283,8 +283,8 @@ func TestInsertGameResult(t *testing.T) {
 				ReplayMode:   model.ModeCorrespondence7,
 				InsertedTime: now,
 			},
-			wantUserElos: []dbassert.UserModeElo(nil), // not inserted.
-			wantReplay: dbassert.Replay{
+			wantUserElos: []testquery.UserModeElo(nil), // not inserted.
+			wantReplay: testquery.Replay{
 				GameID:      "game4",
 				WhiteID:     pgtype.Int8{},
 				BlackID:     pgtype.Int8{},
@@ -309,9 +309,9 @@ func TestInsertGameResult(t *testing.T) {
 			changeSet, err := service.InsertGameResult(ctx, tt.resultInput)
 			require.NoError(t, err)
 
-			userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, dbassert.SelectUserModeElosByIDsParams{
+			userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, testquery.SelectUserModeElosByIDsParams{
 				ID:   []int64{tt.resultInput.WhiteID, tt.resultInput.BlackID},
-				Mode: dbassert.ModeEnum(tt.resultInput.ReplayMode.String()),
+				Mode: testquery.ModeEnum(tt.resultInput.ReplayMode.String()),
 			})
 			require.NoError(t, err)
 
@@ -320,7 +320,7 @@ func TestInsertGameResult(t *testing.T) {
 			userReplay, err := testinfra.Querier.SelectReplayByID(ctx, changeSet.ReplayID)
 			require.NoError(t, err)
 
-			testutil.Equal(t, tt.wantReplay, userReplay, cmpopts.IgnoreFields(dbassert.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))
+			testutil.Equal(t, tt.wantReplay, userReplay, cmpopts.IgnoreFields(testquery.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))
 
 			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
 			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)

@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: assertions.sql
 
-package dbassert
+package testquery
 
 import (
 	"context"

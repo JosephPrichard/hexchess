@@ -4,7 +4,7 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/opt"
@@ -96,15 +96,15 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 
 	consumer.ConsumePartition(string(partitionID))
 
-	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, dbassert.SelectUserModeElosByIDsParams{
+	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, testquery.SelectUserModeElosByIDsParams{
 		ID:   []int64{whiteUser0.ID, blackUser1.ID},
-		Mode: dbassert.ModeEnumCORRESPONDENCE1,
+		Mode: testquery.ModeEnumCORRESPONDENCE1,
 	})
 	require.NoError(t, err)
 
-	wantUserElos := []dbassert.UserModeElo{
-		{UserID: whiteUser0.ID, Mode: dbassert.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},
-		{UserID: blackUser1.ID, Mode: dbassert.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1},
+	wantUserElos := []testquery.UserModeElo{
+		{UserID: whiteUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},
+		{UserID: blackUser1.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1},
 	}
 	assert.Equal(t, wantUserElos, userElos)
 
@@ -159,7 +159,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
 	require.NoError(t, err)
 
-	wantGameRow := dbassert.GamesMetadatum{
+	wantGameRow := testquery.GamesMetadatum{
 		Ordering:  4,
 		GameID:    gameID.String(),
 		Mode:      "CORRESPONDENCE_1",

@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 	"errors"
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
 
@@ -165,16 +165,16 @@ func TestDeleteChallenge(t *testing.T) {
 
 	key := Key{ChallengerID: 1, ChallengeeID: 2}
 
-	challengeBefore, err := testinfra.Querier.SelectChallenge(ctx, dbassert.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	challengeBefore, err := testinfra.Querier.SelectChallenge(ctx, testquery.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
 	dr, err := service.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
 	require.NoError(t, err)
 
-	_, errAfterDelete := testinfra.Querier.SelectChallenge(ctx, dbassert.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	_, errAfterDelete := testinfra.Querier.SelectChallenge(ctx, testquery.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
 	require.NoError(t, err)
 
-	challenge := dbassert.Challenge{
+	challenge := testquery.Challenge{
 		ChallengerID: key.ChallengerID,
 		ChallengeeID: key.ChallengeeID,
 		StartColor:   "RANDOM",

@@ -23,7 +23,6 @@ func New(message string, err error, values ...any) error {
 	if err == nil {
 		return nil
 	}
-
 	err = fmt.Errorf("%s: %w", message, err)
 
 	if len(values) == 0 {

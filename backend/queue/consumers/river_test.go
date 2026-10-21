@@ -1,7 +1,7 @@
 package consumers
 
 import (
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(dbassert.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(testquery.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	ctx := t.Context()
@@ -35,7 +35,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	wantMatches := []dbassert.TournamentMatch{
+	wantMatches := []testquery.TournamentMatch{
 		// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
 		{
 			TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},

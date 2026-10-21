@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
@@ -28,7 +28,7 @@ const (
 )
 
 type TestInfra struct {
-	Querier dbassert.Querier
+	Querier testquery.Querier
 
 	Database database.Database
 	Redis    cache.Redis
@@ -48,7 +48,7 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 	var infra TestInfra
 
 	// assertion clients for testing
-	infra.Querier = dbassert.New(pgPool)
+	infra.Querier = testquery.New(pgPool)
 
 	// infrastructure clients
 	infra.Database = database.NewDatabase(database.DatabasePools{Read: pgPool, Write: pgPool})

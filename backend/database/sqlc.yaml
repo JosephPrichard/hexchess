@@ -19,11 +19,11 @@ sql:
         out: "./mutate"
         emit_interface: true
   - engine: "postgresql"
-    queries: "./sql/dbassert"
+    queries: "./sql/testquery"
     schema: "./sql/schema.sql"
     gen:
       go:
-        package: "dbassert"
+        package: "testquery"
         sql_package: "pgx/v5"
-        out: "./dbassert"
+        out: "./testquery"
         emit_interface: true

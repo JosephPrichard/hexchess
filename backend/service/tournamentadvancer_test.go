@@ -2,7 +2,7 @@ package service
 
 import (
 	"errors"
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -32,7 +32,7 @@ func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvancer, itest.TestInf
 	return service, infra
 }
 
-var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(dbassert.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(testquery.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
 
 func TestAdvanceTournament_StoresMatches(t *testing.T) {
 	tests := []struct {
@@ -40,8 +40,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		tournamentKey uuid.UUID
 		eventID       uuid.UUID
 		wantErr       error
-		wantStatus    dbassert.TournamentStatusEnum
-		wantMatches   []dbassert.TournamentMatch
+		wantStatus    testquery.TournamentStatusEnum
+		wantMatches   []testquery.TournamentMatch
 	}{
 		// Precondition
 		{
@@ -70,8 +70,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "StartingKnockoutTournament",
 			tournamentKey: itest.Tournament2ScheduledKnockoutKey,
-			wantStatus:    dbassert.TournamentStatusEnumINPROGRESS,
-			wantMatches: []dbassert.TournamentMatch{
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
 				// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
@@ -90,8 +90,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "StartingRoundRobinTournament",
 			tournamentKey: itest.Tournament3ScheduledRoundRobinKey,
-			wantStatus:    dbassert.TournamentStatusEnumINPROGRESS,
-			wantMatches: []dbassert.TournamentMatch{
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
 				// tournament has 4 participants with join order of [1,2,3,4], so the matches go 1-2, 3-4
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament3ScheduledRoundRobinKey, Valid: true},
@@ -110,8 +110,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "StartingSwissTournament",
 			tournamentKey: itest.Tournament4ScheduledSwissKey,
-			wantStatus:    dbassert.TournamentStatusEnumINPROGRESS,
-			wantMatches: []dbassert.TournamentMatch{
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
 				// tournament has 4 participants with elo ordering of [6,5,2,1] for Correspondence1, so the matches go 6-2, 5-1
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament4ScheduledSwissKey, Valid: true},
@@ -131,8 +131,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "AdvanceKnockoutTournament",
 			tournamentKey: itest.Tournament5InProgressKnockoutKey,
-			wantStatus:    dbassert.TournamentStatusEnumINPROGRESS,
-			wantMatches: []dbassert.TournamentMatch{
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
 				// should not delete previous matches
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament5InProgressKnockoutKey, Valid: true},
@@ -158,8 +158,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "AdvanceRoundRobinTournament",
 			tournamentKey: itest.Tournament6InProgressRoundRobinKey,
-			wantStatus:    dbassert.TournamentStatusEnumINPROGRESS,
-			wantMatches: []dbassert.TournamentMatch{
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
 				// should not delete previous matches
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament6InProgressRoundRobinKey, Valid: true},
@@ -191,8 +191,8 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 		{
 			name:          "AdvanceSwissTournament",
 			tournamentKey: itest.Tournament7InProgressSwissKey,
-			wantStatus:    dbassert.TournamentStatusEnumINPROGRESS,
-			wantMatches: []dbassert.TournamentMatch{
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
 				// should not delete previous matches
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament7InProgressSwissKey, Valid: true},

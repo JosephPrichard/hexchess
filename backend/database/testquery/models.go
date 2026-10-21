@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.31.1
 
-package dbassert
+package testquery
 
 import (
 	"database/sql/driver"

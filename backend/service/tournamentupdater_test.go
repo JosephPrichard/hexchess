@@ -1,7 +1,7 @@
 package service
 
 import (
-	"hexchess-svc/database/dbassert"
+	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
@@ -51,7 +51,7 @@ func TestCreateTournament(t *testing.T) {
 	tournament, err := testinfra.Querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: key, Valid: true})
 	require.NoError(t, err)
 
-	wantTournament := dbassert.Tournament{
+	wantTournament := testquery.Tournament{
 		ID:            tournamentID,
 		Name:          "Tournaments 1",
 		TournamentKey: pgtype.UUID{Bytes: key, Valid: true},
@@ -77,7 +77,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 		userID                    int64
 		wantBeginTourneyCountdown BeginTourneyCountdown
 		wantErr                   error
-		wantTournamentStatus      dbassert.TournamentStatusEnum
+		wantTournamentStatus      testquery.TournamentStatusEnum
 	}{
 		{
 			name:          "StatusPreconditionFailed_Scheduled",
@@ -108,7 +108,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 			tournamentKey:             itest.Tournament0LobbyKey,
 			userID:                    1,
 			wantBeginTourneyCountdown: BeginTourneyCountdown{TournamentKey: itest.Tournament0LobbyKey},
-			wantTournamentStatus:      dbassert.TournamentStatusEnumSCHEDULED,
+			wantTournamentStatus:      testquery.TournamentStatusEnumSCHEDULED,
 		},
 	}
 
@@ -131,7 +131,7 @@ func TestBeginTournamentCountdown(t *testing.T) {
 	}
 }
 
-var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(dbassert.TournamentParticipant{}, "JoinedOn")
+var sqlcTournamentParticipantCmpOpts = cmpopts.IgnoreFields(testquery.TournamentParticipant{}, "JoinedOn")
 
 func TestJoinTournament(t *testing.T) {
 	service, testinfra := setupUpdateTournamentTest(t)
@@ -142,7 +142,7 @@ func TestJoinTournament(t *testing.T) {
 		inst             JoinTournamentInst
 		wantResult       JoinTournamentEvent
 		wantErr          error
-		wantParticipants []dbassert.TournamentParticipant
+		wantParticipants []testquery.TournamentParticipant
 	}{
 		{
 			name: "StatusPreconditionFailed",
@@ -170,7 +170,7 @@ func TestJoinTournament(t *testing.T) {
 				InsertionTime: time.Now(),
 			},
 			wantResult: JoinTournamentEvent{TournamentKey: itest.Tournament0LobbyKey, Mode: model.ModeCorrespondence1},
-			wantParticipants: []dbassert.TournamentParticipant{
+			wantParticipants: []testquery.TournamentParticipant{
 				{
 					TournamentKey: pgtype.UUID{Bytes: itest.Tournament0LobbyKey, Valid: true},
 					UserID:        1,
