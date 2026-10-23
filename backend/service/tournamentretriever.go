@@ -7,9 +7,9 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 	"strconv"
@@ -30,7 +30,7 @@ func NewRetrieveTournamentService(querier query.Querier, redis cache.Redis) *Tou
 }
 
 func (service *TournamentRetriever) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (_ model.FullTournament, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	var tournamentRow query.SelectTournamentByIDRow
 	var matchRows []query.SelectReplayMatchesByTournamentIDRow
@@ -40,19 +40,19 @@ func (service *TournamentRetriever) GetTournament(ctx context.Context, tournamen
 
 	eg.Go(func() (err error) {
 		tournamentRow, err = service.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Wrap(
+		return serrors.New(
 			"select tournament by key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		participantRows, err = service.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Wrap(
+		return serrors.New(
 			"select participants by tournament key", err, "key", tournamentKey)
 	})
 
 	eg.Go(func() (err error) {
 		matchRows, err = service.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
-		return errutil.Wrap(
+		return serrors.New(
 			"select replay matches by tournament key", err, "key", tournamentKey)
 	})
 
@@ -70,7 +70,7 @@ func (service *TournamentRetriever) GetTournament(ctx context.Context, tournamen
 
 	userLdbRanksMap, err := service.getParticipantsRank(ctx, tournament.Participants, tournament.Mode)
 	if err != nil {
-		return model.FullTournament{}, errutil.Wrap("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
+		return model.FullTournament{}, serrors.New("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
 	}
 	for i := range tournament.Participants {
 		tournament.Participants[i].Rank = userLdbRanksMap[tournament.Participants[i].ID]
@@ -108,7 +108,7 @@ func (service *TournamentRetriever) getParticipantsRank(ctx context.Context, par
 		if errors.Is(redis.Nil, err) {
 			continue
 		} else if err != nil {
-			return nil, errutil.Wrap("get participant rank for user", err, "userID", exec.userID)
+			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
 		}
 
 		leaderboardRanks[exec.userID] = MapLeaderboardRank(rank)
@@ -119,7 +119,7 @@ func (service *TournamentRetriever) getParticipantsRank(ctx context.Context, par
 }
 
 func (service *TournamentRetriever) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) (_ []model.Tournament, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	if !afterID.Present {
 		afterID.Value = int64(math.MaxInt64)
@@ -134,7 +134,7 @@ func (service *TournamentRetriever) GetTournaments(ctx context.Context, particip
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, errutil.Wrap("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
+			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
 		}
 		tournaments = mapTournamentsByParticipantRows(tournamentRows)
 	} else {
@@ -143,7 +143,7 @@ func (service *TournamentRetriever) GetTournaments(ctx context.Context, particip
 			PerPage: perPage,
 		})
 		if err != nil {
-			return nil, errutil.Wrap("select tournaments after id", err, "afterID", afterID)
+			return nil, serrors.New("select tournaments after id", err, "afterID", afterID)
 		}
 		tournaments = mapTournamentsRows(tournamentRows)
 	}

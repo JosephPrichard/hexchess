@@ -9,8 +9,8 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
@@ -54,7 +54,7 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 var InsertionStatus = model.TournamentLobby.String()
 
 func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst TournamentInst) (_ int64, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
 		return 0, ErrInvalidRounds
@@ -83,7 +83,7 @@ func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst Tou
 		Ruleset:       mutate.TournamentRulesetEnum(inst.Ruleset.String()),
 	})
 	if err != nil {
-		return 0, errutil.Wrap("insert tournament", err, "inst", inst)
+		return 0, serrors.New("insert tournament", err, "inst", inst)
 	}
 
 	slog.InfoContext(ctx, "created tournament", "tournamentKey", tournamentID, "inst", inst)
@@ -96,7 +96,7 @@ func (service *TournamentUpdater) LeaveTournament(ctx context.Context, tournamen
 		UserID:        userID,
 	})
 	if err != nil {
-		return false, errutil.Wrap("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
+		return false, serrors.New("delete participant from tournament", err, "userID", userID, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "deleted tournament participant", "key", tournamentKey, "deletedIDs", deletedIDs)
@@ -129,7 +129,7 @@ type JoinTournamentEvent struct {
 }
 
 func (service *TournamentUpdater) JoinTournament(ctx context.Context, inst JoinTournamentInst) (event JoinTournamentEvent, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -152,7 +152,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 	if database.IsErrNoRows(err) {
 		return ErrTournamentNotFound
 	} else if err != nil {
-		return errutil.Wrap("select tournament", err, "tournamentKey", inst.TournamentKey)
+		return serrors.New("select tournament", err, "tournamentKey", inst.TournamentKey)
 	}
 
 	gameMode := enum.Expect(tournamentRow.Mode, model.GameModeEnums)
@@ -180,7 +180,7 @@ func joinTournament(ctx context.Context, query database.QuerierMutator, inst Joi
 		if svcErr := mapParticipantInsertErr(dbErr); svcErr != nil {
 			return svcErr
 		}
-		return errutil.Wrap("insert tournament participant", dbErr, "inst", inst)
+		return serrors.New("insert tournament participant", dbErr, "inst", inst)
 	}
 
 	slog.InfoContext(ctx, "joined tournament", "tournamentKey", inst.TournamentKey, "tournamentRow", tournamentRow, "joiningUserID", inst.JoiningUserID)
@@ -193,7 +193,7 @@ type BeginTourneyCountdown struct {
 }
 
 func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (tourneyCountdown BeginTourneyCountdown, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -214,7 +214,7 @@ func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, 
 func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
 	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
-		return errutil.Wrap("select tournament by key", err, "key", tournamentKey)
+		return serrors.New("select tournament by key", err, "key", tournamentKey)
 	}
 
 	tournamentStatus := enum.Expect(tournamentRow.Status, model.TournamentStatusEnums)
@@ -235,14 +235,14 @@ func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, 
 		Status:             mutate.TournamentStatusEnum(nextTournamentStatus.String()),
 		UpdatedOn:          pgtype.Timestamptz{Time: updtTournamentTime, Valid: true},
 	}); err != nil {
-		return errutil.Wrap("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
+		return serrors.New("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 	}
 
 	if err := service.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
 	}); err != nil {
-		return errutil.Wrap("publish advance tournament event", err, "key", tournamentKey)
+		return serrors.New("publish advance tournament event", err, "key", tournamentKey)
 	}
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)

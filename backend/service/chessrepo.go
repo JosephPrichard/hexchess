@@ -5,8 +5,8 @@ import (
 	"errors"
 	"hexchess-svc/cache"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
@@ -47,12 +47,12 @@ func (service *ChessRepoService) getChessState(ctx context.Context, getter Redis
 	if errors.Is(err, redis.Nil) {
 		return nil, ErrNoChessState
 	} else if err != nil {
-		return nil, errutil.Wrap("get chess state in redis", err)
+		return nil, serrors.New("get chess state in redis", err)
 	}
 
 	state, err := model.UnmarshalChessState(bytes)
 	if err != nil {
-		return nil, errutil.Wrap("unmarshal chess state", err)
+		return nil, serrors.New("unmarshal chess state", err)
 	}
 
 	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
@@ -70,11 +70,11 @@ type RedisChessSetter interface {
 }
 
 func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) (err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	bytes, err := model.MarshalChessState(state)
 	if err != nil {
-		return errutil.Wrap("marshal chess state", err)
+		return serrors.New("marshal chess state", err)
 	}
 
 	gameKey := cache.FmtGameKey(id)
@@ -99,7 +99,7 @@ func (service *ChessRepoService) SetChessStates(ctx context.Context, chessStates
 
 		bytes, err := model.MarshalChessState(state)
 		if err != nil {
-			return errutil.Wrap("marshal chess state", err)
+			return serrors.New("marshal chess state", err)
 		}
 		gameKey := cache.FmtGameKey(state.ID)
 		pipe.SetNX(ctx, gameKey, bytes, 0)
@@ -123,7 +123,7 @@ type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
 func (service *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (_ *model.ChessState, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	gameKey := cache.FmtGameKey(gameID)
 

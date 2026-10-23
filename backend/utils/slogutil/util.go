@@ -48,10 +48,19 @@ func Fatal(msg string, err error, args ...any) {
 	os.Exit(1)
 }
 
-func Level(err error) slog.Level {
+func ErrorLevel(err error) slog.Level {
 	if err != nil {
 		return slog.LevelError
 	} else {
 		return slog.LevelInfo
 	}
+}
+
+func ErrorsLevel(errs []error) slog.Level {
+	for _, err := range errs {
+		if err != nil {
+			return slog.LevelError
+		}
+	}
+	return slog.LevelInfo
 }

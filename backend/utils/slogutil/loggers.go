@@ -3,7 +3,7 @@ package slogutil
 import (
 	"context"
 	"errors"
-	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"os"
 )
@@ -57,7 +57,7 @@ func (h *LogRecordHandler) Handle(ctx context.Context, r slog.Record) error {
 
 	r.Attrs(func(attr slog.Attr) bool {
 		value := attr.Value.Any()
-		if serviceError, ok := value.(*errutil.ServiceError); ok {
+		if serviceError, ok := value.(*serrors.ServiceError); ok {
 			serviceError.Walk(serviceErrorValues)
 		}
 		return true

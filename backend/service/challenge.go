@@ -10,8 +10,8 @@ import (
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"time"
 
@@ -47,7 +47,7 @@ type ChallengeInst struct {
 }
 
 func (service *ChallengeService) InsertChallenge(ctx context.Context, inst ChallengeInst) (_ model.Challenge, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	if inst.ChallengerID == inst.ChallengeeID {
 		return model.Challenge{}, ErrSelfChallenge
@@ -67,7 +67,7 @@ func (service *ChallengeService) InsertChallenge(ctx context.Context, inst Chall
 		if svcErr := mapChallengeInsertErr(dbErr); svcErr != nil {
 			return model.Challenge{}, svcErr
 		}
-		return model.Challenge{}, errutil.Wrap("insert challenge", dbErr, "inst", inst)
+		return model.Challenge{}, serrors.New("insert challenge", dbErr, "inst", inst)
 	}
 
 	challenge := model.Challenge{
@@ -135,7 +135,7 @@ type Key struct {
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
 func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context, key Key) (_ []model.Challenge, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	since := service.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
@@ -145,7 +145,7 @@ func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context,
 		Since:        pgtype.Timestamptz{Valid: true, Time: since},
 	})
 	if err != nil {
-		return nil, errutil.Wrap("get challenges by participant", err, "key", key)
+		return nil, serrors.New("get challenges by participant", err, "key", key)
 	}
 
 	challenges := make([]model.Challenge, 0, len(rows))
@@ -178,7 +178,7 @@ type DeleteResult struct {
 }
 
 func (service *ChallengeService) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (_ DeleteResult, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	params := mutate.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
@@ -186,7 +186,7 @@ func (service *ChallengeService) DeleteChallenge(ctx context.Context, challenger
 	if database.IsErrNoRows(err) {
 		return DeleteResult{}, ErrChallengeNotFound
 	} else if err != nil {
-		return DeleteResult{}, errutil.Wrap("delete challenge", err, "params", params)
+		return DeleteResult{}, serrors.New("delete challenge", err, "params", params)
 	}
 
 	gameColor := enum.Expect(challengeRow.StartColor, model.GameColorEnums)
@@ -203,7 +203,7 @@ func (service *ChallengeService) DeleteChallenge(ctx context.Context, challenger
 }
 
 func (service *ChallengeService) DeleteExpiredChallenges(ctx context.Context, userID int64) (err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := service.entropy.GetTime().Add(-ExpireChallengeMaxAge)
@@ -212,7 +212,7 @@ func (service *ChallengeService) DeleteExpiredChallenges(ctx context.Context, us
 		UserID: userID,
 		Before: pgtype.Timestamptz{Valid: true, Time: beforeTime},
 	})
-	slog.Log(ctx, slogutil.Level(err), "deleted expired challenges", "error", err, "userID", userID, "expireTime", beforeTime)
+	slog.Log(ctx, slogutil.ErrorLevel(err), "deleted expired challenges", "error", err, "userID", userID, "expireTime", beforeTime)
 	return nil
 }
 

@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/serrors"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -42,7 +42,7 @@ func (service *GameCreateService) SetupGame(ctx context.Context, setup model.Sta
 	pipeliner := func(pipe redis.Pipeliner) error {
 		now := time.Now()
 		if err := service.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
-			return errutil.Wrap("set chess state", err, "gameID", gameID)
+			return serrors.New("set chess state", err, "gameID", gameID)
 		}
 		return produceUpdtGameMetadata(ctx, pipe, state)
 	}

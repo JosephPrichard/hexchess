@@ -5,7 +5,7 @@ import (
 	"errors"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database/query"
-	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"sync"
 
@@ -79,7 +79,7 @@ func (service *OrphanService) removeOrphanedObjects(ctx context.Context, opts Re
 		// list keys for this page.
 		listObjects, err := paginator.NextPage(ctx)
 		if err != nil {
-			return errutil.Wrap("list objects", err, "page", page, "bucket", opts.Bucket, "prefix", opts.Prefix)
+			return serrors.New("list objects", err, "page", page, "bucket", opts.Bucket, "prefix", opts.Prefix)
 		}
 		page++
 
@@ -110,7 +110,7 @@ func (service *OrphanService) removeOrphanedObjects(ctx context.Context, opts Re
 		// find orphaned keys, and store them in a map.
 		validIDs, err := opts.selectIDs(ctx, ids)
 		if err != nil {
-			return errutil.Wrap("select object IDs", err, "ids", ids)
+			return serrors.New("select object IDs", err, "ids", ids)
 		}
 		existingObjectIDs := make(map[int64]bool, len(validIDs))
 		for _, objectID := range validIDs {

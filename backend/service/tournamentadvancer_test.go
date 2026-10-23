@@ -1,7 +1,6 @@
 package service
 
 import (
-	"errors"
 	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
@@ -253,16 +252,6 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 				testutil.Equal(t, tt.wantStatus, tournament.Status)
 			}
 		})
-	}
-}
-
-func leafError(err error) error {
-	for {
-		unwrapped := errors.Unwrap(err)
-		if unwrapped == nil {
-			return err
-		}
-		err = unwrapped
 	}
 }
 

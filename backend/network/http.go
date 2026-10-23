@@ -168,7 +168,7 @@ func NewHttpServices(setup HttpServerConfig) HttpServices {
 
 	userService := service.NewUserService(setup.Database)
 	replayService := service.NewReplayService(setup.Database)
-	replaySearchService := service.NewSearchService(setup.Database)
+	replaySearchService := service.NewReplaySearchService(setup.Database)
 	challengeService := service.NewChallengeService(setup.Database, setup.Entropy)
 
 	leaderboardService := service.NewLeaderboardService(setup.Redis, setup.Database.Querier())

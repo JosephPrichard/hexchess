@@ -37,3 +37,13 @@ func pipelineExec(ctx context.Context, pipeline redis.Pipeliner) error {
 	}
 	return nil
 }
+
+func leafError(err error) error {
+	for {
+		unwrapped := errors.Unwrap(err)
+		if unwrapped == nil {
+			return err
+		}
+		err = unwrapped
+	}
+}

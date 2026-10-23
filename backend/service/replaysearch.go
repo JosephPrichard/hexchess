@@ -7,9 +7,9 @@ import (
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/enum"
-	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 	"math"
 	"time"
@@ -21,7 +21,7 @@ type ReplaySearchService struct {
 	database.Database
 }
 
-func NewSearchService(database database.Database) *ReplaySearchService {
+func NewReplaySearchService(database database.Database) *ReplaySearchService {
 	return &ReplaySearchService{Database: database}
 }
 
@@ -71,7 +71,7 @@ var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
 func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQuerySortKeyEntries) }
 
 func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qry ReplaysQuery) (_ []model.FullReplay, err error) {
-	defer perf.WithContext(ctx).LogMaybe(err)
+	defer perf.WithContext(ctx).LogFailable(err)
 
 	// get any userIDs requested through the username queries
 	byNameRequests := []IDByNameRequest{
@@ -127,7 +127,7 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 	}
 	replayRows, err := service.Querier().SelectReplaysByQuery(ctx, params)
 	if err != nil {
-		return nil, errutil.Wrap("select replays by query", err)
+		return nil, serrors.New("select replays by query", err)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -167,7 +167,7 @@ func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, reque
 
 	userRows, err := service.Querier().SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
-		return errutil.Wrap("select user ids by names", err, "usernames", usernames)
+		return serrors.New("select user ids by names", err, "usernames", usernames)
 	}
 
 	userIDs := make(map[string]int64)

@@ -37,7 +37,7 @@ func (p Performance) Log() {
 	slog.InfoContext(p.ctx, "performance measurement", "function", p.name, "timeTaken", time.Since(p.start).String())
 }
 
-// LogMaybe is a variant of Log that allows the caller to record of the operation that is being measured failed or not
-func (p Performance) LogMaybe(err error) {
+// LogFailable is a variant of Log that allows the caller to record of the operation that is being measured failed or not
+func (p Performance) LogFailable(err error) {
 	slog.InfoContext(p.ctx, "performance measurement", "error", err, "function", p.name, "timeTaken", time.Since(p.start).String())
 }

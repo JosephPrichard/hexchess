@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/database/query"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/serrors"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
@@ -27,14 +27,14 @@ func (service *ChatService) GetChats(ctx context.Context, gameID model.GameID, c
 
 	strList, err := service.redis.PrimaryClient.ZRevRange(ctx, chatsZSet, 0, count).Result()
 	if err != nil {
-		return nil, errutil.Wrap("retrieve chats", err, "count", count)
+		return nil, serrors.New("retrieve chats", err, "count", count)
 	}
 
 	chats := make([]model.Chat, 0, len(strList))
 	for i, str := range strList {
 		chat, err := model.UnmarshalChat([]byte(str))
 		if err != nil {
-			return nil, errutil.Wrap("unmarshal chat", err, "index", i, "gameID", gameID)
+			return nil, serrors.New("unmarshal chat", err, "index", i, "gameID", gameID)
 		}
 		chats = append(chats, chat)
 	}
@@ -46,12 +46,12 @@ func (service *ChatService) GetChats(ctx context.Context, gameID model.GameID, c
 func (service *ChatService) InsertChat(ctx context.Context, gameID model.GameID, chat model.Chat) error {
 	bytes, err := model.SerializeChat(chat).MarshalVT()
 	if err != nil {
-		return errutil.Wrap("marshal chat", err)
+		return serrors.New("marshal chat", err)
 	}
 
 	chatsZSet := cache.FmtGameChatsZSet(gameID)
 	if err := service.redis.PrimaryClient.ZAdd(ctx, chatsZSet, redis.Z{Score: float64(chat.SentAt.UnixMilli()), Member: bytes}).Err(); err != nil {
-		return errutil.Wrap("add chat to set", err, "chat", chat)
+		return serrors.New("add chat to set", err, "chat", chat)
 	}
 
 	slog.InfoContext(ctx, "inserted state chat", "chat", chat, "zSetName", chatsZSet)
