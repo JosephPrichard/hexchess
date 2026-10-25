@@ -33,7 +33,7 @@ type HttpServices struct {
 	*service.ReplayService
 	*service.ReplaySearchService
 	*service.LeaderboardService
-	*service.ChessMetaService
+	*service.ChessMetadataService
 	*service.ChessRepoService
 	*service.GamePlayService
 	*service.GameCreateService
@@ -171,48 +171,48 @@ func NewHttpServices(setup HttpServerConfig) HttpServices {
 	replaySearchService := service.NewReplaySearchService(setup.Database)
 	challengeService := service.NewChallengeService(setup.Database, setup.Entropy)
 
-	leaderboardService := service.NewLeaderboardService(setup.Redis, setup.Database.Querier())
+	leaderboardService := service.NewLeaderboardService(setup.Redis, setup.Database.Querier)
 
-	chessMetaService := service.NewChessMetaService(setup.Database, setup.Entropy, setup.Broadcaster)
+	chessMetaService := service.NewChessMetadataService(setup.Database, setup.Entropy, setup.Broadcaster)
 	chessRepoService := service.NewChessRepoService(setup.Redis)
 	gameplayService := service.NewGameplayService(setup.Redis, chessRepoService)
 	gameCreateService := service.NewGameCreateService(setup.Redis, chessRepoService)
 
-	orphanService := service.NewOrphanService(setup.AWS, setup.Database.Querier())
+	orphanService := service.NewOrphanService(setup.AWS, setup.Database.Querier)
 	profileService := service.NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
 
 	sessionService := service.NewSessionService(setup.Redis)
 
-	updateTournamentService := service.NewTournamentUpdater(setup.Database, setup.Redis, riverProducer)
-	retrieveTournamentService := service.NewRetrieveTournamentService(setup.Database.Querier(), setup.Redis)
-	tournamentBroadcaster := service.NewTournamentNotifier(leaderboardService, setup.Broadcaster)
+	tournamentUpdater := service.NewTournamentUpdater(setup.Database, setup.Redis, riverProducer)
+	tournamentRetriever := service.NewRetrieveTournamentService(setup.Database.Querier, setup.Redis)
+	tournamentNotifier := service.NewTournamentNotifier(leaderboardService, setup.Broadcaster)
 
 	activeUserService := service.NewActiveUserService(setup.Redis, setup.Broadcaster)
-	chatService := service.NewChatService(setup.Redis, setup.Database.Querier(), setup.Entropy)
+	chatService := service.NewChatService(setup.Redis, setup.Database.Querier, setup.Entropy)
 
-	participantService := service.NewPersonaService(userService, leaderboardService, replaySearchService)
+	personaOrchestrator := service.NewPersonaService(setup.Database, setup.Redis)
 
 	authTokenService := service.NewAuthTokenService(setup.SDKs)
 
 	return HttpServices{
-		UserService:         userService,
-		ReplayService:       replayService,
-		ReplaySearchService: replaySearchService,
-		ChallengeService:    challengeService,
-		LeaderboardService:  leaderboardService,
-		ChessMetaService:    chessMetaService,
-		ChessRepoService:    chessRepoService,
-		GamePlayService:     gameplayService,
-		GameCreateService:   gameCreateService,
-		OrphanService:       orphanService,
-		ProfileService:      profileService,
-		SessionService:      sessionService,
-		TournamentUpdater:   updateTournamentService,
-		TournamentRetriever: retrieveTournamentService,
-		TournamentNotifier:  tournamentBroadcaster,
-		ActiveUserService:   activeUserService,
-		ChatService:         chatService,
-		PersonaService:      participantService,
-		AuthTokenService:    authTokenService,
+		UserService:          userService,
+		ReplayService:        replayService,
+		ReplaySearchService:  replaySearchService,
+		ChallengeService:     challengeService,
+		LeaderboardService:   leaderboardService,
+		ChessMetadataService: chessMetaService,
+		ChessRepoService:     chessRepoService,
+		GamePlayService:      gameplayService,
+		GameCreateService:    gameCreateService,
+		OrphanService:        orphanService,
+		ProfileService:       profileService,
+		SessionService:       sessionService,
+		TournamentUpdater:    tournamentUpdater,
+		TournamentRetriever:  tournamentRetriever,
+		TournamentNotifier:   tournamentNotifier,
+		ActiveUserService:    activeUserService,
+		ChatService:          chatService,
+		PersonaService:       personaOrchestrator,
+		AuthTokenService:     authTokenService,
 	}
 }

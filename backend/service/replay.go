@@ -27,12 +27,12 @@ func NewReplayService(database database.Database) *ReplayService {
 }
 
 func (service *ReplayService) GetReplayByGameID(ctx context.Context, gameID string) (model.FullReplay, error) {
-	row, err := service.Querier().SelectReplayByGameID(ctx, gameID)
+	row, err := service.Querier.SelectReplayByGameID(ctx, gameID)
 	return mapGetReplayResult(ctx, gameID, query.SelectReplayByIDRow(row), err)
 }
 
 func (service *ReplayService) GetReplay(ctx context.Context, replayID int64) (model.FullReplay, error) {
-	row, err := service.Querier().SelectReplayByID(ctx, replayID)
+	row, err := service.Querier.SelectReplayByID(ctx, replayID)
 	return mapGetReplayResult(ctx, replayID, row, err)
 }
 
@@ -84,7 +84,7 @@ func mapReplayByIDRow(row query.SelectReplayByIDRow) model.Replay {
 }
 
 func (service *ReplayService) GetMovesHistory(ctx context.Context, replayID int) ([]byte, error) {
-	row, err := service.Querier().SelectReplayMoveHistoryByID(ctx, int64(replayID))
+	row, err := service.Querier.SelectReplayMoveHistoryByID(ctx, int64(replayID))
 	if err != nil {
 		return nil, serrors.New("select replay move histories", err, "replayID", replayID)
 	}
@@ -128,7 +128,7 @@ func (service *ReplayService) RetrieveEloHistoryBuckets(ctx context.Context, par
 		playedAfter = pgtype.Timestamptz{Valid: true, Time: params.TimeUntil.AddDate(0, -int(params.Months), 0)}
 	}
 
-	eloRows, err := service.Querier().SelectReplayElos(ctx, query.SelectReplayElosParams{
+	eloRows, err := service.Querier.SelectReplayElos(ctx, query.SelectReplayElosParams{
 		ID:          pgtype.Int8{Int64: params.UserID, Valid: true},
 		PlayedAfter: playedAfter,
 	})

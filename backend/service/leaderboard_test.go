@@ -17,7 +17,7 @@ import (
 func setupLeaderboardTest(t slogutil.TestLogger) (*LeaderboardService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewLeaderboardService(infra.Redis, infra.Database.Querier())
+	service := NewLeaderboardService(infra.Redis, infra.Database.Querier)
 
 	return service, infra
 }
@@ -44,17 +44,8 @@ func TestLeaderboard(t *testing.T) {
 		require.NoError(t, service.SetLeaderboard(ctx, change))
 	}
 
-	ranks := make([]map[string]LeaderboardRank, 0)
 	leaderboards := make([]Leaderboard, 0)
 
-	for _, id := range []int64{id1, id2, id3, id4} {
-		rank, err := service.GetUserLeaderboardRanks(ctx, id, map[string]model.GameMode{
-			"CORRESPONDENCE_7": model.ModeCorrespondence7,
-			"TIMED_1+0":        model.ModeTimed1Plus0,
-		})
-		require.NoError(t, err)
-		ranks = append(ranks, rank)
-	}
 	for _, args := range []struct {
 		mode   model.GameMode
 		offset int64
@@ -64,30 +55,10 @@ func TestLeaderboard(t *testing.T) {
 		{model.ModeCorrespondence7, 1, 2},
 		{model.ModeTimed1Plus0, 0, 4},
 	} {
-		leaderboard, err := service.getLeaderboard(ctx, args.mode, args.offset, args.limit)
+		leaderboard, err := service.GetLeaderboard(ctx, args.mode, args.offset, args.limit)
 		require.NoError(t, err)
 		leaderboards = append(leaderboards, leaderboard)
 	}
-
-	wantRanks := []map[string]LeaderboardRank{
-		{
-			model.ModeCorrespondence7.String(): {Rank: 1, Score: 1500},
-			model.ModeTimed1Plus0.String():     {Rank: 3, Score: 900}, // id1 has a value of "3" since id3 has not been lazily initialized yet
-		},
-		{
-			model.ModeCorrespondence7.String(): {Rank: 2, Score: 1000},
-			model.ModeTimed1Plus0.String():     {Rank: 1, Score: 1400},
-		},
-		{
-			model.ModeCorrespondence7.String(): {Rank: 3, Score: 950},
-			model.ModeTimed1Plus0.String():     {Rank: 3, Score: 1000},
-		},
-		{
-			model.ModeCorrespondence7.String(): {Rank: 4, Score: 835},
-			model.ModeTimed1Plus0.String():     {Rank: 2, Score: 1010},
-		},
-	}
-	assert.Equal(t, wantRanks, ranks)
 
 	wantLeaderboards := []Leaderboard{
 		{
@@ -99,11 +70,11 @@ func TestLeaderboard(t *testing.T) {
 			PageCount:   2,
 		},
 		{
-			RankedUsers: []RankedUser{{ID: id2, Rank: 1}, {ID: id4, Rank: 2}, {ID: id3, Rank: 3}, {ID: id1, Rank: 4}},
+			RankedUsers: []RankedUser{{ID: id2, Rank: 1}, {ID: id4, Rank: 2}, {ID: id1, Rank: 3}},
 			PageCount:   1,
 		},
 	}
-	assert.Equal(t, wantLeaderboards, leaderboards)
+	testutil.Equal(t, wantLeaderboards, leaderboards)
 }
 
 func TestGetFullLeaderboardUsers(t *testing.T) {
@@ -120,7 +91,7 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 999999}},
 			wantLeaderboard: []model.LbdUser{
 				{
-					User:       model.User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow,
 					Elo:        1050,
 					HighestElo: 1050,
 					Wins:       6,
@@ -137,7 +108,10 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 			rankedUsers: []RankedUser{{Rank: 1, ID: 1}, {Rank: 2, ID: 3}},
 			wantLeaderboard: []model.LbdUser{
 				{
-					User:       model.User{ID: 1, Username: "user1", Country: "us", JoinedOn: itest.TimeNow},
+					ID:         1,
+					Username:   "user1",
+					Country:    "us",
+					JoinedOn:   itest.TimeNow,
 					Elo:        1000,
 					HighestElo: 1000,
 					Wins:       2,
@@ -146,7 +120,10 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 					Rank:       1,
 				},
 				{
-					User:       model.User{ID: 3, Username: "user3", Country: "us", JoinedOn: itest.TimeNow},
+					ID:         3,
+					Username:   "user3",
+					Country:    "us",
+					JoinedOn:   itest.TimeNow,
 					Elo:        900,
 					HighestElo: 900,
 					Rank:       2,
@@ -181,7 +158,11 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 
 	wantUsers := []model.LbdUser{
 		{
-			User:       model.User{ID: 8, Username: "john", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			ID:         8,
+			Username:   "john",
+			Country:    "us",
+			Bio:        "",
+			JoinedOn:   time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
 			Elo:        1500,
 			HighestElo: 2000,
 			Wins:       12,
@@ -190,7 +171,11 @@ func TestGetFuzzySearchLeaderboard(t *testing.T) {
 			Rank:       1,
 		},
 		{
-			User:       model.User{ID: 9, Username: "johnny", Country: "us", Bio: "", JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+			ID:         9,
+			Username:   "johnny",
+			Country:    "us",
+			Bio:        "",
+			JoinedOn:   time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
 			Elo:        1500,
 			HighestElo: 1500,
 			Wins:       5,

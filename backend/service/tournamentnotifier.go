@@ -19,10 +19,7 @@ type TournamentLeaderboardGetter interface {
 	GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (model.LbdUser, error)
 }
 
-func NewTournamentNotifier(
-	leaderboard TournamentLeaderboardGetter,
-	broadcaster pubsub.Broadcaster,
-) *TournamentNotifier {
+func NewTournamentNotifier(leaderboard TournamentLeaderboardGetter, broadcaster pubsub.Broadcaster) *TournamentNotifier {
 	return &TournamentNotifier{leaderboard: leaderboard, broadcaster: broadcaster}
 }
 

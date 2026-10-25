@@ -60,8 +60,8 @@ func main() {
 		AWSPassword:   cfg.AwsPassword,
 	})
 
-	leaderboardSvc := service.NewLeaderboardService(redisClient, databaseClient.Querier())
-	profileSvc := service.NewOrphanService(aws, databaseClient.Querier())
+	leaderboardSvc := service.NewLeaderboardService(redisClient, databaseClient.Querier)
+	profileSvc := service.NewOrphanService(aws, databaseClient.Querier)
 
 	var err error
 

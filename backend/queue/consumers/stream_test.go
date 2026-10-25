@@ -83,7 +83,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: worker.Handle,
 
-		querier:    testinfra.Database.QuerierMutator(),
+		querier:    testinfra.Database.QuerierMutator,
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,
@@ -144,7 +144,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		redis:       testinfra.Redis.PrimaryClient,
 		consumeFunc: worker.Handle,
 
-		querier:    testinfra.Database.QuerierMutator(),
+		querier:    testinfra.Database.QuerierMutator,
 		dispatcher: async.SyncDispatcher{},
 
 		pollCount:     1,

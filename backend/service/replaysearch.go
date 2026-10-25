@@ -68,19 +68,13 @@ var replayQuerySortKeyEntries = []enum.Entry[ReplayQuerySortKey]{
 
 var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
 
-func (r ReplayQuerySortKey) String() string { return enum.String(r, replayQuerySortKeyEntries) }
+func (sort ReplayQuerySortKey) String() string { return enum.String(sort, replayQuerySortKeyEntries) }
 
-func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qry ReplaysQuery) (_ []model.FullReplay, err error) {
+func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, searchQuery ReplaysQuery) (_ []model.FullReplay, err error) {
 	defer perf.WithContext(ctx).LogFailable(err)
 
-	// get any userIDs requested through the username queries
-	byNameRequests := []IDByNameRequest{
-		{UsernameInput: qry.WhiteName, UserIDOutput: &qry.WhiteID},
-		{UsernameInput: qry.BlackName, UserIDOutput: &qry.BlackID},
-		{UsernameInput: qry.LoserName, UserIDOutput: &qry.LoserID},
-		{UsernameInput: qry.WinnerName, UserIDOutput: &qry.WinnerID},
-	}
-	err = service.getIDsByUsernames(ctx, byNameRequests)
+	// populate any userIDs requested through the username queries
+	err = service.loadUserIDsByUsernames(ctx, &searchQuery)
 	if errors.Is(err, errUserNotFound) {
 		// if any username cannot be matched to an userID, the search query will never yield any replays
 		return []model.FullReplay{}, nil
@@ -92,30 +86,30 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 	afterTurnCountDB := int32(math.MaxInt32)
 	afterRatingDB := math.MaxFloat64
 
-	if qry.AfterID.Present {
-		afterIDDB = qry.AfterID.Value
+	if searchQuery.AfterID.Present {
+		afterIDDB = searchQuery.AfterID.Value
 	}
-	if qry.AfterTurnCount.Present {
-		afterTurnCountDB = int32(qry.AfterRating.Value)
+	if searchQuery.AfterTurnCount.Present {
+		afterTurnCountDB = int32(searchQuery.AfterRating.Value)
 	}
-	if qry.AfterRating.Present {
-		afterRatingDB = qry.AfterRating.Value
+	if searchQuery.AfterRating.Present {
+		afterRatingDB = searchQuery.AfterRating.Value
 	}
 
 	params := query.SelectReplaysByQueryParams{
-		PerPage: qry.PerPage,
+		PerPage: searchQuery.PerPage,
 
 		// search constraints with mixed 'OR' 'AND' constraints
-		UserID:       database.MapOptInt8(qry.UserID),
-		WhiteID:      database.MapOptInt8(qry.WhiteID),
-		BlackID:      database.MapOptInt8(qry.BlackID),
-		WinnerID:     database.MapOptInt8(qry.WinnerID),
-		LoserID:      database.MapOptInt8(qry.LoserID),
-		Mode:         database.MapOptMode(qry.Mode),
-		Result:       database.MapOptResult(qry.Result),
-		Cause:        database.MapOptCause(qry.Cause),
-		FromDateDays: database.MapOptInt4(toDayEpoch(qry.FromDate)),
-		ToDateDays:   database.MapOptInt4(toDayEpoch(qry.ToDate)),
+		UserID:       database.MapOptInt8(searchQuery.UserID),
+		WhiteID:      database.MapOptInt8(searchQuery.WhiteID),
+		BlackID:      database.MapOptInt8(searchQuery.BlackID),
+		WinnerID:     database.MapOptInt8(searchQuery.WinnerID),
+		LoserID:      database.MapOptInt8(searchQuery.LoserID),
+		Mode:         database.MapOptMode(searchQuery.Mode),
+		Result:       database.MapOptResult(searchQuery.Result),
+		Cause:        database.MapOptCause(searchQuery.Cause),
+		FromDateDays: database.MapOptInt4(toDayEpoch(searchQuery.FromDate)),
+		ToDateDays:   database.MapOptInt4(toDayEpoch(searchQuery.ToDate)),
 
 		// search cursor used for pagination, afterID is always provided on a cursor search, rating and turnCount are only provided with sort
 		AfterID:        afterIDDB,
@@ -123,11 +117,11 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 		AfterTurnCount: afterTurnCountDB,
 
 		// sort determines the 'ORDER BY' in the SQL query
-		SortKey: qry.Sort.String(),
+		SortKey: searchQuery.Sort.String(),
 	}
-	replayRows, err := service.Querier().SelectReplaysByQuery(ctx, params)
+	replayRows, err := service.Querier.SelectReplaysByQuery(ctx, params)
 	if err != nil {
-		return nil, serrors.New("select replays by query", err)
+		return nil, serrors.New("select replays by query", err, "replaysQuery", searchQuery)
 	}
 
 	replays := make([]model.FullReplay, 0, len(replayRows))
@@ -135,13 +129,8 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, qr
 		replays = append(replays, mapFullReplayByIDRow(query.SelectReplayByIDRow(row)))
 	}
 
-	slog.InfoContext(ctx, "selected replays", "replaysQuery", qry, "replays", replays)
+	slog.InfoContext(ctx, "selected replays", "replaysQuery", searchQuery, "replays", replays)
 	return replays, nil
-}
-
-func toDayEpoch(optTime opt.Option[time.Time]) opt.Option[int32] {
-	// uses the unix epoch in days for range queries on date. this truncates away timestamp precision regarding hours, seconds, etc.
-	return opt.Option[int32]{Value: int32(optTime.Value.Unix() / 86400), Present: optTime.Present}
 }
 
 type IDByNameRequest struct {
@@ -151,9 +140,16 @@ type IDByNameRequest struct {
 
 var errUserNotFound = errors.New("user not found")
 
-func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, requests []IDByNameRequest) error {
+func (service *ReplaySearchService) loadUserIDsByUsernames(ctx context.Context, searchQuery *ReplaysQuery) error {
+	byNameRequests := []IDByNameRequest{
+		{UsernameInput: searchQuery.WhiteName, UserIDOutput: &searchQuery.WhiteID},
+		{UsernameInput: searchQuery.BlackName, UserIDOutput: &searchQuery.BlackID},
+		{UsernameInput: searchQuery.LoserName, UserIDOutput: &searchQuery.LoserID},
+		{UsernameInput: searchQuery.WinnerName, UserIDOutput: &searchQuery.WinnerID},
+	}
+
 	var usernames []string
-	for _, request := range requests {
+	for _, request := range byNameRequests {
 		if !request.UsernameInput.Present || request.UserIDOutput.Present {
 			continue
 		}
@@ -163,9 +159,9 @@ func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, reque
 		return nil
 	}
 
-	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "requests", requests)
+	slog.InfoContext(ctx, "selecting user ids by usernames for requests", "byNameRequests", byNameRequests)
 
-	userRows, err := service.Querier().SelectUserIDsByNames(ctx, usernames)
+	userRows, err := service.Querier.SelectUserIDsByNames(ctx, usernames)
 	if err != nil {
 		return serrors.New("select user ids by names", err, "usernames", usernames)
 	}
@@ -175,7 +171,7 @@ func (service *ReplaySearchService) getIDsByUsernames(ctx context.Context, reque
 		userIDs[row.Username] = row.ID
 	}
 
-	for _, request := range requests {
+	for _, request := range byNameRequests {
 		if !request.UsernameInput.Present {
 			continue
 		}

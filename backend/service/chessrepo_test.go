@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "StartTime")
+
 func setupChessRepoTest(t slogutil.TestLogger) (*ChessRepoService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
@@ -47,8 +49,6 @@ func TestEchoChessState(t *testing.T) {
 	assert.NotNil(t, outState1)
 	testutil.Equal(t, s1, outState1, cmpOptsChessState)
 }
-
-var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "StartTime")
 
 func TestUpdateChessState(t *testing.T) {
 	service, testinfra := setupChessRepoTest(t)

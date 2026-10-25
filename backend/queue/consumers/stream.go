@@ -37,7 +37,7 @@ func StartRedisConsumers(config RedisConsumerConfig) {
 	updtGameWorker := NewUpdtGameMetadataWorker(config.Database, entropy.RealSource{}, config.Broadcaster)
 
 	redisClient := config.Redis.ConsumerClient
-	metricQuerier := config.Database.QuerierMutator()
+	metricQuerier := config.Database.QuerierMutator
 
 	streamConfigs := []StreamConfig{
 		{
@@ -121,12 +121,12 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 }
 
 type UpdtGameMetadataWorker struct {
-	service *service.ChessMetaService
+	service *service.ChessMetadataService
 }
 
 func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Generator, broadcaster pubsub.Broadcaster) *UpdtGameMetadataWorker {
 	return &UpdtGameMetadataWorker{
-		service: service.NewChessMetaService(database, entropy, broadcaster),
+		service: service.NewChessMetadataService(database, entropy, broadcaster),
 	}
 }
 

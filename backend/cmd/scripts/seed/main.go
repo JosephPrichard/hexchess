@@ -111,7 +111,7 @@ func main() {
 		return seedGameResults(egCtx, services.gameover, generateGameResults())
 	})
 	eg.Go(func() error {
-		return seedTournaments(egCtx, databaseClient.QuerierMutator(), generateTournaments())
+		return seedTournaments(egCtx, databaseClient.QuerierMutator, generateTournaments())
 	})
 
 	if err := eg.Wait(); err != nil {
@@ -136,7 +136,7 @@ type SeedServices struct {
 
 func newSeedServices(redisClient cache.Redis, databaseClient database.Database) SeedServices {
 	return SeedServices{
-		leaderboard: service.NewLeaderboardService(redisClient, databaseClient.Querier()),
+		leaderboard: service.NewLeaderboardService(redisClient, databaseClient.Querier),
 		user:        service.NewUserService(databaseClient),
 		challenge:   service.NewChallengeService(databaseClient, entropy.RealSource{}),
 		gameover:    service.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil),

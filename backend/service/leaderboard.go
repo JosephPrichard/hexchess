@@ -21,6 +21,7 @@ import (
 )
 
 type LeaderboardService struct {
+	// infra
 	redis   cache.Redis
 	querier query.Querier
 }
@@ -62,97 +63,7 @@ type Leaderboard struct {
 	PageCount   int          `json:"pageCount"`
 }
 
-type LeaderboardRank struct {
-	Rank  int64   `json:"rank"`
-	Score float64 `json:"score"`
-}
-
-func MapLeaderboardRank(rank int64) int64 {
-	return rank + 1
-}
-
-func (service *LeaderboardService) GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (_ map[string]LeaderboardRank, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	type getExec struct {
-		mode string
-		cmd  *redis.RankWithScoreCmd
-	}
-	type addExec struct {
-		mode   model.GameMode
-		addCmd *redis.IntCmd
-		getCmd *redis.RankWithScoreCmd
-	}
-
-	strUserID := strconv.Itoa(int(userID))
-	ranks := make(map[string]LeaderboardRank)
-
-	// fetch and read ranks for each mode in a single pipeline
-	pipeline := service.redis.PrimaryClient.Pipeline()
-	getExecs := make([]getExec, 0, len(modes))
-
-	for _, mode := range modes {
-		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
-		getExecs = append(getExecs, getExec{
-			mode: mode.String(),
-			cmd:  pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
-		})
-	}
-
-	slog.InfoContext(ctx, "pipeline exec: retrieving ranks for user", "userID", userID)
-
-	if err := pipelineExec(ctx, pipeline); err != nil {
-		return nil, err
-	}
-
-	for _, exec := range getExecs {
-		rankScore, err := exec.cmd.Result()
-		if errors.Is(err, redis.Nil) {
-			continue
-		} else if err != nil {
-			return nil, err
-		}
-		ranks[exec.mode] = LeaderboardRank{Rank: MapLeaderboardRank(rankScore.Rank), Score: rankScore.Score}
-	}
-
-	// lazily initialize then fetch ranks for modes which were not retrieved in the calls above
-	pipeline = service.redis.PrimaryClient.Pipeline()
-	var addExecs []addExec
-
-	for _, mode := range modes {
-		if _, isRankRetrieved := ranks[mode.String()]; isRankRetrieved {
-			continue
-		}
-		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
-		addExecs = append(addExecs, addExec{
-			mode:   mode,
-			addCmd: pipeline.ZAddNX(ctx, modeLbZSet, redis.Z{Member: strUserID, Score: model.StartElo}),
-			getCmd: pipeline.ZRevRankWithScore(ctx, modeLbZSet, strUserID),
-		})
-	}
-
-	slog.InfoContext(ctx, "pipeline exec: setting ranks for user", "userID", userID)
-
-	if err := pipelineExec(ctx, pipeline); err != nil {
-		return nil, err
-	}
-
-	for _, exec := range addExecs {
-		if _, err := exec.addCmd.Result(); err != nil {
-			return nil, err
-		}
-		rankScore, err := exec.getCmd.Result()
-		if err != nil {
-			return nil, err
-		}
-		ranks[exec.mode.String()] = LeaderboardRank{Rank: MapLeaderboardRank(rankScore.Rank), Score: rankScore.Score}
-	}
-
-	slog.InfoContext(ctx, "retrieved leaderboard ranks", "userID", userID, "ranks", ranks)
-	return ranks, nil
-}
-
-func (service *LeaderboardService) getLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
+func (service *LeaderboardService) GetLeaderboard(ctx context.Context, mode model.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
 	modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
 
 	end := startRank - 1 + leaderboardElemCount
@@ -193,7 +104,7 @@ func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode 
 	}
 	offset := (page - 1) * perPage
 
-	leaderboard, err := service.getLeaderboard(ctx, mode, offset, perPage)
+	leaderboard, err := service.GetLeaderboard(ctx, mode, offset, perPage)
 
 	slog.Log(ctx, slogutil.ErrorLevel(err), "failed to retrieved leaderboard page", "error", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
 	return leaderboard, err
@@ -237,7 +148,7 @@ func (e ExpLdbError) Error() string {
 	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
 }
 
-func MapLeaderboardUser(row query.SelectUserWithEloByIDRow) model.LbdUser {
+func mapLeaderboardUser(row query.SelectUserWithEloByIDRow) model.LbdUser {
 	return model.LbdUser{
 		ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time,
 		Elo:        model.DefaultUserElo(row.Elo),
@@ -274,7 +185,7 @@ func (service *LeaderboardService) GetLeaderboardUser(ctx context.Context, userI
 		return model.LbdUser{}, err
 	}
 
-	leaderboardUser := MapLeaderboardUser(userRow)
+	leaderboardUser := mapLeaderboardUser(userRow)
 	leaderboardUser.Rank = rankScore.Rank
 
 	return leaderboardUser, nil
@@ -311,7 +222,7 @@ func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, 
 			}
 		}
 		if foundRow != nil {
-			leaderboardUser := MapLeaderboardUser(query.SelectUserWithEloByIDRow(*foundRow))
+			leaderboardUser := mapLeaderboardUser(query.SelectUserWithEloByIDRow(*foundRow))
 			leaderboardUser.Rank = rnkUser.Rank
 			leaderboardUsers = append(leaderboardUsers, leaderboardUser)
 		} else {
@@ -345,7 +256,7 @@ func (service *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context
 	offset := (page - 1) * perPage
 	if offset > MaxSearchOffset {
 		slog.WarnContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
-		return []model.LbdUser{}, nil
+		return []model.LbdUser{}, ErrSearchLimit
 	}
 
 	userRows, err := service.querier.SelectUsersBySimilarity(ctx, query.SelectUsersBySimilarityParams{
@@ -378,9 +289,9 @@ func (service *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context
 	for _, row := range eloRows {
 		aggr := eloAggrMap[row.UserID]
 
-		aggr.Elo = Average(aggr.Elo, aggr.Datapoints, row.Elo)
+		aggr.Elo = average(aggr.Elo, aggr.Datapoints, row.Elo)
 		aggr.HighestElo = max(aggr.HighestElo, row.Elo)
-		aggr.Winrate = Average(aggr.Winrate, aggr.Datapoints, model.CalcUserWinrate(row.Wins, row.Losses, row.Draws))
+		aggr.Winrate = average(aggr.Winrate, aggr.Datapoints, model.CalcUserWinrate(row.Wins, row.Losses, row.Draws))
 
 		aggr.Losses += row.Losses
 		aggr.Wins += row.Wins

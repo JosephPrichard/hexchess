@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"errors"
-	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -13,87 +12,21 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/riverqueue/river"
-	"github.com/riverqueue/river/rivertype"
 )
 
 type Database struct {
 	pools DatabasePools
 
-	querierMutator QuerierMutator
-	querier        query.Querier
-}
-
-type Queriers struct {
-	Transactor Transactor
-	Mutator    mutate.Querier
-	Querier    query.Querier
+	QuerierMutator QuerierMutator
+	Querier        query.Querier
 }
 
 type Transactor interface {
 	ExecTx(ctx context.Context, args TxArgs) error
 }
 
-type QueryFn func(context.Context, pgx.Tx, QuerierMutator) error
-
-type TxArgs struct {
-	QueryFn      QueryFn
-	ErrAllowlist []error
-	Isolation    pgx.TxIsoLevel
-	RetryCount   int
-}
-
-type QuerierMutator interface {
-	query.Querier
-	mutate.Querier
-}
-
-type readQueries = query.Queries
-type writeQueries = mutate.Queries
-
-type ReadWriteQueries struct {
-	*readQueries
-	*writeQueries
-}
-
-func NewPoolQuerier(pool *pgxpool.Pool) QuerierMutator {
-	if pool == nil {
-		return nil
-	}
-	return ReadWriteQueries{readQueries: query.New(pool), writeQueries: mutate.New(pool)}
-}
-
-func NewTxnQuerier(txn pgx.Tx) QuerierMutator {
-	if txn == nil {
-		return nil
-	}
-	return ReadWriteQueries{readQueries: query.New(txn), writeQueries: mutate.New(txn)}
-}
-
-type RiverClientAPI interface {
-	InsertTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
-	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
-	Stop(ctx context.Context) error
-}
-
-func (db *Database) QuerierMutator() QuerierMutator {
-	if db.querierMutator != nil {
-		return db.querierMutator
-	}
-	db.querierMutator = NewPoolQuerier(db.pools.Write)
-	return db.querierMutator
-}
-
-func (db *Database) Mutator() mutate.Querier {
-	return db.QuerierMutator()
-}
-
-func (db *Database) Querier() query.Querier {
-	if db.querier != nil {
-		return db.querier
-	}
-	db.querier = NewPoolQuerier(db.pools.Read)
-	return db.querier
+func NewDatabase(pools DatabasePools) Database {
+	return Database{pools: pools, QuerierMutator: NewPoolQuerier(pools.Write), Querier: NewPoolQuerier(pools.Read)}
 }
 
 func (db *Database) HealthcheckFunc() health.CheckFunc {
@@ -111,6 +44,13 @@ func (db *Database) Close() {
 	if db.pools.Read != nil {
 		db.pools.Read.Close()
 	}
+}
+
+type TxArgs struct {
+	QueryFn      func(context.Context, pgx.Tx, QuerierMutator) error
+	ErrAllowlist []error
+	Isolation    pgx.TxIsoLevel
+	RetryCount   int
 }
 
 func (db *Database) ExecTx(ctx context.Context, args TxArgs) error {

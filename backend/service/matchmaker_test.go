@@ -1,6 +1,7 @@
 package service
 
 import (
+	"hexchess-svc/model"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
@@ -22,124 +23,124 @@ func TestMatchRequests(t *testing.T) {
 		beforeState   MatchmakerState
 		afterState    MatchmakerState
 	}{
-		//{
-		//	name:          "MatchRequestBegin",
-		//	request:       MatchmakingRequest{Kind: BeginMatchRequest, UserID: 2, Mode: model.ModeCorrespondence1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
-		//	wantResponses: []MatchResponse{},
-		//	beforeState: MatchmakerState{
-		//		PendingUsers: map[int64]PendingUser{
-		//			1: {UserID: 1, UserElo: 900},
-		//			3: {UserID: 3, UserElo: 1500},
-		//		},
-		//		UserEloIdx: []UserEloRecord{
-		//			{UserID: 1, UserElo: 900},
-		//			{UserID: 3, UserElo: 1500},
-		//		},
-		//		MatchProposals: []MatchProposal{},
-		//	},
-		//	afterState: MatchmakerState{
-		//		PendingUsers: map[int64]PendingUser{
-		//			1: {UserID: 1, UserElo: 900},
-		//			2: {UserID: 2, UserElo: 1000},
-		//			3: {UserID: 3, UserElo: 1500},
-		//		},
-		//		UserEloIdx: []UserEloRecord{
-		//			{UserID: 1, UserElo: 900},
-		//			{UserID: 2, UserElo: 1000},
-		//			{UserID: 3, UserElo: 1500},
-		//		},
-		//		MatchProposals: []MatchProposal{},
-		//	},
-		//},
-		//{
-		//	name:          "MatchRequestBegin_Duplicate",
-		//	request:       MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
-		//	wantResponses: []MatchResponse{},
-		//	beforeState: MatchmakerState{
-		//		PendingUsers:   map[int64]PendingUser{1: {UserID: 1, UserElo: 1000}},
-		//		MatchProposals: []MatchProposal{},
-		//	},
-		//	afterState: MatchmakerState{
-		//		PendingUsers:   map[int64]PendingUser{1: {UserID: 1, UserElo: 1000}},
-		//		MatchProposals: []MatchProposal{},
-		//	},
-		//},
-		//{
-		//	name:          "MatchRequestConfirmation_Waiting",
-		//	request:       MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
-		//	wantResponses: []MatchResponse{},
-		//	beforeState: MatchmakerState{
-		//		PendingUsers: map[int64]PendingUser{},
-		//		MatchProposals: []MatchProposal{
-		//			{
-		//				UserOne:       PendingUser{UserID: 1, UserElo: 1000},
-		//				UserOneAccept: false,
-		//				UserTwo:       PendingUser{UserID: 2, UserElo: 1000},
-		//				UserTwoAccept: false,
-		//			},
-		//		},
-		//	},
-		//	afterState: MatchmakerState{
-		//		PendingUsers: map[int64]PendingUser{},
-		//		MatchProposals: []MatchProposal{
-		//			{
-		//				UserOne:       PendingUser{UserID: 1, UserElo: 1000},
-		//				UserOneAccept: true,
-		//				UserTwo:       PendingUser{UserID: 2, UserElo: 1000},
-		//				UserTwoAccept: false,
-		//			},
-		//		},
-		//	},
-		//},
-		//{
-		//	name:    "MatchRequestConfirmation_Complete",
-		//	request: MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 2, Mode: model.ModeCorrespondence1},
-		//	wantResponses: []MatchResponse{
-		//		{Kind: MatchResponseConfirmation, UserOneID: 1, UserTwoID: 2},
-		//		{}, // close
-		//		{Kind: MatchResponseConfirmation, UserOneID: 1, UserTwoID: 2},
-		//		{}, // close
-		//	},
-		//	beforeState: MatchmakerState{
-		//		PendingUsers: map[int64]PendingUser{},
-		//		MatchProposals: []MatchProposal{
-		//			{
-		//				UserOne:       PendingUser{UserID: 1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 2)},
-		//				UserOneAccept: true,
-		//				UserTwo:       PendingUser{UserID: 2, UserElo: 1000, ResponseChan: make(chan MatchResponse, 2)},
-		//				UserTwoAccept: false,
-		//			},
-		//		},
-		//	},
-		//	afterState: MatchmakerState{
-		//		PendingUsers:   map[int64]PendingUser{},
-		//		MatchProposals: []MatchProposal{},
-		//	},
-		//},
-		//{
-		//	name:    "MatchRequestCancel",
-		//	request: MatchmakingRequest{Kind: CancelMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
-		//	wantResponses: []MatchResponse{
-		//		{}, // close
-		//		{Kind: MatchResponseCancel},
-		//	},
-		//	beforeState: MatchmakerState{
-		//		PendingUsers: map[int64]PendingUser{},
-		//		MatchProposals: []MatchProposal{
-		//			{
-		//				UserOne:       PendingUser{UserID: 1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
-		//				UserOneAccept: false,
-		//				UserTwo:       PendingUser{UserID: 2, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
-		//				UserTwoAccept: false,
-		//			},
-		//		},
-		//	},
-		//	afterState: MatchmakerState{
-		//		PendingUsers:   map[int64]PendingUser{2: {UserID: 2, UserElo: 1000}},
-		//		UserEloIdx:     []UserEloRecord{{UserID: 2, UserElo: 1000}},
-		//		MatchProposals: []MatchProposal{},
-		//	},
-		//},
+		{
+			name:          "MatchRequestBegin",
+			request:       MatchmakingRequest{Kind: BeginMatchRequest, UserID: 2, Mode: model.ModeCorrespondence1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
+			wantResponses: []MatchResponse{},
+			beforeState: MatchmakerState{
+				PendingUsers: map[int64]PendingUser{
+					1: {UserID: 1, UserElo: 900},
+					3: {UserID: 3, UserElo: 1500},
+				},
+				UserEloIdx: []UserEloRecord{
+					{UserID: 1, UserElo: 900},
+					{UserID: 3, UserElo: 1500},
+				},
+				MatchProposals: []MatchProposal{},
+			},
+			afterState: MatchmakerState{
+				PendingUsers: map[int64]PendingUser{
+					1: {UserID: 1, UserElo: 900},
+					2: {UserID: 2, UserElo: 1000},
+					3: {UserID: 3, UserElo: 1500},
+				},
+				UserEloIdx: []UserEloRecord{
+					{UserID: 1, UserElo: 900},
+					{UserID: 2, UserElo: 1000},
+					{UserID: 3, UserElo: 1500},
+				},
+				MatchProposals: []MatchProposal{},
+			},
+		},
+		{
+			name:          "MatchRequestBegin_Duplicate",
+			request:       MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
+			wantResponses: []MatchResponse{},
+			beforeState: MatchmakerState{
+				PendingUsers:   map[int64]PendingUser{1: {UserID: 1, UserElo: 1000}},
+				MatchProposals: []MatchProposal{},
+			},
+			afterState: MatchmakerState{
+				PendingUsers:   map[int64]PendingUser{1: {UserID: 1, UserElo: 1000}},
+				MatchProposals: []MatchProposal{},
+			},
+		},
+		{
+			name:          "MatchRequestConfirmation_Waiting",
+			request:       MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
+			wantResponses: []MatchResponse{},
+			beforeState: MatchmakerState{
+				PendingUsers: map[int64]PendingUser{},
+				MatchProposals: []MatchProposal{
+					{
+						UserOne:       PendingUser{UserID: 1, UserElo: 1000},
+						UserOneAccept: false,
+						UserTwo:       PendingUser{UserID: 2, UserElo: 1000},
+						UserTwoAccept: false,
+					},
+				},
+			},
+			afterState: MatchmakerState{
+				PendingUsers: map[int64]PendingUser{},
+				MatchProposals: []MatchProposal{
+					{
+						UserOne:       PendingUser{UserID: 1, UserElo: 1000},
+						UserOneAccept: true,
+						UserTwo:       PendingUser{UserID: 2, UserElo: 1000},
+						UserTwoAccept: false,
+					},
+				},
+			},
+		},
+		{
+			name:    "MatchRequestConfirmation_Complete",
+			request: MatchmakingRequest{Kind: ConfirmMatchRequest, UserID: 2, Mode: model.ModeCorrespondence1},
+			wantResponses: []MatchResponse{
+				{Kind: MatchResponseConfirmation, UserOneID: 1, UserTwoID: 2},
+				{}, // close
+				{Kind: MatchResponseConfirmation, UserOneID: 1, UserTwoID: 2},
+				{}, // close
+			},
+			beforeState: MatchmakerState{
+				PendingUsers: map[int64]PendingUser{},
+				MatchProposals: []MatchProposal{
+					{
+						UserOne:       PendingUser{UserID: 1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 2)},
+						UserOneAccept: true,
+						UserTwo:       PendingUser{UserID: 2, UserElo: 1000, ResponseChan: make(chan MatchResponse, 2)},
+						UserTwoAccept: false,
+					},
+				},
+			},
+			afterState: MatchmakerState{
+				PendingUsers:   map[int64]PendingUser{},
+				MatchProposals: []MatchProposal{},
+			},
+		},
+		{
+			name:    "MatchRequestCancel",
+			request: MatchmakingRequest{Kind: CancelMatchRequest, UserID: 1, Mode: model.ModeCorrespondence1},
+			wantResponses: []MatchResponse{
+				{}, // close
+				{Kind: MatchResponseCancel},
+			},
+			beforeState: MatchmakerState{
+				PendingUsers: map[int64]PendingUser{},
+				MatchProposals: []MatchProposal{
+					{
+						UserOne:       PendingUser{UserID: 1, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
+						UserOneAccept: false,
+						UserTwo:       PendingUser{UserID: 2, UserElo: 1000, ResponseChan: make(chan MatchResponse, 1)},
+						UserTwoAccept: false,
+					},
+				},
+			},
+			afterState: MatchmakerState{
+				PendingUsers:   map[int64]PendingUser{2: {UserID: 2, UserElo: 1000}},
+				UserEloIdx:     []UserEloRecord{{UserID: 2, UserElo: 1000}},
+				MatchProposals: []MatchProposal{},
+			},
+		},
 	}
 
 	for _, test := range tests {

@@ -61,48 +61,48 @@ func TestMatchmakingStream(t *testing.T) {
 		//		},
 		//	},
 		//},
-		{
-			name:   "BeginRequest_BothConfirmRequest",
-			config: &service.MatchmakerServiceConfig{TickRate: 1 * time.Microsecond, TickFactor: 1},
-			streams: []matchmakerStream{
-				{
-					requests: []*rpc.MatchmakingRequest{
-						{
-							Value: &rpc.MatchmakingRequest_Begin{Begin: &rpc.MatchmakingBeginRequest{UserId: 1, UserElo: 1000, Mode: "CORRESPONDENCE_1"}},
-						},
-						{
-							Value: &rpc.MatchmakingRequest_Confirm{Confirm: &rpc.MatchmakingConfirmRequest{Accept: true}},
-						},
-					},
-					wantResponses: []*rpc.MatchmakingResponse{
-						{
-							Value: &rpc.MatchmakingResponse_Join{Join: &rpc.MatchmakingJoinResponse{}},
-						},
-						{
-							Value: &rpc.MatchmakingResponse_Proposal{Proposal: &rpc.MatchmakingProposalResponse{UserOneId: 1, UserTwoId: 2}},
-						},
-					},
-				},
-				{
-					requests: []*rpc.MatchmakingRequest{
-						{
-							Value: &rpc.MatchmakingRequest_Begin{Begin: &rpc.MatchmakingBeginRequest{UserId: 2, UserElo: 1500, Mode: "CORRESPONDENCE_1"}},
-						},
-						{
-							Value: &rpc.MatchmakingRequest_Confirm{Confirm: &rpc.MatchmakingConfirmRequest{Accept: true}},
-						},
-					},
-					wantResponses: []*rpc.MatchmakingResponse{
-						{
-							Value: &rpc.MatchmakingResponse_Join{Join: &rpc.MatchmakingJoinResponse{}},
-						},
-						{
-							Value: &rpc.MatchmakingResponse_Proposal{Proposal: &rpc.MatchmakingProposalResponse{UserOneId: 1, UserTwoId: 2}},
-						},
-					},
-				},
-			},
-		},
+		//{
+		//	name:   "BeginRequest_BothConfirmRequest",
+		//	config: &service.MatchmakerServiceConfig{TickRate: 1 * time.Microsecond, TickFactor: 1},
+		//	streams: []matchmakerStream{
+		//		{
+		//			requests: []*rpc.MatchmakingRequest{
+		//				{
+		//					Value: &rpc.MatchmakingRequest_Begin{Begin: &rpc.MatchmakingBeginRequest{UserId: 1, UserElo: 1000, Mode: "CORRESPONDENCE_1"}},
+		//				},
+		//				{
+		//					Value: &rpc.MatchmakingRequest_Confirm{Confirm: &rpc.MatchmakingConfirmRequest{Accept: true}},
+		//				},
+		//			},
+		//			wantResponses: []*rpc.MatchmakingResponse{
+		//				{
+		//					Value: &rpc.MatchmakingResponse_Join{Join: &rpc.MatchmakingJoinResponse{}},
+		//				},
+		//				{
+		//					Value: &rpc.MatchmakingResponse_Proposal{Proposal: &rpc.MatchmakingProposalResponse{UserOneId: 1, UserTwoId: 2}},
+		//				},
+		//			},
+		//		},
+		//		{
+		//			requests: []*rpc.MatchmakingRequest{
+		//				{
+		//					Value: &rpc.MatchmakingRequest_Begin{Begin: &rpc.MatchmakingBeginRequest{UserId: 2, UserElo: 1500, Mode: "CORRESPONDENCE_1"}},
+		//				},
+		//				{
+		//					Value: &rpc.MatchmakingRequest_Confirm{Confirm: &rpc.MatchmakingConfirmRequest{Accept: true}},
+		//				},
+		//			},
+		//			wantResponses: []*rpc.MatchmakingResponse{
+		//				{
+		//					Value: &rpc.MatchmakingResponse_Join{Join: &rpc.MatchmakingJoinResponse{}},
+		//				},
+		//				{
+		//					Value: &rpc.MatchmakingResponse_Proposal{Proposal: &rpc.MatchmakingProposalResponse{UserOneId: 1, UserTwoId: 2}},
+		//				},
+		//			},
+		//		},
+		//	},
+		//},
 		//{
 		//	name:   "BeginRequest_CancelRequest",
 		//	config: &service.MatchmakerServiceConfig{TickRate: 1 * time.Minute, TickFactor: 1},

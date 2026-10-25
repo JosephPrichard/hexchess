@@ -122,7 +122,7 @@ func (service *GameOverService) backfillEvent(ctx context.Context, event *model.
 func (service *GameOverService) publishTournamentEvent(ctx context.Context, event model.FinishGameEvent) error {
 	// publishing a tournament event is necessary to trigger advancing the game state *IF* the tournament round is finished
 	// this operation is idempotent and safe, if the tournament is not ready to be advanced, the operation noops
-	tournamentKey, err := service.Querier().SelectTournamentByGameID(ctx, event.GameID.String())
+	tournamentKey, err := service.Querier.SelectTournamentByGameID(ctx, event.GameID.String())
 	switch {
 	case database.IsErrNoRows(err):
 		slog.InfoContext(ctx, "skipping send schedule tournament event", "gameID", event.GameID)
@@ -141,7 +141,7 @@ func (service *GameOverService) publishTournamentEvent(ctx context.Context, even
 }
 
 func (service *GameOverService) upsertReplayMoveHistories(ctx context.Context, replayID int64, data []byte) error {
-	if err := service.Mutator().UpsertReplayMoveHistories(ctx, mutate.UpsertReplayMoveHistoriesParams{
+	if err := service.QuerierMutator.UpsertReplayMoveHistories(ctx, mutate.UpsertReplayMoveHistoriesParams{
 		ReplayID: replayID,
 		Data:     data,
 	}); err != nil {
@@ -345,8 +345,8 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		default:
 		}
 
-		winEloNext := winElo + 30*(1.0-ProbabilityWins(loseElo, winElo))
-		loseEloNext := loseElo + (-30 * ProbabilityWins(winElo, loseElo))
+		winEloNext := winElo + 30*(1.0-probabilityWins(loseElo, winElo))
+		loseEloNext := loseElo + (-30 * probabilityWins(winElo, loseElo))
 
 		switch result.ReplayResult {
 		case model.WhiteWin:

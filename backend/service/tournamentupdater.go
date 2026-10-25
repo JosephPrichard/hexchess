@@ -70,7 +70,7 @@ func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst Tou
 		rounds = inst.Rounds
 	}
 
-	tournamentID, err := service.Mutator().InsertTournament(ctx, mutate.InsertTournamentParams{
+	tournamentID, err := service.QuerierMutator.InsertTournament(ctx, mutate.InsertTournamentParams{
 		TournamentKey: pgtype.UUID{Bytes: inst.Key, Valid: true},
 		Name:          inst.Name,
 		Rounds:        rounds,
@@ -91,7 +91,7 @@ func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst Tou
 }
 
 func (service *TournamentUpdater) LeaveTournament(ctx context.Context, tournamentKey uuid.UUID, userID int64) (bool, error) {
-	deletedIDs, err := service.Mutator().DeleteTournamentParticipant(ctx, mutate.DeleteTournamentParticipantParams{
+	deletedIDs, err := service.QuerierMutator.DeleteTournamentParticipant(ctx, mutate.DeleteTournamentParticipantParams{
 		TournamentKey: pgtype.UUID{Bytes: tournamentKey, Valid: true},
 		UserID:        userID,
 	})

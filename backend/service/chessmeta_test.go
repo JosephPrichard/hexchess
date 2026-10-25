@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupGameMetadataTest(t slogutil.TestLogger) (*ChessMetaService, itest.TestInfra) {
+func setupGameMetadataTest(t slogutil.TestLogger) (*ChessMetadataService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewChessMetaService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(infra.Redis))
+	service := NewChessMetadataService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(infra.Redis))
 
 	return service, infra
 }

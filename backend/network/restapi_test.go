@@ -171,12 +171,13 @@ func TestHandleGoogleLogin(t *testing.T) {
 			name:     "InvalidLoginTokenMocked",
 			runCount: 1,
 			setupMocks: func(ctrl *gomock.Controller) cloud.SDKs {
-				validator := cloud.NewMockGoogleTokenValidator(ctrl)
-				validator.EXPECT().
+				mockValidator := cloud.NewMockGoogleTokenValidator(ctrl)
+
+				mockValidator.EXPECT().
 					Validate(gomock.Any(), "invalidToken123", apiKey).
 					Return(&idtoken.Payload{}, errors.New("invalid token"))
-				return cloud.NewOptRemoteAPIs(
-					cloud.WithGoogleIDTokenValidator(validator, apiKey))
+
+				return cloud.NewOptRemoteAPIs(cloud.WithGoogleIDTokenValidator(mockValidator, apiKey))
 			},
 			body:       network.GoogleLoginBody{Token: "invalidToken123"},
 			wantFail:   network.ServiceResp{Status: http.StatusInternalServerError, Error: network.ErrHttpFatal.Error()},
@@ -186,13 +187,14 @@ func TestHandleGoogleLogin(t *testing.T) {
 			name:     "LoginWithGoogleTokenSuccessful",
 			runCount: 2, // the user is created the first time, the second time we log in with the already inserted account key
 			setupMocks: func(ctrl *gomock.Controller) cloud.SDKs {
-				validator := cloud.NewMockGoogleTokenValidator(ctrl)
-				validator.EXPECT().
+				mockValidator := cloud.NewMockGoogleTokenValidator(ctrl)
+
+				mockValidator.EXPECT().
 					Validate(gomock.Any(), "testToken123", apiKey).
 					Return(&idtoken.Payload{Subject: "account1", Claims: map[string]any{"email": "email@domain.com"}}, nil).
 					Times(2)
-				return cloud.NewOptRemoteAPIs(
-					cloud.WithGoogleIDTokenValidator(validator, apiKey))
+
+				return cloud.NewOptRemoteAPIs(cloud.WithGoogleIDTokenValidator(mockValidator, apiKey))
 			},
 			body:        network.GoogleLoginBody{Token: "testToken123"},
 			wantSuccess: network.SessionView{Username: "email@domain.com", Country: "un"},
@@ -736,8 +738,20 @@ func TestGetPersona(t *testing.T) {
 			id:   "1",
 			wantSuccess: network.GetPersonaResp{
 				Persona: model.Persona{
-					User:  itest.TestUser[0],
-					Stats: itest.TestUserStats[0],
+					User: itest.TestUser[0],
+					Stats: model.UserStats{
+						TotalWins:    17,
+						TotalLosses:  14,
+						AvgElo:       1025,
+						HighestElo:   1050,
+						TotalWinrate: 53,
+						ModeStats: []model.ModeStats{
+							{Mode: model.ModeCorrespondence7, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
+							{Mode: model.ModeTimed3Plus2, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
+							{Mode: model.ModeTimed15Plus10, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
+							{Mode: model.ModeTimed1Plus0, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
+						},
+					},
 					ReplayList: []model.FullReplay{
 						itest.TestReplays[4],
 						itest.TestReplays[3],

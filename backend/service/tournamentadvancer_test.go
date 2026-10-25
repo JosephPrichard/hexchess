@@ -23,9 +23,8 @@ func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvancer, itest.TestInf
 
 	service := NewTournamentAdvancer(
 		infra.Database,
-		NewUserService(infra.Database),
-		NewGameCreateService(infra.Redis, NewChessRepoService(infra.Redis)),
 		pubsub.NewSyncBroadcaster(infra.Redis),
+		NewGameCreateService(infra.Redis, NewChessRepoService(infra.Redis)),
 	)
 
 	return service, infra
@@ -277,12 +276,10 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	}
 
 	for _, id := range gameIDs {
-		var cmpOptsChessState = cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard", "StartTime")
+		cmpOptsChessState := cmpopts.IgnoreFields(model.ChessState{}, "Game", "InitialBoard", "StartTime")
 		assertRedisChess(t, testinfra.Redis, wantGames[id], cmpOptsChessState)
 	}
 }
-
-var cmpOptsFullMatch = cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
 
 func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 	service, testinfra := setupAdvanceTest(t)
@@ -330,6 +327,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 	var edata model.MatchCreations
 	require.NoError(t, sonic.Unmarshal(eventData, &edata))
 
+	cmpOptsFullMatch := cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
 	testutil.Equal(t, wantTournaments, edata.Creations, cmpOptsFullMatch)
 
 	assertBroadcasts()

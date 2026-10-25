@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 )
 
 type PoolConfig struct {
@@ -75,8 +76,10 @@ func NewDatabasePools(ctx context.Context, cfg DatabaseConfig) DatabasePools {
 	return DatabasePools{Write: writePool, Read: readPool}
 }
 
-func NewDatabase(pools DatabasePools) Database {
-	return Database{pools: pools}
+type RiverClientAPI interface {
+	InsertTx(ctx context.Context, tx pgx.Tx, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
+	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
+	Stop(ctx context.Context) error
 }
 
 func NewRiverClient(pool *pgxpool.Pool) *river.Client[pgx.Tx] {

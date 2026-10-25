@@ -111,7 +111,7 @@ func (service *TournamentRetriever) getParticipantsRank(ctx context.Context, par
 			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
 		}
 
-		leaderboardRanks[exec.userID] = MapLeaderboardRank(rank)
+		leaderboardRanks[exec.userID] = mapLeaderboardRank(rank)
 	}
 
 	slog.InfoContext(ctx, "retrieved leaderboard ranks", "leaderboardRanks", leaderboardRanks, "mode", mode)

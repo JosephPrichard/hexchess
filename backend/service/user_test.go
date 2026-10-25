@@ -157,14 +157,3 @@ func TestUpdatePasswordThenVerify(t *testing.T) {
 
 	assert.Equal(t, u1.ID, v1.ID)
 }
-
-func TestGetUserElos(t *testing.T) {
-	service, testinfra := setupUserTest(t)
-	defer testinfra.Close()
-	ctx := t.Context()
-
-	stats, err := service.GetUserStats(ctx, 1)
-	require.NoError(t, err)
-
-	testutil.Equal(t, itest.TestUserStats[0], stats, cmpopts.IgnoreFields(model.ModeStats{}, "Rank"))
-}

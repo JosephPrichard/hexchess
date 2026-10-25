@@ -16,13 +16,6 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 )
 
-var cmpOptsGameOutputs cmp.Options = []cmp.Option{
-	protocmp.Transform(),
-	protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
-}
-
-var cmpOptsFullMatch = cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
-
 func expectBroadcast[Message any](
 	t *testing.T,
 	rdb cache.Redis,
@@ -62,6 +55,11 @@ func expectBroadcast[Message any](
 }
 
 func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
+	cmpOptsGameOutputs := []cmp.Option{
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
+	}
+
 	return expectBroadcast(
 		t, rdb, wantOutputs,
 		func(lb *LocalBroadcasters, ch chan []byte) { lb.Games.Subscribe(gameID, ch) },
@@ -75,6 +73,8 @@ func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wa
 }
 
 func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKey string, wantOutputs []model.TournamentOutput) func() {
+	cmpOptsFullMatch := cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
+
 	return expectBroadcast(
 		t, rdb, wantOutputs,
 		func(lb *LocalBroadcasters, ch chan []byte) { lb.Tournament.Subscribe(tournamentKey, ch) },

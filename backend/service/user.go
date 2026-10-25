@@ -7,11 +7,9 @@ import (
 	"errors"
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/model"
-	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
-	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -23,7 +21,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/exp/constraints"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -62,7 +59,7 @@ func (service *UserService) InsertUser(ctx context.Context, inst UserInst) (_ mo
 		return model.User{}, serrors.New("generate hash", err)
 	}
 
-	userRow, err := service.Mutator().InsertUser(ctx, mutate.InsertUserParams{
+	userRow, err := service.QuerierMutator.InsertUser(ctx, mutate.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -116,7 +113,7 @@ func (service *UserService) BatchInsertUsers(ctx context.Context, insts []UserIn
 	var rows []mutate.BatchInsertUserRow
 	var batchErr error
 
-	service.Mutator().BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutate.BatchInsertUserRow, err error) {
+	service.QuerierMutator.BatchInsertUser(ctx, batches).QueryRow(func(i int, row mutate.BatchInsertUserRow, err error) {
 		rows = append(rows, row)
 		batchErr = errors.Join(batchErr, err)
 	})
@@ -223,7 +220,7 @@ func (service *UserService) SelectOrInsertGoogleUser(ctx context.Context, google
 	var verifiedUser VerifiedUser
 	var isCreated bool
 
-	login, err := service.Querier().SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
+	login, err := service.Querier.SelectByGoogleAccountID(ctx, pgtype.Text{String: googleAccountID, Valid: true})
 	if database.IsErrNoRows(err) {
 		isCreated = false
 	} else if err != nil {
@@ -233,7 +230,7 @@ func (service *UserService) SelectOrInsertGoogleUser(ctx context.Context, google
 	}
 
 	if !isCreated {
-		userRow, err := service.Mutator().InsertUser(ctx, mutate.InsertUserParams{
+		userRow, err := service.QuerierMutator.InsertUser(ctx, mutate.InsertUserParams{
 			Username:        googleInst.Username,
 			Country:         googleInst.Country,
 			JoinedOn:        pgtype.Timestamptz{Time: googleInst.JoinedOn, Valid: true},
@@ -242,26 +239,32 @@ func (service *UserService) SelectOrInsertGoogleUser(ctx context.Context, google
 		if err != nil {
 			return verifiedUser, serrors.New("insert google user", err, "googleAccountID", googleAccountID)
 		}
-		verifiedUser = VerifiedUser{
-			ID:       userRow.ID,
-			Username: userRow.Username,
-			Country:  userRow.Country,
-		}
+
 		slog.InfoContext(ctx, "inserted a google user account", "inst", googleInst, "googleAccountID", googleAccountID)
+
+		verifiedUser = VerifiedUser{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country}
 	} else {
-		verifiedUser = VerifiedUser{
-			ID:       login.ID,
-			Username: login.Username,
-			Country:  login.Country,
-		}
+		verifiedUser = VerifiedUser{ID: login.ID, Username: login.Username, Country: login.Country}
 	}
 
 	slog.InfoContext(ctx, "resolved verified user from googleAccountID", "user", verifiedUser, "googleAccountID", googleAccountID)
 	return verifiedUser, nil
 }
 
-func ProbabilityWins(elo1, elo2 float64) float64 {
-	return 1.0 / (1.0 + math.Pow(10, (elo2-elo1)/400.0))
+func (service *UserService) GetUserByID(ctx context.Context, id int64) (_ model.User, err error) {
+	defer perf.WithContext(ctx).LogFailable(err)
+
+	userRow, err := service.Querier.SelectUserByID(ctx, id)
+	if database.IsErrNoRows(err) {
+		return model.User{}, ErrUserNotFound
+	} else if err != nil {
+		return model.User{}, serrors.New("select user", err, "userID", id)
+	}
+
+	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+
+	slog.InfoContext(ctx, "selected user by id", "userID", id, "user", user)
+	return user, nil
 }
 
 type UpdtUserParams struct {
@@ -277,7 +280,7 @@ func (service *UserService) UpdateUser(ctx context.Context, id int64, updt UpdtU
 		return model.User{}, nil
 	}
 
-	userRow, err := service.Mutator().UpdateUser(ctx, mutate.UpdateUserParams{
+	userRow, err := service.QuerierMutator.UpdateUser(ctx, mutate.UpdateUserParams{
 		ID:       id,
 		Username: database.OptString(updt.Username),
 		Bio:      database.OptString(updt.Bio),
@@ -300,88 +303,13 @@ func (service *UserService) UpdateUserPassword(ctx context.Context, id int64, ne
 		return serrors.New("hash password for user", err, "userID", id)
 	}
 
-	err = service.Mutator().UpdatePassword(ctx, mutate.UpdatePasswordParams{
+	err = service.QuerierMutator.UpdatePassword(ctx, mutate.UpdatePasswordParams{
 		ID:       id,
 		Password: hash.HashedPassword,
 		Salt:     hash.Salt,
 	})
 	slog.Log(ctx, slogutil.ErrorLevel(err), "updated password", "error", err, "userID", id)
 	return err
-}
-
-func (service *UserService) GetUserByID(ctx context.Context, id int64) (_ model.User, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	userRow, err := service.Querier().SelectUserByID(ctx, id)
-	if database.IsErrNoRows(err) {
-		return model.User{}, ErrUserNotFound
-	} else if err != nil {
-		return model.User{}, serrors.New("select user", err, "userID", id)
-	}
-	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
-	slog.InfoContext(ctx, "selected user", "userID", id, "user", user)
-	return user, nil
-}
-
-func Average[T constraints.Integer | constraints.Float](currAvg T, currCount int, nextValue T) T {
-	return (currAvg*T(currCount) + nextValue) / T(currCount+1)
-}
-
-func (service *UserService) GetUserStats(ctx context.Context, id int64) (_ model.UserStats, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	modeEloRows, err := service.Querier().SelectUserElosByID(ctx, id)
-	if err != nil {
-		return model.UserStats{}, serrors.New("select user elos by id", err, "userID", id)
-	}
-
-	var stats model.UserStats
-	if len(modeEloRows) == 0 {
-		stats = model.UserStats{HighestElo: model.StartElo, AvgElo: model.StartElo}
-	} else {
-		stats = model.UserStats{HighestElo: math.SmallestNonzeroFloat64}
-	}
-
-	for _, row := range modeEloRows {
-		mode := enum.Expect(row.Mode, model.GameModeEnums)
-		modeStats := model.ModeStats{
-			Mode:       mode,
-			Wins:       row.Wins,
-			Losses:     row.Losses,
-			Draws:      row.Draws,
-			Winrate:    model.CalcUserWinrate(row.Wins, row.Losses, row.Draws),
-			Elo:        row.Elo,
-			HighestElo: row.HighestElo,
-		}
-
-		stats.TotalWins += modeStats.Wins
-		stats.TotalLosses += modeStats.Losses
-		stats.TotalDraws += modeStats.Draws
-
-		stats.HighestElo = max(stats.HighestElo, modeStats.HighestElo)
-		stats.AvgElo = Average(stats.AvgElo, len(stats.ModeStats), modeStats.Elo)
-		stats.TotalWinrate = Average(stats.TotalWinrate, len(stats.ModeStats), modeStats.Winrate)
-
-		stats.ModeStats = append(stats.ModeStats, modeStats)
-	}
-
-	slog.InfoContext(ctx, "selected user elos", "stats", stats)
-	return stats, nil
-}
-
-func (service *UserService) SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error) {
-	userRows, err := service.Querier().SelectUsersByIDs(ctx, ids)
-
-	var users []model.User
-	for _, row := range userRows {
-		users = append(users, model.User{
-			ID:       row.ID,
-			Username: row.Username,
-			Country:  row.Country,
-		})
-	}
-
-	return users, err
 }
 
 type HashResult struct {

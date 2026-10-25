@@ -34,6 +34,7 @@ type ModeStats struct {
 	Winrate    int64    `json:"winrate"`
 	Elo        float64  `json:"elo"`
 	HighestElo float64  `json:"highestElo"`
+	Score      float64  `json:"-"`
 }
 
 type UserStats struct {

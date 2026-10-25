@@ -46,10 +46,11 @@
             {@const elo = Math.round(stats.elo)}
             {@const highestElo = Math.round(stats.highestElo)}
             {@const winrate = `${stats.winrate}%`}
+            {@const rank = stats.rank === 0 ? "-" : stats.rank}
             <tr>
                 {#if isLarge.current}
                     <td>{gameModeName}</td>
-                    <td>{stats.rank}</td>
+                    <td>{rank}</td>
                     <td>{elo}</td>
                     <td>{highestElo}</td>
                     <td class={wrClass}>
@@ -67,7 +68,7 @@
                     <td>{total}</td>
                 {:else}
                     <td>{gameModeName}</td>
-                    <td>{stats.rank}</td>
+                    <td>{rank}</td>
                     <td>{elo}</td>
                     <td class={wrClass}>
                         {winrate}

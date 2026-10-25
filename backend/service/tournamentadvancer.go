@@ -28,25 +28,15 @@ type TournamentAdvancer struct {
 	broadcaster pubsub.Broadcaster
 
 	// service
-	user     UserGetter
 	gameplay GameCreator
-}
-
-type UserGetter interface {
-	SelectUsersByIDs(ctx context.Context, ids []int64) ([]model.User, error)
 }
 
 type GameCreator interface {
 	SetupGame(ctx context.Context, setup model.StateSetup) error
 }
 
-func NewTournamentAdvancer(
-	database database.Database,
-	user UserGetter,
-	gameplay GameCreator,
-	broadcaster pubsub.Broadcaster,
-) *TournamentAdvancer {
-	return &TournamentAdvancer{Database: database, user: user, gameplay: gameplay, broadcaster: broadcaster}
+func NewTournamentAdvancer(database database.Database, broadcaster pubsub.Broadcaster, gameplay GameCreator) *TournamentAdvancer {
+	return &TournamentAdvancer{Database: database, broadcaster: broadcaster, gameplay: gameplay}
 }
 
 func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) (_ []model.GameID, err error) {
@@ -65,9 +55,9 @@ func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tourna
 	}
 
 	eg, egCtx := errgroup.WithContext(ctx)
-	for i, match := range matches {
+	for i := range matches {
 		eg.Go(func() error {
-			return service.setupGame(egCtx, i, match, userDataMap)
+			return service.setupGame(egCtx, i, matches, userDataMap)
 		})
 	}
 
@@ -319,10 +309,17 @@ func (service *TournamentAdvancer) constructMatchDataMap(ctx context.Context, ma
 	for _, match := range matches {
 		userIDs = append(userIDs, match.WhiteID, match.BlackID)
 	}
-	users, err := service.user.SelectUsersByIDs(ctx, userIDs)
+
+	userRows, err := service.Querier.SelectUsersByIDs(ctx, userIDs)
 	if err != nil {
 		return nil, serrors.New("select user player data by ids", err)
 	}
+
+	var users []model.User
+	for _, row := range userRows {
+		users = append(users, model.User{ID: row.ID, Username: row.Username, Country: row.Country})
+	}
+
 	userDataMap := make(map[int64]model.User)
 	for _, userAccount := range users {
 		userDataMap[userAccount.ID] = userAccount
@@ -331,7 +328,9 @@ func (service *TournamentAdvancer) constructMatchDataMap(ctx context.Context, ma
 	return userDataMap, nil
 }
 
-func (service *TournamentAdvancer) setupGame(ctx context.Context, index int, match model.FullMatch, userDataMap map[int64]model.User) error {
+func (service *TournamentAdvancer) setupGame(ctx context.Context, index int, matches []model.FullMatch, userDataMap map[int64]model.User) error {
+	match := matches[index]
+
 	whitePlayerData, okWhite := userDataMap[match.WhiteID]
 	blackPlayerData, okBlack := userDataMap[match.BlackID]
 

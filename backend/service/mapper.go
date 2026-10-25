@@ -58,7 +58,7 @@ func maxPlayerCountTournament(ruleset model.TournamentRuleset, rounds int32) int
 }
 
 func mapTourneyParticipantFromRow(participant query.SelectParticipantsWithUserByTournamentIDRow) model.Participant {
-	return MapLeaderboardUser(query.SelectUserWithEloByIDRow{
+	return mapLeaderboardUser(query.SelectUserWithEloByIDRow{
 		ID:         participant.UserID,
 		Username:   participant.Username,
 		Country:    participant.Country,

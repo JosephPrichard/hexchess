@@ -17,7 +17,7 @@ func setupRetrieveTournamentTest(t slogutil.TestLogger) (*TournamentRetriever, i
 	infra := itest.SetupIntegrationTest(t)
 
 	service := NewRetrieveTournamentService(
-		infra.Database.Querier(),
+		infra.Database.Querier,
 		infra.Redis,
 	)
 
