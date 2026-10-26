@@ -30,7 +30,7 @@ func NewRetrieveTournamentService(querier query.Querier, redis cache.Redis) *Tou
 }
 
 func (service *TournamentRetriever) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (_ model.FullTournament, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	var tournamentRow query.SelectTournamentByIDRow
 	var matchRows []query.SelectReplayMatchesByTournamentIDRow
@@ -119,7 +119,7 @@ func (service *TournamentRetriever) getParticipantsRank(ctx context.Context, par
 }
 
 func (service *TournamentRetriever) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) (_ []model.Tournament, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if !afterID.Present {
 		afterID.Value = int64(math.MaxInt64)

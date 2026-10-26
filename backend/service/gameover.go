@@ -56,7 +56,7 @@ type FinishedGameResult struct {
 }
 
 func (service *GameOverService) HandleFinishedGame(ctx context.Context, event model.FinishGameEvent) (_ FinishedGameResult, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if err := service.backfillEvent(ctx, &event); err != nil {
 		return FinishedGameResult{}, serrors.New("backfill finish game event", err, "event", event)
@@ -202,7 +202,7 @@ func (changeSet GameResultChangeSet) IsNoop() bool {
 }
 
 func (service *GameOverService) InsertGameResult(ctx context.Context, event model.FinishGameEvent) (changeSet GameResultChangeSet, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	gameResult := createGameResult(event)
 

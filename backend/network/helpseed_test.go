@@ -42,15 +42,15 @@ func createTestChessStates(t *testing.T, redis cache.Redis) {
 	t.Helper()
 
 	var testStates = []*model.ChessState{
-		model.NewChessState(model.StateSetup{
+		model.NewChessState(model.ChessStateArgs{
 			ID:         TestGameID1,
 			Mode:       model.ModeCorrespondence1,
 			FirstColor: model.Random,
 			Black:      model.NewPlayer(2, "user2", "us"),
 			UndoState:  model.UndoState{UndoID: 2},
 		}),
-		model.NewChessState(model.StateSetup{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
-		model.NewChessState(model.StateSetup{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
+		model.NewChessState(model.ChessStateArgs{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
+		model.NewChessState(model.ChessStateArgs{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
 	}
 	ctx := t.Context()
 	for _, state := range testStates {

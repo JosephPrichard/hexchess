@@ -32,7 +32,7 @@ type TournamentAdvancer struct {
 }
 
 type GameCreator interface {
-	SetupGame(ctx context.Context, setup model.StateSetup) error
+	CreateGame(ctx context.Context, setup model.ChessStateArgs) (model.GameID, error)
 }
 
 func NewTournamentAdvancer(database database.Database, broadcaster pubsub.Broadcaster, gameplay GameCreator) *TournamentAdvancer {
@@ -40,7 +40,7 @@ func NewTournamentAdvancer(database database.Database, broadcaster pubsub.Broadc
 }
 
 func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) (_ []model.GameID, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	// advance tournament on the database
 	matches, err := service.advanceTournament(ctx, tournamentKey, eventID)
@@ -82,7 +82,7 @@ func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tourna
 var ExpectedAdvanceTournamentStatus = []model.TournamentStatus{model.TournamentScheduled, model.TournamentInProgress}
 
 func (service *TournamentAdvancer) advanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) (createdMatches []model.FullMatch, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -343,7 +343,7 @@ func (service *TournamentAdvancer) setupGame(ctx context.Context, index int, mat
 		return fmt.Errorf("missing game mode for match: %+v", match)
 	}
 
-	err := service.gameplay.SetupGame(ctx, model.StateSetup{
+	_, err := service.gameplay.CreateGame(ctx, model.ChessStateArgs{
 		ID:         match.GameID,
 		Mode:       match.GameMode.Value,
 		FirstColor: model.White,

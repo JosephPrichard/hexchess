@@ -71,7 +71,7 @@ var ReplayQuerySortEnums = enum.BuildReverseMap(replayQuerySortKeyEntries)
 func (sort ReplayQuerySortKey) String() string { return enum.String(sort, replayQuerySortKeyEntries) }
 
 func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, searchQuery ReplaysQuery) (_ []model.FullReplay, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	// populate any userIDs requested through the username queries
 	err = service.loadUserIDsByUsernames(ctx, &searchQuery)

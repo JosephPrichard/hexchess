@@ -70,7 +70,7 @@ type RedisChessSetter interface {
 }
 
 func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id model.GameID, state *model.ChessState, timer time.Time) (err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	bytes, err := model.MarshalChessState(state)
 	if err != nil {
@@ -123,7 +123,7 @@ type ChessUpdateFn func(*model.ChessState) error
 type ChessCommitFn func(redis.Pipeliner, *model.ChessState) error
 
 func (service *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID model.GameID, update ChessUpdateFn, commit ChessCommitFn) (_ *model.ChessState, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	gameKey := cache.FmtGameKey(gameID)
 

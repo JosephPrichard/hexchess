@@ -2,13 +2,11 @@ package service
 
 import (
 	"context"
+	"hexchess-svc/itest"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
-	"time"
-
-	"hexchess-svc/itest"
-	"hexchess-svc/utils/slogutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -146,43 +144,4 @@ func TestGetFullLeaderboardUsers(t *testing.T) {
 			testutil.Equal(t, tt.wantLeaderboard, leaderboard)
 		})
 	}
-}
-
-func TestGetFuzzySearchLeaderboard(t *testing.T) {
-	service, testinfra := setupLeaderboardTest(t)
-	defer testinfra.Close()
-	ctx := t.Context()
-
-	users, err := service.GetFuzzySearchLeaderboard(ctx, "john", 1, 20)
-	require.NoError(t, err)
-
-	wantUsers := []model.LbdUser{
-		{
-			ID:         8,
-			Username:   "john",
-			Country:    "us",
-			Bio:        "",
-			JoinedOn:   time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
-			Elo:        1500,
-			HighestElo: 2000,
-			Wins:       12,
-			Losses:     4,
-			Winrate:    66,
-			Rank:       1,
-		},
-		{
-			ID:         9,
-			Username:   "johnny",
-			Country:    "us",
-			Bio:        "",
-			JoinedOn:   time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
-			Elo:        1500,
-			HighestElo: 1500,
-			Wins:       5,
-			Losses:     2,
-			Winrate:    71,
-			Rank:       2,
-		},
-	}
-	assert.Equal(t, wantUsers, users)
 }

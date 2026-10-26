@@ -597,15 +597,17 @@ func TestHandleSearchPlayers(t *testing.T) {
 		wantFail    network.ServiceResp
 	}{
 		{
-			name:       "SearchPlayers",
+			name:       "SearchPlayers_Postgres",
 			username:   "john",
 			wantStatus: http.StatusOK,
 			wantSuccess: network.SearchPlayersResp{
 				UserList: []model.LbdUser{
 					{
-						User: model.User{
-							ID: 8, Username: "john", Country: "us", Bio: "",
-							JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						ID:         8,
+						Username:   "john",
+						Country:    "us",
+						Bio:        "",
+						JoinedOn:   time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
 						Elo:        1500,
 						HighestElo: 2000,
 						Wins:       12,
@@ -614,9 +616,11 @@ func TestHandleSearchPlayers(t *testing.T) {
 						Rank:       1,
 					},
 					{
-						User: model.User{
-							ID: 9, Username: "johnny", Country: "us", Bio: "",
-							JoinedOn: time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)},
+						ID:         9,
+						Username:   "johnny",
+						Country:    "us",
+						Bio:        "",
+						JoinedOn:   time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC),
 						Elo:        1500,
 						HighestElo: 1500,
 						Wins:       5,
@@ -682,12 +686,10 @@ func TestGetLeaderboard(t *testing.T) {
 				TotalPages: 1,
 				UserList: []model.LbdUser{
 					{
-						User: model.User{
-							ID:       1,
-							Username: "user1",
-							Country:  "us",
-							JoinedOn: itest.TimeNow,
-						},
+						ID:         1,
+						Username:   "user1",
+						Country:    "us",
+						JoinedOn:   itest.TimeNow,
 						Elo:        1050,
 						HighestElo: 1050,
 						Wins:       6,

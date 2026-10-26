@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/chess"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"time"
 
@@ -27,26 +27,24 @@ func NewGameCreateService(redis cache.Redis, chessState ChessSetter) *GameCreate
 	return &GameCreateService{redis: redis, chessState: chessState}
 }
 
-func (service *GameCreateService) CreateGame(ctx context.Context, color model.GameColor, mode model.GameMode, initialBoard *chess.Board) (model.GameID, error) {
-	gameID := model.NewGameID()
-	err := service.SetupGame(ctx, model.StateSetup{ID: gameID, Mode: mode, FirstColor: color, InitialBoard: initialBoard})
-	return gameID, err
-}
+func (service *GameCreateService) CreateGame(ctx context.Context, args model.ChessStateArgs) (gameID model.GameID, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
 
-func (service *GameCreateService) SetupGame(ctx context.Context, setup model.StateSetup) error {
-	gameID := setup.ID
+	if args.ID == "" {
+		args.ID = model.NewGameID()
+	}
 
-	state := model.NewChessState(setup)
+	state := model.NewChessState(args)
 	state.Game.InitPieceMoves()
 
 	pipeliner := func(pipe redis.Pipeliner) error {
 		now := time.Now()
-		if err := service.chessState.SetChessStatePiped(ctx, pipe, gameID, state, now); err != nil {
-			return serrors.New("set chess state", err, "gameID", gameID)
+		if err := service.chessState.SetChessStatePiped(ctx, pipe, args.ID, state, now); err != nil {
+			return serrors.New("set chess state", err, "gameID", args.ID)
 		}
 		return produceUpdtGameMetadata(ctx, pipe, state)
 	}
 
-	_, err := service.redis.PrimaryClient.TxPipelined(ctx, pipeliner)
-	return err
+	_, err = service.redis.PrimaryClient.TxPipelined(ctx, pipeliner)
+	return args.ID, err
 }

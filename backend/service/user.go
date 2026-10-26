@@ -7,16 +7,16 @@ import (
 	"errors"
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/model"
+	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"hexchess-svc/database"
-
-	"hexchess-svc/utils/slogutil"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,11 +25,22 @@ import (
 )
 
 type UserService struct {
+	// infra
 	database.Database
+
+	// service
+	producer UpdateUserProducer
 }
 
-func NewUserService(database database.Database) *UserService {
-	return &UserService{Database: database}
+type UpdateUserProducer interface {
+	ProduceUpdateUser(ctx context.Context, txn pgx.Tx, args producers.UpdateUserArgs) error
+}
+
+func NewUserService(database database.Database, producer UpdateUserProducer) *UserService {
+	if producer == nil {
+		producer = producers.NewRiverProducer(&producers.NoopRiverClient{})
+	}
+	return &UserService{Database: database, producer: producer}
 }
 
 type RankedUser struct {
@@ -47,19 +58,36 @@ type UserInst struct {
 	JoinedOn time.Time
 }
 
-func (service *UserService) InsertUser(ctx context.Context, inst UserInst) (_ model.User, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	if inst.JoinedOn.IsZero() {
-		inst.JoinedOn = time.Now()
-	}
+func (service *UserService) InsertUser(ctx context.Context, inst UserInst) (user model.User, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	hash, err := hashPassword(inst.Password)
 	if err != nil {
 		return model.User{}, serrors.New("generate hash", err)
 	}
 
-	userRow, err := service.QuerierMutator.InsertUser(ctx, mutate.InsertUserParams{
+	err = service.Database.ExecTx(ctx, database.TxArgs{
+		// Transaction is required to make this transaction atomic, since there are no reads - any isolation level is okay
+		Isolation:  pgx.ReadUncommitted,
+		RetryCount: 1,
+		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
+			return insertUser(ctx, txn, query, service.producer, inst, hash, &user)
+		},
+	})
+
+	return
+}
+
+func insertUser(
+	ctx context.Context,
+	txn pgx.Tx, query database.QuerierMutator, producer UpdateUserProducer,
+	inst UserInst, hash HashResult, user *model.User,
+) error {
+	if inst.JoinedOn.IsZero() {
+		inst.JoinedOn = time.Now()
+	}
+
+	userRow, err := query.InsertUser(ctx, mutate.InsertUserParams{
 		Username: inst.Username,
 		Country:  inst.Country,
 		Password: hash.HashedPassword,
@@ -69,14 +97,104 @@ func (service *UserService) InsertUser(ctx context.Context, inst UserInst) (_ mo
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			return model.User{}, ErrTakenUsername
+			return ErrTakenUsername
 		}
-		return model.User{}, serrors.New("insert user to transactor", err)
+		return serrors.New("insert user", err)
+	}
+
+	producerArgs := producers.UpdateUserArgs{ID: userRow.ID}
+	if err := producer.ProduceUpdateUser(ctx, txn, producerArgs); err != nil {
+		return err
+	}
+
+	*user = model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+
+	slog.InfoContext(ctx, "created a new user", "user", user)
+	return nil
+}
+
+func (service *UserService) GetUserByID(ctx context.Context, id int64) (_ model.User, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	userRow, err := service.Querier.SelectUserByID(ctx, id)
+	if database.IsErrNoRows(err) {
+		return model.User{}, ErrUserNotFound
+	} else if err != nil {
+		return model.User{}, serrors.New("select user", err, "userID", id)
 	}
 
 	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
-	slog.InfoContext(ctx, "created a new user", "user", user)
+
+	slog.InfoContext(ctx, "selected user by id", "userID", id, "user", user)
 	return user, nil
+}
+
+type UpdtUserParams struct {
+	Username string
+	Bio      string
+	Country  string
+}
+
+func (service *UserService) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (user model.User, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	err = service.Database.ExecTx(ctx, database.TxArgs{
+		// Transaction is required to make this transaction atomic, since there are no reads - any isolation level is okay
+		Isolation:  pgx.ReadUncommitted,
+		RetryCount: 1,
+		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
+			return updateUser(ctx, txn, query, service.producer, id, updt, &user)
+		},
+	})
+
+	return
+}
+
+func updateUser(
+	ctx context.Context,
+	txn pgx.Tx, query database.QuerierMutator, producer UpdateUserProducer,
+	id int64, updt UpdtUserParams, user *model.User,
+) error {
+	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
+		return nil
+	}
+
+	userRow, err := query.UpdateUser(ctx, mutate.UpdateUserParams{
+		ID:       id,
+		Username: database.OptString(updt.Username),
+		Bio:      database.OptString(updt.Bio),
+		Country:  database.OptString(updt.Country),
+	})
+	if err != nil {
+		return serrors.New("update user", err, "userID", id)
+	}
+
+	producerArgs := producers.UpdateUserArgs{ID: userRow.ID}
+	if err := producer.ProduceUpdateUser(ctx, txn, producerArgs); err != nil {
+		return err
+	}
+
+	*user = model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
+
+	slog.InfoContext(ctx, "updated user", "user", user)
+	return err
+}
+
+func (service *UserService) UpdateUserPassword(ctx context.Context, id int64, newPassword string) (err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	hash, err := hashPassword(newPassword)
+	if err != nil {
+		return serrors.New("hash password for user", err, "userID", id)
+	}
+
+	err = service.QuerierMutator.UpdatePassword(ctx, mutate.UpdatePasswordParams{
+		ID:       id,
+		Password: hash.HashedPassword,
+		Salt:     hash.Salt,
+	})
+	slog.Log(ctx, slogutil.ErrorLevel(err), "updated password", "error", err, "userID", id)
+	return err
 }
 
 func (service *UserService) BatchInsertUsers(ctx context.Context, insts []UserInst) ([]model.User, error) {
@@ -148,37 +266,42 @@ const LockoutDuration = time.Minute * 1
 
 var ErrTooManyLoginAttempts = errors.New("too many login attempts")
 
-func (service *UserService) VerifyUser(ctx context.Context, username string, inputPassword string) (_ VerifiedUser, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	var user VerifiedUser
+func (service *UserService) VerifyUser(ctx context.Context, username string, inputPassword string) (user VerifiedUser, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
 		// Case 1 (Non-Repeatable Read):
-		// T1 is allowed to login due to valid login attempts L1 and but increases login attempt count from L1 to L2
+		// T1 is allowed to log in due to valid login attempts L1 and increases login attempt count from L1 to L2
 		// In between reading L1 and updating from L1 to L2, another query updates the login attempts, so L1 will return an inconsistent value
 		// Case 2 (Write Skew):
-		// T1 and T2 attempt to login at the same time, with LoginAttempts-1 (L1) one less than an invalid threshold
-		// T1 and T2 are both permitted to attempt to login since L1 is valid, even though only one login attempt is allowed
+		// T1 and T2 attempt to log in at the same time, with LoginAttempts-1 (L1) one less than an invalid threshold
+		// T1 and T2 are both permitted to attempt to log in since L1 is valid, even though only one login attempt is allowed
 		// L2 will be L1+2 after update, even though it should not have permitted both attempts
 		Isolation:    pgx.Serializable,
 		ErrAllowlist: []error{ErrTooManyLoginAttempts, ErrUserNotFound},
-		RetryCount:   3,
+		// RetryCount: retry with hashing can be expensive, so keep this count at 1
+		// if the same user tries multiple to log in attempts at once, one will fail - we map this to an auth error
+		RetryCount: 1,
 		QueryFn: func(ctx context.Context, _ pgx.Tx, query database.QuerierMutator) error {
 			return verifyUser(ctx, query, username, inputPassword, &user)
 		},
 	})
 
-	return user, err
+	if database.IsSerializationFailure(err) {
+		slog.ErrorContext(ctx, "while verifying user: transaction failure - override with login error", "error", err)
+		err = ErrUserNotFound
+	}
+
+	return
 }
 
 func verifyUser(ctx context.Context, query database.QuerierMutator, username string, inputPassword string, user *VerifiedUser) error {
-	loginRow, err := query.SelectLoginByName(ctx, username)
-	if database.IsErrNoRows(err) {
+	loginRow, hashErr := query.SelectLoginByName(ctx, username)
+	if database.IsErrNoRows(hashErr) {
 		return ErrUserNotFound
-	} else if err != nil {
-		return serrors.New("select user by login", err, "username", username)
+	} else if hashErr != nil {
+		return serrors.New("select user by login", hashErr, "username", username)
 	}
 
 	isExceedAttempts := loginRow.LoginAttempts > 0 && loginRow.LoginAttempts%LoginAttemptsDivisor == 0
@@ -189,21 +312,25 @@ func verifyUser(ctx context.Context, query database.QuerierMutator, username str
 	}
 
 	saltedPassword := inputPassword + loginRow.Salt
+	hashErr = bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
 
-	err = bcrypt.CompareHashAndPassword([]byte(loginRow.Password), []byte(saltedPassword))
-	if err != nil {
+	if hashErr != nil {
+		slog.WarnContext(ctx, "failed to login, credentials are invalid", "username", username, "error", hashErr)
+	}
+
+	if hashErr == nil {
+		if err := query.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
+			return serrors.New("reset user login attempts", err, "userID", loginRow.ID)
+		}
+	} else {
 		if err := query.IncrLoginAttempts(ctx, loginRow.ID); err != nil {
 			return serrors.New("increment user login attempts", err, "userID", loginRow.ID)
 		}
-		slog.ErrorContext(ctx, "failed to login, credentials are invalid", "username", username, "error", err)
 		return ErrUserNotFound
 	}
 
-	if err := query.ResetLoginAttempts(ctx, loginRow.ID); err != nil {
-		return serrors.New("reset user login attempts", err, "userID", loginRow.ID)
-	}
-
 	*user = VerifiedUser{ID: loginRow.ID, Username: loginRow.Username, Country: loginRow.Country}
+
 	slog.InfoContext(ctx, "user login is valid", "user", user)
 	return nil
 }
@@ -215,7 +342,7 @@ type GoogleUserInst struct {
 }
 
 func (service *UserService) SelectOrInsertGoogleUser(ctx context.Context, googleAccountID string, googleInst GoogleUserInst) (_ VerifiedUser, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	var verifiedUser VerifiedUser
 	var isCreated bool
@@ -251,73 +378,14 @@ func (service *UserService) SelectOrInsertGoogleUser(ctx context.Context, google
 	return verifiedUser, nil
 }
 
-func (service *UserService) GetUserByID(ctx context.Context, id int64) (_ model.User, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	userRow, err := service.Querier.SelectUserByID(ctx, id)
-	if database.IsErrNoRows(err) {
-		return model.User{}, ErrUserNotFound
-	} else if err != nil {
-		return model.User{}, serrors.New("select user", err, "userID", id)
-	}
-
-	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
-
-	slog.InfoContext(ctx, "selected user by id", "userID", id, "user", user)
-	return user, nil
-}
-
-type UpdtUserParams struct {
-	Username string
-	Bio      string
-	Country  string
-}
-
-func (service *UserService) UpdateUser(ctx context.Context, id int64, updt UpdtUserParams) (_ model.User, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	if updt.Username == "" && updt.Bio == "" && updt.Country == "" {
-		return model.User{}, nil
-	}
-
-	userRow, err := service.QuerierMutator.UpdateUser(ctx, mutate.UpdateUserParams{
-		ID:       id,
-		Username: database.OptString(updt.Username),
-		Bio:      database.OptString(updt.Bio),
-		Country:  database.OptString(updt.Country),
-	})
-	if err != nil {
-		return model.User{}, serrors.New("update user", err, "userID", id)
-	}
-
-	user := model.User{ID: userRow.ID, Username: userRow.Username, Country: userRow.Country, Bio: userRow.Bio, JoinedOn: userRow.JoinedOn.Time}
-	slog.InfoContext(ctx, "updated user", "user", user)
-	return user, err
-}
-
-func (service *UserService) UpdateUserPassword(ctx context.Context, id int64, newPassword string) (err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	hash, err := hashPassword(newPassword)
-	if err != nil {
-		return serrors.New("hash password for user", err, "userID", id)
-	}
-
-	err = service.QuerierMutator.UpdatePassword(ctx, mutate.UpdatePasswordParams{
-		ID:       id,
-		Password: hash.HashedPassword,
-		Salt:     hash.Salt,
-	})
-	slog.Log(ctx, slogutil.ErrorLevel(err), "updated password", "error", err, "userID", id)
-	return err
-}
-
 type HashResult struct {
 	Salt           string
 	HashedPassword string
 }
 
 func hashPassword(password string) (HashResult, error) {
+	defer perf.New().Log()
+
 	saltBytes := make([]byte, 16)
 	if _, err := rand.Read(saltBytes); err != nil {
 		return HashResult{}, serrors.New("generate salt", err)

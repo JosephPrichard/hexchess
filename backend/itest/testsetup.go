@@ -10,8 +10,10 @@ import (
 	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
+	"strings"
 	"time"
 
+	"github.com/elastic/go-elasticsearch/v8"
 	redigo "github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -21,6 +23,7 @@ const (
 	redisAddr      = "localhost:20121"
 	localstackAddr = "http://localhost:30121"
 	dbAddr         = "localhost:40121"
+	esAddr         = "http://localhost:50121"
 
 	dbUser = "postgres"
 	dbName = "postgres"
@@ -33,6 +36,7 @@ type TestInfra struct {
 	Database database.Database
 	Redis    cache.Redis
 	AWS      cloud.AWSClient
+	Es       *elasticsearch.TypedClient
 }
 
 func (i TestInfra) Close() {
@@ -65,9 +69,11 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 		ActiveProfile: config.Local,
 		Names:         *testutil.NewTestNames(cloud.DefaultAWSNames),
 	})
+	infra.Es = cloud.NewElasticSearchClient(esAddr)
 
 	setupRedisPreconditions(t)
 	setupDbPreconditions(t, pgPool)
+	setupElasticSearchPrecondition(ctx, t, infra.Es)
 
 	return infra
 }
@@ -109,16 +115,35 @@ func createSchema(ctx context.Context, pool *pgxpool.Pool) error {
 
 func setupRedisPreconditions(t slogutil.TestLogger) {
 	pool := &redigo.Pool{
-		MaxIdle:     8,
+		MaxIdle:     1,
 		IdleTimeout: 240 * time.Second,
 		Dial: func() (redigo.Conn, error) {
 			return redigo.Dial("tcp", redisAddr)
 		},
 	}
+	defer pool.Close()
+
 	conn := pool.Get()
 	defer conn.Close()
 
 	if _, err := conn.Do("FLUSHALL"); err != nil {
 		t.Fatalf("failed to flush redis: %v", err)
 	}
+}
+
+func setupElasticSearchPrecondition(ctx context.Context, t slogutil.TestLogger, esClient *elasticsearch.TypedClient) {
+	deleteResult, err := esClient.Indices.Delete(strings.Join(cloud.EsIndices, ",")).
+		IgnoreUnavailable(true).
+		Do(ctx)
+	if err != nil {
+		t.Fatalf("failed to delete es indices: %v", err)
+	}
+	t.Logf("delete es indices: %+v", deleteResult)
+
+	createResults, err := cloud.CreateElasticSearchIndices(ctx, nil, esClient)
+	if err != nil {
+		t.Fatalf("failed to create es indices: %v", err)
+	}
+
+	t.Logf("create es indices: %+v", createResults)
 }

@@ -26,7 +26,7 @@ func NewChessTimerService(redis cache.Redis, partitionKey string) *TimerService 
 }
 
 func (service *TimerService) TryExpireTimers(ctx context.Context, expireBeforeTime time.Time) (_ any, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	expireBefore := strconv.Itoa(int(expireBeforeTime.UnixMilli()))
 

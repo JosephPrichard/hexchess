@@ -32,7 +32,7 @@ func (service *ActiveUserService) IsActiveUser(ctx context.Context, id string) b
 }
 
 func (service *ActiveUserService) GetActiveCount(ctx context.Context) (_ int64, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	expireBefore := service.entropy.GetTime().Add(-ActiveUserMaxAge)
 	expireBeforeStr := fmt.Sprintf("%d", expireBefore.UnixMilli())
@@ -55,7 +55,7 @@ func (service *ActiveUserService) GetActiveCount(ctx context.Context) (_ int64, 
 }
 
 func (service *ActiveUserService) RetainActiveUser(ctx context.Context, id string) (err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	updtTime := float64(service.entropy.GetTime().UnixMilli())
 
@@ -69,7 +69,7 @@ func (service *ActiveUserService) RetainActiveUser(ctx context.Context, id strin
 }
 
 func (service *ActiveUserService) AddActiveUser(ctx context.Context, id string) (_ int64, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	updtTime := float64(service.entropy.GetTime().UnixMilli())
 
@@ -89,7 +89,7 @@ func (service *ActiveUserService) AddActiveUser(ctx context.Context, id string) 
 }
 
 func (service *ActiveUserService) RemoveActiveUser(ctx context.Context, id string) (_ int64, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	res, err := service.redis.PrimaryClient.ZRem(ctx, cache.Constants.ActiveUsersZSet, id).Result()
 	if err != nil {

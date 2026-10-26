@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   test-redis:
     container_name: test-redis
@@ -25,3 +23,21 @@ services:
       POSTGRES_DB: postgres
     ports:
       - "40121:5432"
+
+  test-elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: test-elasticsearch
+    environment:
+      node.name: es01
+      cluster.name: it-cluster
+      discovery.seed_providers: settings
+      discovery.seed_hosts: es01
+      cluster.initial_master_nodes: es01
+      xpack.security.enabled: "false" # tests only
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "50121:9200"

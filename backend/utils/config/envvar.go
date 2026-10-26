@@ -13,6 +13,7 @@ type Config struct {
 	DbReadURL         string   `json:"dbReadURL"`
 	RedisPrimaryNodes []string `json:"redisPrimaryNodes"`
 	RedisPubSubNode   string   `json:"redisPubSubNode"`
+	EsClientEndpoint  string   `json:"esClientEndpoint"`
 	Profile           Profile  `json:"profile"`
 	AwsRegion         string   `json:"awsRegion"`
 	AwsEndpoint       string   `json:"awsEndpoint"`
@@ -51,6 +52,7 @@ func loadConfig() Config {
 		DbReadURL:         os.Getenv("DB_READ_URL"),
 		RedisPrimaryNodes: strings.Split(os.Getenv("REDIS_SOR_NODES"), ","),
 		RedisPubSubNode:   os.Getenv("REDIS_PUBSUB_NODE"),
+		EsClientEndpoint:  os.Getenv("ES_CLIENT_ENDPOINT"),
 		Profile:           ParseProfile(os.Getenv("ACTIVE_PROFILE")),
 		AwsRegion:         os.Getenv("AWS_REGION"),
 		AwsEndpoint:       os.Getenv("AWS_ENDPOINT"),

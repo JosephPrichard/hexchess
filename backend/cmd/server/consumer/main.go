@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"hexchess-svc/cache"
+	"hexchess-svc/cloud"
 	"hexchess-svc/database"
+	"hexchess-svc/featureflag"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
 	"hexchess-svc/utils/config"
@@ -12,6 +14,8 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"time"
+
+	"github.com/elastic/go-elasticsearch/v8"
 )
 
 const ServiceName = "hexchess-consumer"
@@ -50,6 +54,12 @@ func main() {
 	})
 	defer redisClient.Close()
 
+	var esClient *elasticsearch.TypedClient
+	if featureflag.FeatureFlagConfig.IsUserSearchElasticSearch {
+		esClient = cloud.NewElasticSearchClient(cfg.EsClientEndpoint)
+		defer esClient.Close(nil)
+	}
+
 	// start background consumers and PPROF server
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
@@ -63,6 +73,7 @@ func main() {
 		PGXPool:     databasePools.Write,
 		Database:    databaseClient,
 		Redis:       redisClient,
+		EsClient:    esClient,
 		Broadcaster: broadcaster,
 	})
 

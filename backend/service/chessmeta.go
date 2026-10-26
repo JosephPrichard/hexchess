@@ -30,7 +30,7 @@ func NewChessMetadataService(database database.Database, entropy entropy.Generat
 }
 
 func (service *ChessMetadataService) UpdateGameMetadata(ctx context.Context, updt model.UpdtGameMetadataEvent) (err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	result, err := service.QuerierMutator.UpdateGameMeta(ctx, mutate.UpdateGameMetaParams{
 		GameID:    updt.GameID.String(),
@@ -56,7 +56,7 @@ type ChessMetasResp struct {
 }
 
 func (service *ChessMetadataService) GetGameMetadata(ctx context.Context, player model.PlayerState, afterOrdering opt.Option[int64], count int32) (_ ChessMetasResp, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	var chessMetas []model.ChessMeta
 	var userChessMetas []model.ChessMeta
@@ -92,7 +92,7 @@ func (service *ChessMetadataService) GetGameMetadata(ctx context.Context, player
 }
 
 func (service *ChessMetadataService) GetGameMetadataCount(ctx context.Context) (_ int64, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	count, err := service.Querier.SelectGameMetasCount(ctx)
 	if err != nil {

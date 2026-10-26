@@ -26,25 +26,12 @@ type PersonaService struct {
 	redis cache.Redis
 }
 
-type PersonaUserGetter interface {
-	GetUserByID(ctx context.Context, id int64) (model.User, error)
-	GetUserStats(ctx context.Context, id int64) (model.UserStats, error)
-}
-
-type LeaderboardGetter interface {
-	GetUserLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (map[string]PersonaLeaderboardRank, error)
-}
-
-type ReplayQuerier interface {
-	SearchReplaysByQuery(ctx context.Context, q ReplaysQuery) ([]model.FullReplay, error)
-}
-
 func NewPersonaService(database database.Database, redis cache.Redis) *PersonaService {
 	return &PersonaService{Database: database, redis: redis}
 }
 
 func (service *PersonaService) GetPersona(ctx context.Context, userID int64, perPage int32) (_ model.Persona, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	var userData model.User
 	var userDataErr error
@@ -126,7 +113,7 @@ func (service *PersonaService) GetPersona(ctx context.Context, userID int64, per
 }
 
 func (service *PersonaService) getPersonaUserByID(ctx context.Context, id int64) (_ model.User, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	userRow, err := service.Querier.SelectUserByID(ctx, id)
 	if database.IsErrNoRows(err) {
@@ -142,7 +129,7 @@ func (service *PersonaService) getPersonaUserByID(ctx context.Context, id int64)
 }
 
 func (service *PersonaService) getPersonaUserStats(ctx context.Context, userID int64) (_ model.UserStats, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	modeEloRows, err := service.Querier.SelectUserElosByID(ctx, userID)
 	if err != nil {
@@ -193,7 +180,7 @@ func mapLeaderboardRank(rank int64) int64 {
 }
 
 func (service *PersonaService) getPersonaLeaderboardRanks(ctx context.Context, userID int64, modes map[string]model.GameMode) (_ map[string]PersonaLeaderboardRank, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	type getExec struct {
 		mode string
@@ -236,7 +223,7 @@ func (service *PersonaService) getPersonaLeaderboardRanks(ctx context.Context, u
 }
 
 func (service *PersonaService) getReplaysByQuery(ctx context.Context, userID int64, perPage int32) (_ []model.FullReplay, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	params := query.SelectReplaysByQueryParams{
 		PerPage: perPage,

@@ -367,7 +367,7 @@ func (server *HttpServer) HandleSearchPlayers(w http.ResponseWriter, r *http.Req
 
 	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
 
-	users, err := server.service.GetFuzzySearchLeaderboard(ctx, name, int32(page), defaultPaginationCount)
+	users, err := server.service.SearchUsers(ctx, name, int32(page), defaultPaginationCount)
 	if err != nil {
 		return serrors.New("search users by name", err, "name", name)
 	}
@@ -408,7 +408,7 @@ func (server *HttpServer) HandleUpdateChallenge(w http.ResponseWriter, r *http.R
 
 	var gameID model.GameID
 	if body.Action == Accept {
-		gameID, err = server.service.CreateGame(ctx, deleteResult.FirstColor, deleteResult.Mode, nil)
+		gameID, err = server.service.CreateGame(ctx, model.ChessStateArgs{Mode: deleteResult.Mode, FirstColor: deleteResult.FirstColor})
 		if err != nil {
 			return serrors.New("create game", err, "deleteResult", deleteResult)
 		}
@@ -530,7 +530,7 @@ func (server *HttpServer) HandleCreateGame(w http.ResponseWriter, r *http.Reques
 		return err
 	}
 
-	gameID, err := server.service.CreateGame(ctx, body.FirstColor, body.Mode, &body.InitialBoard)
+	gameID, err := server.service.CreateGame(ctx, model.ChessStateArgs{Mode: body.Mode, FirstColor: body.FirstColor, InitialBoard: &body.InitialBoard})
 	if err != nil {
 		return serrors.New("create game", err)
 	}

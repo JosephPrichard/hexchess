@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database"
+	"hexchess-svc/featureflag"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/config"
@@ -15,7 +15,7 @@ import (
 	_ "net/http/pprof"
 	"time"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/elastic/go-elasticsearch/v8"
 )
 
 const ServiceName = "hexchess-api"
@@ -54,7 +54,7 @@ func main() {
 	})
 	defer redisClient.Close()
 
-	aws := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
+	awsClient := cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
 		ActiveProfile: cfg.Profile,
 		Names:         cloud.AWSNames{S3ProfileBucket: cfg.ProfileBucket},
 		AWSRegion:     cfg.AwsRegion,
@@ -63,6 +63,13 @@ func main() {
 		AWSPassword:   cfg.AwsPassword,
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
+
+	var esClient *elasticsearch.TypedClient
+	if featureflag.FeatureFlagConfig.IsUserSearchElasticSearch {
+		esClient = cloud.NewElasticSearchClient(cfg.EsClientEndpoint)
+		defer esClient.Close(nil)
+	}
+
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
 	broadcasters := pubsub.NewLocalBroadcasters()
@@ -73,25 +80,14 @@ func main() {
 		Database:       databaseClient,
 		RiverClient:    riverClient,
 		Redis:          redisClient,
-		AWS:            aws,
+		AWS:            awsClient,
 		SDKs:           remoteAPIs,
 		Broadcaster:    broadcaster,
 		Broadcasters:   broadcasters,
 		AllowedOrigins: cfg.AllowedOrigins,
 	})
 
-	network.SetHealthCheck(mux, network.HealthConfig{
-		PostgresCheck:     databaseClient.HealthcheckFunc(),
-		PostgresReadCheck: databaseClient.ReadHealthcheckFunc(),
-		RedisPrimaryCheck: redisClient.PrimaryHealthCheck,
-		RedisPubSubCheck:  redisClient.PubsubHealthCheck,
-	})
-	network.SetAdminEndpoints(mux, riverClient)
-
-	logMux(mux)
-
-	slog.Info("finished initializing app, starting server",
-		"port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins, "timeTaken", time.Since(startTime).String())
+	slog.Info("finished initializing app, starting server", "port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins, "timeTaken", time.Since(startTime).String())
 
 	go func() {
 		if err := http.ListenAndServe(":6060", nil); err != nil {
@@ -101,13 +97,4 @@ func main() {
 	if err := http.ListenAndServe(":"+cfg.ServerPort, mux); err != nil {
 		slogutil.Fatal("failed while serving", err)
 	}
-}
-
-func logMux(mux *chi.Mux) {
-	var handlers []string
-	_ = chi.Walk(mux, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
-		handlers = append(handlers, fmt.Sprintf("%s %s", method, route))
-		return nil
-	})
-	slog.Info("initialized serve mux", "handlers", handlers)
 }

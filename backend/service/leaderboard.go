@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/database/query"
@@ -97,7 +96,7 @@ func (service *LeaderboardService) GetLeaderboard(ctx context.Context, mode mode
 }
 
 func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode model.GameMode, page, perPage int64) (_ Leaderboard, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if page < 1 {
 		page = 1
@@ -111,7 +110,7 @@ func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode 
 }
 
 func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) (err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	for _, mode := range model.GameModeEnums {
 		afterID := int64(0)
@@ -160,7 +159,7 @@ func mapLeaderboardUser(row query.SelectUserWithEloByIDRow) model.LbdUser {
 }
 
 func (service *LeaderboardService) GetLeaderboardUser(ctx context.Context, userID int64, mode model.GameMode) (_ model.LbdUser, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	strUserID := strconv.Itoa(int(userID))
 
@@ -192,7 +191,7 @@ func (service *LeaderboardService) GetLeaderboardUser(ctx context.Context, userI
 }
 
 func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, mode model.GameMode, rankUsers []RankedUser) (_ []model.LbdUser, _ []int64, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if len(rankUsers) == 0 {
 		return nil, nil, nil
@@ -239,91 +238,4 @@ func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, 
 
 	slog.InfoContext(ctx, "selected users", "ids", ids, "leaderboardUsers", leaderboardUsers, "rnkUsers", rankUsers)
 	return leaderboardUsers, missingIDs, nil
-}
-
-const MaxSearchOffset = 1000
-
-var ErrSearchLimit = errors.New("search limit exceeded")
-
-func (service *LeaderboardService) GetFuzzySearchLeaderboard(ctx context.Context, name string, page, perPage int32) (_ []model.LbdUser, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
-
-	if name == "" {
-		return []model.LbdUser{}, nil
-	}
-
-	page = max(page, 1)
-	offset := (page - 1) * perPage
-	if offset > MaxSearchOffset {
-		slog.WarnContext(ctx, "failed to search offset exceeds maximum", "offset", offset, "maxOffset", MaxSearchOffset)
-		return []model.LbdUser{}, ErrSearchLimit
-	}
-
-	userRows, err := service.querier.SelectUsersBySimilarity(ctx, query.SelectUsersBySimilarityParams{
-		Username: name,
-		Limit:    perPage,
-		Offset:   offset,
-	})
-	if err != nil {
-		return nil, serrors.New("select users by similarity", err)
-	}
-
-	var userIDs []int64
-	for _, row := range userRows {
-		userIDs = append(userIDs, row.ID)
-	}
-	eloRows, err := service.querier.SelectUserElosByIDs(ctx, userIDs)
-	if err != nil {
-		return nil, serrors.New("select elos by user ids", err, "userIDs", userIDs)
-	}
-
-	eloAggrMap := make(map[int64]struct {
-		HighestElo float64
-		Elo        float64
-		Datapoints int
-		Wins       int32
-		Losses     int32
-		Draws      int32
-		Winrate    int64
-	})
-	for _, row := range eloRows {
-		aggr := eloAggrMap[row.UserID]
-
-		aggr.Elo = average(aggr.Elo, aggr.Datapoints, row.Elo)
-		aggr.HighestElo = max(aggr.HighestElo, row.Elo)
-		aggr.Winrate = average(aggr.Winrate, aggr.Datapoints, model.CalcUserWinrate(row.Wins, row.Losses, row.Draws))
-
-		aggr.Losses += row.Losses
-		aggr.Wins += row.Wins
-		aggr.Draws += row.Draws
-
-		aggr.Datapoints += 1
-
-		eloAggrMap[row.UserID] = aggr
-	}
-
-	leaderboardUsers := make([]model.LbdUser, 0, len(userRows))
-	for i, userRow := range userRows {
-		searchRank := (page-1)*perPage + int32(i) + 1
-
-		aggr := eloAggrMap[userRow.ID]
-
-		leaderboardUsers = append(leaderboardUsers, model.LbdUser{
-			User: model.User{
-				ID:       userRow.ID,
-				Username: userRow.Username,
-				Country:  userRow.Country,
-			},
-			Elo:        aggr.Elo,
-			HighestElo: aggr.HighestElo,
-			Wins:       aggr.Wins,
-			Losses:     aggr.Losses,
-			Draws:      aggr.Draws,
-			Winrate:    aggr.Winrate,
-			Rank:       int64(searchRank),
-		})
-	}
-
-	slog.InfoContext(ctx, "selected users by name similarity", "users", leaderboardUsers, "name", name, "page", page, "limit", page, "offset", offset)
-	return leaderboardUsers, nil
 }

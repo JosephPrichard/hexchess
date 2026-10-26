@@ -46,7 +46,7 @@ type ChessMeta struct {
 	Ordering    int64            `json:"ordering"`
 }
 
-type StateSetup struct {
+type ChessStateArgs struct {
 	ID           GameID
 	Mode         GameMode
 	FirstColor   GameColor
@@ -58,31 +58,31 @@ type StateSetup struct {
 	UndoState    UndoState
 }
 
-func NewChessStateValue(s StateSetup) ChessState {
+func NewChessStateValue(args ChessStateArgs) ChessState {
 	board := chess.NewStartBoard()
-	if s.InitialBoard != nil {
-		board = *s.InitialBoard
+	if args.InitialBoard != nil {
+		board = *args.InitialBoard
 	}
 	game := chess.Game{Board: board}
-	if s.Game != nil {
-		game = *s.Game
+	if args.Game != nil {
+		game = *args.Game
 	}
 	return ChessState{
-		UndoState:    s.UndoState,
-		ID:           s.ID,
+		UndoState:    args.UndoState,
+		ID:           args.ID,
 		StartTime:    time.Now(),
-		FirstColor:   s.FirstColor,
-		Mode:         s.Mode,
-		WhitePlayer:  s.White,
-		BlackPlayer:  s.Black,
-		EndState:     s.EndState,
+		FirstColor:   args.FirstColor,
+		Mode:         args.Mode,
+		WhitePlayer:  args.White,
+		BlackPlayer:  args.Black,
+		EndState:     args.EndState,
 		InitialBoard: board,
 		Game:         game,
 	}
 }
 
-func NewChessState(s StateSetup) *ChessState {
-	chessState := NewChessStateValue(s)
+func NewChessState(args ChessStateArgs) *ChessState {
+	chessState := NewChessStateValue(args)
 	return &chessState
 }
 

@@ -118,7 +118,7 @@ type RetrieveEloHistoryResp struct {
 // RetrieveEloHistoryBuckets Returns the elo replay histories for a given user organized into buckets and categorized into a map keyed by replay "mode"
 // map will contain the keys "ALL" (contains payload for all modes) plus all modes (ReplayModes)
 func (service *ReplayService) RetrieveEloHistoryBuckets(ctx context.Context, params EloHistoriesParams) (_ RetrieveEloHistoryResp, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if params.TimeUntil.IsZero() {
 		params.TimeUntil = time.Now()

@@ -137,7 +137,7 @@ type SeedServices struct {
 func newSeedServices(redisClient cache.Redis, databaseClient database.Database) SeedServices {
 	return SeedServices{
 		leaderboard: service.NewLeaderboardService(redisClient, databaseClient.Querier),
-		user:        service.NewUserService(databaseClient),
+		user:        service.NewUserService(databaseClient, nil),
 		challenge:   service.NewChallengeService(databaseClient, entropy.RealSource{}),
 		gameover:    service.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil),
 	}

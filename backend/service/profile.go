@@ -90,7 +90,7 @@ func (service *ProfileService) UploadProfilePic(
 	contentLength int64,
 	contentChecksum string,
 ) (_ UploadProfileResult, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()

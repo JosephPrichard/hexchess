@@ -35,7 +35,7 @@ func TestEchoChessState(t *testing.T) {
 	id1 := model.NewGameID()
 	id2 := model.NewGameID()
 
-	s1 := model.NewChessState(model.StateSetup{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
+	s1 := model.NewChessState(model.ChessStateArgs{ID: id1, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := t.Context()
 
 	require.NoError(t, service.SetChessState(ctx, id1, s1))
@@ -57,7 +57,7 @@ func TestUpdateChessState(t *testing.T) {
 	testID := model.NewGameID()
 	arbitraryKey := uuid.NewString()
 
-	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
+	inState := model.NewChessState(model.ChessStateArgs{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.Random})
 	ctx := t.Context()
 
 	require.NoError(t, service.SetChessState(ctx, testID, inState))
@@ -89,7 +89,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 
 	testID := model.NewGameID()
 
-	inState := model.NewChessState(model.StateSetup{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
+	inState := model.NewChessState(model.ChessStateArgs{ID: testID, Mode: model.ModeCorrespondence1, FirstColor: model.White})
 	require.NoError(t, service.SetChessState(context.Background(), testID, inState))
 	ctx := t.Context()
 

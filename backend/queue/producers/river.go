@@ -33,6 +33,10 @@ type RiverProducer struct {
 }
 
 func NewRiverProducer(riverClient database.RiverClientAPI) *RiverProducer {
+	if riverClient == nil {
+		slog.Warn("NewRiverProducer: river client is not provided, setting noop producer")
+		riverClient = &NoopRiverClient{}
+	}
 	return &RiverProducer{riverClient: riverClient}
 }
 
@@ -56,9 +60,25 @@ func (p *RiverProducer) ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx
 		_, err = p.riverClient.Insert(ctx, job, opts)
 	}
 	if err != nil {
-		return serrors.New("publish advance tournament", err)
+		return serrors.New("produced advance tournament", err, "key", args.TournamentKey, "args", args)
 	}
 
-	slog.InfoContext(ctx, "pushed advance tournament event", "args", args)
+	slog.InfoContext(ctx, "produced advance tournament event", "args", args, "job", job)
+	return nil
+}
+
+type UpdateUserArgs = queue.UpdateUserJob
+
+func (p *RiverProducer) ProduceUpdateUser(ctx context.Context, txn pgx.Tx, args UpdateUserArgs) error {
+	opts := &river.InsertOpts{}
+
+	job := args
+
+	_, err := p.riverClient.InsertTx(ctx, txn, job, opts)
+	if err != nil {
+		return serrors.New("produced advance tournament", err, "userID", args.ID, "args", args)
+	}
+
+	slog.InfoContext(ctx, "produced update user event", "job", job)
 	return nil
 }

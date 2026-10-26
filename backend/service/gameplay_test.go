@@ -29,12 +29,12 @@ func TestJoinGame(t *testing.T) {
 	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
-	whiteGame := model.NewChessState(model.StateSetup{
+	whiteGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.White,
 	})
-	fullGame := model.NewChessState(model.StateSetup{
+	fullGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
@@ -91,14 +91,14 @@ func TestAttemptUndo(t *testing.T) {
 	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
-	noMovesGame := model.NewChessState(model.StateSetup{
+	noMovesGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      model.PlayerState{ID: 2, Name: "black", Present: true},
 	})
-	withMovesGame := model.NewChessState(model.StateSetup{
+	withMovesGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
@@ -251,14 +251,14 @@ func TestAttemptUndo(t *testing.T) {
 }
 
 func TestNewMove(t *testing.T) {
-	stateWhiteTurn := model.NewChessState(model.StateSetup{
+	stateWhiteTurn := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
 		Black:      model.PlayerState{ID: 2, Present: true},
 	})
-	stateEnded := model.NewChessState(model.StateSetup{
+	stateEnded := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
@@ -266,13 +266,13 @@ func TestNewMove(t *testing.T) {
 		Black:      model.PlayerState{ID: 2, Present: true},
 		EndState:   model.Finished,
 	})
-	stateNotStarted := model.NewChessState(model.StateSetup{
+	stateNotStarted := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
 	})
-	stateIntoCheckmate := model.NewChessState(model.StateSetup{
+	stateIntoCheckmate := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
@@ -395,13 +395,13 @@ func TestForfeit(t *testing.T) {
 	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
-	abortGame := model.NewChessState(model.StateSetup{
+	abortGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 1, Present: true},
 	})
-	forfeitGame := model.NewChessState(model.StateSetup{
+	forfeitGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
@@ -445,7 +445,7 @@ func TestForfeit_Errors(t *testing.T) {
 	service, testinfra := setupGameplayTest(t)
 	defer testinfra.Close()
 
-	endedGame := model.NewChessState(model.StateSetup{
+	endedGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
@@ -453,13 +453,13 @@ func TestForfeit_Errors(t *testing.T) {
 		Black:      model.PlayerState{ID: 2, Present: true},
 		EndState:   model.Finished,
 	})
-	cannotAbortGame := model.NewChessState(model.StateSetup{
+	cannotAbortGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,
 		White:      model.PlayerState{ID: 2, Present: true},
 	})
-	notPlayerGame := model.NewChessState(model.StateSetup{
+	notPlayerGame := model.NewChessState(model.ChessStateArgs{
 		ID:         model.NewGameID(),
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.Random,

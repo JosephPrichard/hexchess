@@ -54,7 +54,7 @@ var ErrInvalidRounds = fmt.Errorf("invalid depth, must be less than %d and large
 var InsertionStatus = model.TournamentLobby.String()
 
 func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst TournamentInst) (_ int64, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if inst.Ruleset == model.TournamentKnockout && (inst.Rounds < 1 || inst.Rounds > MaxKnockoutTournamentRounds) {
 		return 0, ErrInvalidRounds
@@ -129,7 +129,7 @@ type JoinTournamentEvent struct {
 }
 
 func (service *TournamentUpdater) JoinTournament(ctx context.Context, inst JoinTournamentInst) (event JoinTournamentEvent, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -193,7 +193,7 @@ type BeginTourneyCountdown struct {
 }
 
 func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, tournamentKey uuid.UUID, userID int64) (tourneyCountdown BeginTourneyCountdown, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	err = service.Database.ExecTx(ctx, database.TxArgs{
 		// Serializable is required to prevent the following race conditions
@@ -204,14 +204,18 @@ func (service *TournamentUpdater) BeginTournamentCountdown(ctx context.Context, 
 		Isolation:  pgx.Serializable,
 		RetryCount: 5,
 		QueryFn: func(ctx context.Context, txn pgx.Tx, query database.QuerierMutator) error {
-			return service.beginTournamentCountdown(ctx, txn, query, tournamentKey, userID, &tourneyCountdown)
+			return beginTournamentCountdown(ctx, txn, query, service.producer, tournamentKey, userID, &tourneyCountdown)
 		},
 	})
 
 	return
 }
 
-func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, txn pgx.Tx, query database.QuerierMutator, tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown) error {
+func beginTournamentCountdown(
+	ctx context.Context,
+	txn pgx.Tx, query database.QuerierMutator, producer UpdateTournamentProducer,
+	tournamentKey uuid.UUID, userID int64, tourneyCountdown *BeginTourneyCountdown,
+) error {
 	tournamentRow, err := query.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
 	if err != nil {
 		return serrors.New("select tournament by key", err, "key", tournamentKey)
@@ -238,11 +242,12 @@ func (service *TournamentUpdater) beginTournamentCountdown(ctx context.Context, 
 		return serrors.New("update tournament status", err, "key", tournamentKey, "nextTournamentStatus", nextTournamentStatus)
 	}
 
-	if err := service.producer.ProduceAdvanceTournament(ctx, txn, producers.AdvanceTournamentArgs{
+	producerArgs := producers.AdvanceTournamentArgs{
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
-	}); err != nil {
-		return serrors.New("publish advance tournament event", err, "key", tournamentKey)
+	}
+	if err := producer.ProduceAdvanceTournament(ctx, txn, producerArgs); err != nil {
+		return err
 	}
 
 	slog.InfoContext(ctx, "begin tournament countdown", "tournamentRow", tournamentRow)

@@ -47,6 +47,10 @@ type UserStats struct {
 	ModeStats    []ModeStats `json:"modeStats"`
 }
 
+type UpdateUserEvent struct {
+	ID int64 `json:"id"`
+}
+
 type Persona struct {
 	User       User         `json:"user"`
 	Stats      UserStats    `json:"stats"`

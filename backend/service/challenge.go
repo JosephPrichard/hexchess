@@ -47,7 +47,7 @@ type ChallengeInst struct {
 }
 
 func (service *ChallengeService) InsertChallenge(ctx context.Context, inst ChallengeInst) (_ model.Challenge, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	if inst.ChallengerID == inst.ChallengeeID {
 		return model.Challenge{}, ErrSelfChallenge
@@ -135,7 +135,7 @@ type Key struct {
 
 // GetChallengesByParticipant will select challenges by the participant after the 'since' time
 func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context, key Key) (_ []model.Challenge, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	since := service.entropy.GetTime().Add(-ExpireChallengeMaxAge)
 
@@ -178,7 +178,7 @@ type DeleteResult struct {
 }
 
 func (service *ChallengeService) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (_ DeleteResult, err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	params := mutate.DeleteChallengeParams{ChallengerID: challengerID, ChallengeeID: challengeeID}
 
@@ -203,7 +203,7 @@ func (service *ChallengeService) DeleteChallenge(ctx context.Context, challenger
 }
 
 func (service *ChallengeService) DeleteExpiredChallenges(ctx context.Context, userID int64) (err error) {
-	defer perf.WithContext(ctx).LogFailable(err)
+	defer perf.WithContext(ctx).LogFailable(&err)
 
 	// TODO: call this from a cronjob to clear out expired challenges every couple days
 	beforeTime := service.entropy.GetTime().Add(-ExpireChallengeMaxAge)

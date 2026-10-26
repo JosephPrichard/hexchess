@@ -2,6 +2,7 @@ package service
 
 import (
 	"hexchess-svc/model"
+	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/slogutil"
 
 	"testing"
@@ -17,7 +18,7 @@ import (
 func setupUserTest(t slogutil.TestLogger) (*UserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewUserService(infra.Database)
+	service := NewUserService(infra.Database, producers.NewRiverProducer(&producers.NoopRiverClient{}))
 
 	return service, infra
 }

@@ -1,6 +1,7 @@
 package network
 
 import (
+	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/cloud"
@@ -13,8 +14,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 type HttpServer struct {
@@ -29,6 +33,7 @@ type HttpServer struct {
 
 type HttpServices struct {
 	*service.UserService
+	*service.UserSearchService
 	*service.ChallengeService
 	*service.ReplayService
 	*service.ReplaySearchService
@@ -50,16 +55,18 @@ type HttpServices struct {
 }
 
 type HttpServerConfig struct {
-	Database       database.Database
-	RiverClient    database.RiverClientAPI
-	Redis          cache.Redis
-	Broadcaster    pubsub.Broadcaster
-	AWS            cloud.AWSClient
-	SDKs           cloud.SDKs
-	Entropy        entropy.Generator
-	Dispatcher     async.Dispatcher
-	Broadcasters   *pubsub.LocalBroadcasters
-	AllowedOrigins string
+	Database        database.Database
+	RiverClient     database.RiverClientAPI
+	RealRiverClient *river.Client[pgx.Tx]
+	Redis           cache.Redis
+	Broadcaster     pubsub.Broadcaster
+	AWS             cloud.AWSClient
+	SDKs            cloud.SDKs
+	EsClient        *elasticsearch.TypedClient
+	Entropy         entropy.Generator
+	Dispatcher      async.Dispatcher
+	Broadcasters    *pubsub.LocalBroadcasters
+	AllowedOrigins  string
 }
 
 func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
@@ -135,9 +142,24 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 		writeJSON(w, http.StatusNotFound, ServiceResp{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
+	SetHealthCheck(r, HealthConfig{
+		PostgresCheck:     config.Database.HealthcheckFunc(),
+		PostgresReadCheck: config.Database.ReadHealthcheckFunc(),
+		RedisPrimaryCheck: config.Redis.PrimaryHealthCheck,
+		RedisPubSubCheck:  config.Redis.PubsubHealthCheck,
+	})
+	SetAdminEndpoints(r, config.RealRiverClient)
+
 	for _, opt := range opts {
 		opt(r)
 	}
+
+	var handlers []string
+	_ = chi.Walk(r, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		handlers = append(handlers, fmt.Sprintf("%s %s", method, route))
+		return nil
+	})
+	slog.Info("initialized serve mux", "handlers", handlers)
 
 	return r
 }
@@ -156,46 +178,50 @@ func NewHttpServer(config HttpServerConfig) HttpServer {
 	}
 }
 
-func NewHttpServices(setup HttpServerConfig) HttpServices {
-	if setup.Entropy == nil {
-		setup.Entropy = entropy.RealSource{}
+func NewHttpServices(config HttpServerConfig) HttpServices {
+	if config.Entropy == nil {
+		config.Entropy = entropy.RealSource{}
 	}
-	if setup.Dispatcher == nil {
-		setup.Dispatcher = async.AsyncDispatcher{}
+	if config.Dispatcher == nil {
+		config.Dispatcher = async.AsyncDispatcher{}
 	}
 
-	riverProducer := producers.NewRiverProducer(setup.RiverClient)
+	riverProducer := producers.NewRiverProducer(config.RiverClient)
 
-	userService := service.NewUserService(setup.Database)
-	replayService := service.NewReplayService(setup.Database)
-	replaySearchService := service.NewReplaySearchService(setup.Database)
-	challengeService := service.NewChallengeService(setup.Database, setup.Entropy)
+	userService := service.NewUserService(config.Database, riverProducer)
+	userSearchService := service.NewUserSearchService(config.Database.Querier, config.EsClient)
 
-	leaderboardService := service.NewLeaderboardService(setup.Redis, setup.Database.Querier)
+	replayService := service.NewReplayService(config.Database)
+	replaySearchService := service.NewReplaySearchService(config.Database)
 
-	chessMetaService := service.NewChessMetadataService(setup.Database, setup.Entropy, setup.Broadcaster)
-	chessRepoService := service.NewChessRepoService(setup.Redis)
-	gameplayService := service.NewGameplayService(setup.Redis, chessRepoService)
-	gameCreateService := service.NewGameCreateService(setup.Redis, chessRepoService)
+	challengeService := service.NewChallengeService(config.Database, config.Entropy)
 
-	orphanService := service.NewOrphanService(setup.AWS, setup.Database.Querier)
-	profileService := service.NewProfileService(setup.AWS, setup.Dispatcher, setup.Entropy)
+	leaderboardService := service.NewLeaderboardService(config.Redis, config.Database.Querier)
 
-	sessionService := service.NewSessionService(setup.Redis)
+	chessMetaService := service.NewChessMetadataService(config.Database, config.Entropy, config.Broadcaster)
+	chessRepoService := service.NewChessRepoService(config.Redis)
+	gameplayService := service.NewGameplayService(config.Redis, chessRepoService)
+	gameCreateService := service.NewGameCreateService(config.Redis, chessRepoService)
 
-	tournamentUpdater := service.NewTournamentUpdater(setup.Database, setup.Redis, riverProducer)
-	tournamentRetriever := service.NewRetrieveTournamentService(setup.Database.Querier, setup.Redis)
-	tournamentNotifier := service.NewTournamentNotifier(leaderboardService, setup.Broadcaster)
+	orphanService := service.NewOrphanService(config.AWS, config.Database.Querier)
+	profileService := service.NewProfileService(config.AWS, config.Dispatcher, config.Entropy)
 
-	activeUserService := service.NewActiveUserService(setup.Redis, setup.Broadcaster)
-	chatService := service.NewChatService(setup.Redis, setup.Database.Querier, setup.Entropy)
+	sessionService := service.NewSessionService(config.Redis)
 
-	personaOrchestrator := service.NewPersonaService(setup.Database, setup.Redis)
+	tournamentUpdater := service.NewTournamentUpdater(config.Database, config.Redis, riverProducer)
+	tournamentRetriever := service.NewRetrieveTournamentService(config.Database.Querier, config.Redis)
+	tournamentNotifier := service.NewTournamentNotifier(leaderboardService, config.Broadcaster)
 
-	authTokenService := service.NewAuthTokenService(setup.SDKs)
+	activeUserService := service.NewActiveUserService(config.Redis, config.Broadcaster)
+	chatService := service.NewChatService(config.Redis, config.Database.Querier, config.Entropy)
+
+	personaOrchestrator := service.NewPersonaService(config.Database, config.Redis)
+
+	authTokenService := service.NewAuthTokenService(config.SDKs)
 
 	return HttpServices{
 		UserService:          userService,
+		UserSearchService:    userSearchService,
 		ReplayService:        replayService,
 		ReplaySearchService:  replaySearchService,
 		ChallengeService:     challengeService,

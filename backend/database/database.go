@@ -66,14 +66,14 @@ func execTx(ctx context.Context, db *Database, args TxArgs) error {
 	for i := range args.RetryCount {
 		err = execTxnOnce(ctx, db.pools.Write, args)
 
-		if isSerializationFailure(err) {
+		if IsSerializationFailure(err) {
 			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
 			timeutil.BackoffSleep(i, 2, 50*time.Millisecond)
 			continue
 		}
 		break
 	}
-	if isSerializationFailure(err) {
+	if IsSerializationFailure(err) {
 		slog.ErrorContext(ctx, "exhausted transaction retries", "error", err, "retryCount", args.RetryCount)
 	}
 
@@ -124,7 +124,7 @@ func isAllowlisted(err error, allowlist []error) bool {
 	return false
 }
 
-func isSerializationFailure(err error) bool {
+func IsSerializationFailure(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock)
 }

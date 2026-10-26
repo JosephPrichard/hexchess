@@ -69,6 +69,11 @@ func SetHealthCheck(mux *chi.Mux, config HealthConfig) {
 }
 
 func SetAdminEndpoints[TTx any](mux *chi.Mux, riverClient *river.Client[TTx]) {
+	if riverClient == nil {
+		slog.Warn("river client is not providing, skipping set admin endpoint")
+		return
+	}
+
 	endpoints := riverui.NewEndpoints(riverClient, nil)
 	uiHandler, err := riverui.NewHandler(&riverui.HandlerOpts{
 		Logger:    slog.Default(),

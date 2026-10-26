@@ -24,10 +24,10 @@ func TestCreateGame(t *testing.T) {
 	service, testinfra := setupCreateTest(t)
 	defer testinfra.Close()
 
-	gameID, err := service.CreateGame(t.Context(), model.White, model.ModeCorrespondence1, nil)
+	gameID, err := service.CreateGame(t.Context(), model.ChessStateArgs{FirstColor: model.White, Mode: model.ModeCorrespondence1})
 	require.NoError(t, err)
 
-	wantGame := model.NewChessState(model.StateSetup{
+	wantGame := model.NewChessState(model.ChessStateArgs{
 		ID:         gameID,
 		Mode:       model.ModeCorrespondence1,
 		FirstColor: model.White,

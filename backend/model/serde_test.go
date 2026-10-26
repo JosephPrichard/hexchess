@@ -11,10 +11,10 @@ import (
 var chessStateCmpOpts = cmpopts.IgnoreFields(ChessState{}, "StartTime")
 
 func TestChessSerializer(t *testing.T) {
-	input1 := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input1 := NewChessState(ChessStateArgs{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input1.EndState = Finished
 
-	input2 := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input2 := NewChessState(ChessStateArgs{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input2.Game.InitPieceMoves()
 	input2.Game.ClearTables() // since we're asserting the output back to the input, we must clear payload that isn't serialized
 
@@ -43,7 +43,7 @@ func TestChessSerializer(t *testing.T) {
 }
 
 func BenchmarkProtoChessSerializer(b *testing.B) {
-	input := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input := NewChessState(ChessStateArgs{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
 	for range b.N {
@@ -64,7 +64,7 @@ func BenchmarkProtoChessSerializer(b *testing.B) {
 }
 
 func BenchmarkJsonChessSerializer(b *testing.B) {
-	input := NewChessState(StateSetup{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
+	input := NewChessState(ChessStateArgs{ID: NewGameID(), Mode: ModeCorrespondence1, FirstColor: Random})
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
 	for range b.N {

@@ -2,6 +2,8 @@ package perf
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"runtime"
 	"time"
@@ -15,6 +17,7 @@ type Performance struct {
 
 func getCaller() string {
 	var pc [1]uintptr
+	// offset of 3, one for this function, one for the caller inside "perf", one for the caller outside "perf"
 	n := runtime.Callers(3, pc[:])
 	frames := runtime.CallersFrames(pc[:n])
 	frame, _ := frames.Next()
@@ -38,6 +41,29 @@ func (p Performance) Log() {
 }
 
 // LogFailable is a variant of Log that allows the caller to record of the operation that is being measured failed or not
-func (p Performance) LogFailable(err error) {
-	slog.InfoContext(p.ctx, "performance measurement", "error", err, "function", p.name, "timeTaken", time.Since(p.start).String())
+func (p Performance) LogFailable(errPtr *error) {
+	var err error
+	if errPtr != nil {
+		err = *errPtr
+	}
+
+	args := []any{"function", p.name, "timeTaken", time.Since(p.start).String()}
+
+	if err != nil {
+		leafErr := leafError(err)
+		leafErrType := fmt.Sprintf("%T", leafErr)
+		args = append(args, "error", err, "cause", leafErr, "causeType", leafErrType)
+	}
+
+	slog.InfoContext(p.ctx, "performance measurement", args...)
+}
+
+func leafError(err error) error {
+	for {
+		unwrapped := errors.Unwrap(err)
+		if unwrapped == nil {
+			return err
+		}
+		err = unwrapped
+	}
 }

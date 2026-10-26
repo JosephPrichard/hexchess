@@ -10,7 +10,7 @@ import (
 
 func TestUndo(t *testing.T) {
 	t.Run("no moves to undo", func(t *testing.T) {
-		s := NewChessState(StateSetup{
+		s := NewChessState(ChessStateArgs{
 			ID:           "test",
 			Game:         new(chess.NewStartGame()),
 			InitialBoard: new(chess.InitialBoard()),
@@ -25,7 +25,7 @@ func TestUndo(t *testing.T) {
 		game := chess.NewStartGame()
 		game.Moves = append(game.Moves, game.NewMove(chess.Move{From: chess.HexStr("b1"), To: chess.HexStr("b2")}))
 
-		s := NewChessState(StateSetup{
+		s := NewChessState(ChessStateArgs{
 			ID:           "test",
 			Game:         new(game),
 			InitialBoard: new(chess.InitialBoard()),
