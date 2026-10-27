@@ -3,6 +3,7 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/cache"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -23,11 +24,12 @@ import (
 )
 
 type RiverConsumerConfig struct {
-	PGXPool     *pgxpool.Pool
-	Database    database.Database
-	Redis       cache.Redis
-	EsClient    *elasticsearch.TypedClient
-	Broadcaster pubsub.Broadcaster
+	PGXPool           *pgxpool.Pool
+	Database          database.Database
+	Redis             cache.Redis
+	EsClient          *elasticsearch.TypedClient
+	Broadcaster       pubsub.Broadcaster
+	FeatureFlagConfig config.FeatureFlags
 }
 
 const RiverQueueMaxWorkers = 100
@@ -35,6 +37,14 @@ const RiverQueueMaxWorkers = 100
 func StartRiverConsumers(config RiverConsumerConfig) {
 	slog.Info("start redis consumers", "config", config)
 
+	// initialize services
+	advanceTournamentWorker := NewAdvanceTournamentWorker(config.Database, config.Redis, config.Broadcaster)
+	updateUserWorker := NewUpdateUserWorker(config.Database, config.EsClient)
+
+	// override feature flags
+	updateUserWorker.service.FeatureFlags = config.FeatureFlagConfig
+
+	// configure and connect to river queue
 	riverConfig := &river.Config{
 		Logger:  slog.Default(),
 		Workers: river.NewWorkers(),
@@ -46,9 +56,8 @@ func StartRiverConsumers(config RiverConsumerConfig) {
 			&riverQueueMiddleware{},
 		},
 	}
-
-	river.AddWorker(riverConfig.Workers, NewAdvanceTournamentWorker(config.Database, config.Redis, config.Broadcaster))
-	river.AddWorker(riverConfig.Workers, NewUpdateUserWorker(config.Database, config.EsClient))
+	river.AddWorker(riverConfig.Workers, advanceTournamentWorker)
+	river.AddWorker(riverConfig.Workers, updateUserWorker)
 
 	riverConsumerClient, err := river.NewClient(riverpgxv5.New(config.PGXPool), riverConfig)
 	if err != nil {

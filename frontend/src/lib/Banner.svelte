@@ -39,7 +39,7 @@
 
 	async function handleSearchSubmit(e: Event) {
 		e.preventDefault();
-		await goto(`/players/search?username=${encodeURIComponent(searchText)}`);
+		await goto(`/players/search?content=${encodeURIComponent(searchText)}`);
 	}
 
 	const isLarge = new MediaQuery('min-width: 1068px');

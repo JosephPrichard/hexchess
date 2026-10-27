@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/cloud"
+	"hexchess-svc/config"
 	"hexchess-svc/database/query"
-	"hexchess-svc/featureflag"
 	"hexchess-svc/model"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
@@ -27,11 +27,11 @@ type UserSearchService struct {
 	esClient *elasticsearch.TypedClient
 
 	// config
-	FeatureFlags featureflag.Config
+	FeatureFlags config.FeatureFlags
 }
 
 func NewUserSearchService(querier query.Querier, esClient *elasticsearch.TypedClient) *UserSearchService {
-	return &UserSearchService{querier: querier, esClient: esClient, FeatureFlags: featureflag.FeatureFlagConfig}
+	return &UserSearchService{querier: querier, esClient: esClient}
 }
 
 const (

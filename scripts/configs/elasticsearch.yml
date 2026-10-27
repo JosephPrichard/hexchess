@@ -1,0 +1,36 @@
+# ======================== Elasticsearch Configuration =========================
+#
+# ---------------------------------- Cluster -----------------------------------
+#
+# Use a descriptive name for your cluster:
+#
+cluster.name: hexchess-elasticsearch-cluster
+# ----------------------------------- Paths ------------------------------------
+#
+# Path to directory where to store the data (separate multiple locations by comma):
+#
+path.data: /var/lib/elasticsearch
+#
+# Path to log files:
+#
+path.logs: /var/log/elasticsearch
+
+# Disable security features
+xpack.security.enabled: false
+xpack.security.enrollment.enabled: false
+xpack.security.http.ssl.enabled: false
+xpack.security.transport.ssl.enabled: false
+
+# Create a new cluster with the current node only
+# Additional nodes can still join the cluster later
+cluster.initial_master_nodes: ["joseph-MS-7D78"]
+
+# Allow HTTP API connections from anywhere
+# Connections are encrypted and require user authentication
+http.host: 0.0.0.0
+
+# Allow other nodes to join the cluster from anywhere
+# Connections are encrypted and mutually authenticated
+#transport.host: 0.0.0.0
+
+#----------------------- END SECURITY AUTO CONFIGURATION -------------------------

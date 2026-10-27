@@ -3,12 +3,14 @@ package service
 import (
 	"hexchess-svc/itest"
 	"hexchess-svc/model"
+	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 )
@@ -16,7 +18,9 @@ import (
 func setupChatsServicesTest(t slogutil.TestLogger) (*ChatService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewChatService(infra.Redis, infra.Database.Querier, entropy.RealSource{})
+	itest.SetupElasticSearchPrecondition(t, infra.Es)
+
+	service := NewChatService(infra.Redis, infra.Database.Querier, infra.Es, entropy.RealSource{}, async.SyncDispatcher{})
 
 	return service, infra
 }
@@ -45,7 +49,8 @@ func TestEchoStateChats(t *testing.T) {
 	}
 
 	for _, chat := range chatsIn {
-		require.NoError(t, service.InsertChat(ctx, id1, chat))
+		_, err := service.InsertChat(ctx, id1, chat)
+		require.NoError(t, err)
 	}
 
 	chatsOut, err := service.GetChats(ctx, id1, 3)
@@ -66,5 +71,7 @@ func TestEchoStateChats(t *testing.T) {
 			SentAt:  time.Date(2022, 1, 1, 0, 1, 0, 0, time.UTC),
 		},
 	}
-	testutil.Equal(t, wantChats, chatsOut, protocmp.Transform())
+
+	var cmpOptsChats = cmpopts.IgnoreFields(model.Chat{}, "ID")
+	testutil.Equal(t, wantChats, chatsOut, protocmp.Transform(), cmpOptsChats)
 }

@@ -13,9 +13,9 @@ export interface SearchProps {
 }
 
 export const load: PageServerLoad = async (event): Promise<SearchProps> => {
-	const username = event.url.searchParams.get('username') || '';
+	const searchInput = event.url.searchParams.get('content') || '';
 	const page = Number(event.url.searchParams.get('page') || 1);
-	if (username === null) {
+	if (searchInput === null) {
 		return { searchText: '', page: 1, userList: [], message: "" };
 	}
 	if (isNaN(page)) {
@@ -24,7 +24,7 @@ export const load: PageServerLoad = async (event): Promise<SearchProps> => {
 
 	let message = "";
 
-	const [data, err] = await services.getSearchPlayers(username, page);
+	const [data, err] = await services.getSearchPlayers(searchInput, page);
 	if (err && err.message === codes.errorSearchLimit) {
 		message = handleError(err);
 	} else if (err) {
@@ -35,5 +35,5 @@ export const load: PageServerLoad = async (event): Promise<SearchProps> => {
 	if (publicEnv.PUBLIC_ACTIVE_PROFILE == "prod") {
 		event.setHeaders({ 'cache-control': 'max-age=3600' });
 	}
-	return { searchText: username, page: page, userList: data?.userList ?? [], message: message };
+	return { searchText: searchInput, page: page, userList: data?.userList ?? [], message: message };
 };

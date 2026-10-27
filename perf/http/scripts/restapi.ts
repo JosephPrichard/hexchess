@@ -384,7 +384,7 @@ export function getProfilePic() {
 }
 
 export function searchPlayers() {
-    const params = new URLSearchParams({ username: "John" });
+    const params = new URLSearchParams({ searchInput: "John" });
     const resp = http.get(baseUrl + "/players/search?" + params.toString());
     recordDuration("SearchPlayers", resp);
 }

@@ -4,11 +4,10 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
-	"hexchess-svc/featureflag"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
-	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
@@ -55,8 +54,8 @@ func main() {
 	defer redisClient.Close()
 
 	var esClient *elasticsearch.TypedClient
-	if featureflag.FeatureFlagConfig.IsUserSearchElasticSearch {
-		esClient = cloud.NewElasticSearchClient(cfg.EsClientEndpoint)
+	if cfg.FeatureFlagConfig.IsUserSearchElasticSearch {
+		esClient = cloud.NewElasticSearchClient(cloud.EsConfig{ActiveProfile: cfg.Profile, Address: cfg.EsEndpoint, CreateIndices: true})
 		defer esClient.Close(nil)
 	}
 
@@ -64,17 +63,19 @@ func main() {
 	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
 
 	consumers.StartRedisConsumers(consumers.RedisConsumerConfig{
-		Database:    databaseClient,
-		Redis:       redisClient,
-		Broadcaster: broadcaster,
-		RiverClient: riverProducerClient,
+		Database:          databaseClient,
+		Redis:             redisClient,
+		Broadcaster:       broadcaster,
+		RiverClient:       riverProducerClient,
+		FeatureFlagConfig: cfg.FeatureFlagConfig,
 	})
 	consumers.StartRiverConsumers(consumers.RiverConsumerConfig{
-		PGXPool:     databasePools.Write,
-		Database:    databaseClient,
-		Redis:       redisClient,
-		EsClient:    esClient,
-		Broadcaster: broadcaster,
+		PGXPool:           databasePools.Write,
+		Database:          databaseClient,
+		Redis:             redisClient,
+		EsClient:          esClient,
+		Broadcaster:       broadcaster,
+		FeatureFlagConfig: cfg.FeatureFlagConfig,
 	})
 
 	slog.Info("finished initializing consumers", "timeTaken", time.Since(startTime).String())

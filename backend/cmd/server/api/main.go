@@ -4,11 +4,10 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
-	"hexchess-svc/featureflag"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
@@ -65,8 +64,8 @@ func main() {
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 
 	var esClient *elasticsearch.TypedClient
-	if featureflag.FeatureFlagConfig.IsUserSearchElasticSearch {
-		esClient = cloud.NewElasticSearchClient(cfg.EsClientEndpoint)
+	if cfg.FeatureFlagConfig.IsUserSearchElasticSearch {
+		esClient = cloud.NewElasticSearchClient(cloud.EsConfig{ActiveProfile: cfg.Profile, Address: cfg.EsEndpoint, CreateIndices: true})
 		defer esClient.Close(nil)
 	}
 
@@ -77,14 +76,16 @@ func main() {
 
 	// start API server and PPROF "sidecar" background task
 	mux := network.NewServeMux(network.HttpServerConfig{
-		Database:       databaseClient,
-		RiverClient:    riverClient,
-		Redis:          redisClient,
-		AWS:            awsClient,
-		SDKs:           remoteAPIs,
-		Broadcaster:    broadcaster,
-		Broadcasters:   broadcasters,
-		AllowedOrigins: cfg.AllowedOrigins,
+		Database:          databaseClient,
+		RiverClient:       riverClient,
+		Redis:             redisClient,
+		AWS:               awsClient,
+		EsClient:          esClient,
+		SDKs:              remoteAPIs,
+		Broadcaster:       broadcaster,
+		Broadcasters:      broadcasters,
+		AllowedOrigins:    cfg.AllowedOrigins,
+		FeatureFlagConfig: cfg.FeatureFlagConfig,
 	})
 
 	slog.Info("finished initializing app, starting server", "port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins, "timeTaken", time.Since(startTime).String())

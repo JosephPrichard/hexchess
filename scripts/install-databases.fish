@@ -32,6 +32,14 @@ apt-get install -y loki
 echo "==> Installing Grafana"
 apt-get install -y grafana
 
+echo "==> Installing Elasticsearch"
+# Add Elastic's signing key
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg
+# Add the 9.x repository
+echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/9.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-9.x.list
+# Install
+sudo apt-get update && sudo apt-get install elasticsearch
+
 set PYROSCOPE_VERSION "2.1.1"
 echo "==> Installing Pyroscope $PYROSCOPE_VERSION"
 curl -fsSL "https://github.com/grafana/pyroscope/releases/download/v$PYROSCOPE_VERSION/pyroscope_{$PYROSCOPE_VERSION}_linux_amd64.deb" \

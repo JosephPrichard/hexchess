@@ -3,7 +3,7 @@ package cloud
 import (
 	"context"
 	"fmt"
-	"hexchess-svc/utils/config"
+	"hexchess-svc/config"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 

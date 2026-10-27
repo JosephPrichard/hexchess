@@ -13,8 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
-
 	"hexchess-svc/pb"
 
 	"github.com/gorilla/websocket"
@@ -252,17 +250,16 @@ func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.Move
 
 func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput, messageID string) error {
 	chat := model.Chat{
-		ID:      uuid.NewString(),
 		Player:  ctx.Player,
 		Message: pbInput.Message,
 		SentAt:  time.Now(),
 	}
-	outputChat := model.SerializeGameOutputChat(model.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
-
-	if err := server.service.InsertChat(ctx, ctx.GameID, chat); err != nil {
+	chat, err := server.service.InsertChat(ctx, ctx.GameID, chat)
+	if err != nil {
 		return serrors.New("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
+	outputChat := model.SerializeGameOutputChat(model.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
 	server.broadcaster.BroadcastGamesEvent(ctx, outputChat)
 	return nil
 }

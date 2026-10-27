@@ -3,6 +3,7 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/cache"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/model"
 	"hexchess-svc/pubsub"
@@ -24,10 +25,11 @@ var (
 )
 
 type RedisConsumerConfig struct {
-	Database    database.Database
-	Redis       cache.Redis
-	Broadcaster pubsub.Broadcaster
-	RiverClient database.RiverClientAPI
+	Database          database.Database
+	Redis             cache.Redis
+	Broadcaster       pubsub.Broadcaster
+	RiverClient       database.RiverClientAPI
+	FeatureFlagConfig config.FeatureFlags
 }
 
 func StartRedisConsumers(config RedisConsumerConfig) {
@@ -64,8 +66,8 @@ func StartRedisConsumers(config RedisConsumerConfig) {
 		},
 	}
 
-	for _, config := range streamConfigs {
-		consumer := NewStreamConsumer(config)
+	for _, cfg := range streamConfigs {
+		consumer := NewStreamConsumer(cfg)
 		go consumer.Consume()
 	}
 }

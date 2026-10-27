@@ -324,8 +324,8 @@ function getGameExistence(id: string) {
 	return requestJSON<Response>(`${backendBaseURL()}/game/rooms/exists?${params}`, { method: 'GET' });
 }
 
-function getSearchPlayers(username: string, page?: number, signal?: AbortSignal) {
-	const params = new URLSearchParams({ username });
+function getSearchPlayers(searchInput: string, page?: number, signal?: AbortSignal) {
+	const params = new URLSearchParams({ searchInput });
 	if (page)
 		params.set('page', String(page));
 	interface Response {

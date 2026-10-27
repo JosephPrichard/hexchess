@@ -16,6 +16,8 @@ func TestSearchUsers_Database(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t)
 	defer testinfra.Close()
 
+	itest.SetupElasticSearchPrecondition(t, testinfra.Es)
+
 	service := NewUserSearchService(testinfra.Database.Querier, nil)
 
 	users, err := service.SearchUsers(t.Context(), "john", 1, 20)

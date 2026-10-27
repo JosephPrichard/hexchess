@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/database/testquery"
-	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"strings"
@@ -69,11 +69,10 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 		ActiveProfile: config.Local,
 		Names:         *testutil.NewTestNames(cloud.DefaultAWSNames),
 	})
-	infra.Es = cloud.NewElasticSearchClient(esAddr)
+	infra.Es = cloud.NewElasticSearchClient(cloud.EsConfig{Address: esAddr})
 
 	setupRedisPreconditions(t)
 	setupDbPreconditions(t, pgPool)
-	setupElasticSearchPrecondition(ctx, t, infra.Es)
 
 	return infra
 }
@@ -131,7 +130,10 @@ func setupRedisPreconditions(t slogutil.TestLogger) {
 	}
 }
 
-func setupElasticSearchPrecondition(ctx context.Context, t slogutil.TestLogger, esClient *elasticsearch.TypedClient) {
+// SetupElasticSearchPrecondition pretty expensive to execute and only used in a minority of tests, execute this manually
+func SetupElasticSearchPrecondition(t slogutil.TestLogger, esClient *elasticsearch.TypedClient) {
+	ctx := t.Context()
+
 	deleteResult, err := esClient.Indices.Delete(strings.Join(cloud.EsIndices, ",")).
 		IgnoreUnavailable(true).
 		Do(ctx)
@@ -140,7 +142,7 @@ func setupElasticSearchPrecondition(ctx context.Context, t slogutil.TestLogger, 
 	}
 	t.Logf("delete es indices: %+v", deleteResult)
 
-	createResults, err := cloud.CreateElasticSearchIndices(ctx, nil, esClient)
+	createResults, err := cloud.CreateElasticSearchIndices(ctx, esClient)
 	if err != nil {
 		t.Fatalf("failed to create es indices: %v", err)
 	}

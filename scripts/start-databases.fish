@@ -2,6 +2,8 @@
 # note: Must be run from inside this directory, not parent
 set -x
 
+systemctl daemon-reload
+
 set REDIS_PORTS 6479 6480 6481 6482 6483 6484
 set REDIS_PUBSUB_PORT 6579
 set MINIO_PORT 9100
@@ -21,6 +23,7 @@ end
 
 systemctl stop postgresql
 systemctl stop grafana-server
+systemctl stop elasticsearch
 
 echo "==> starting infrastructure"
 set WORKSPACE "$PWD/data"
@@ -35,13 +38,13 @@ minio server "$MINIO_STORAGE_PATH" --console-address ":9101" --address ":$MINIO_
 echo "==> started minio"
 
 # starts a single redis node for pubsub (it cannot be part of the cluster)
-PORT=$REDIS_PUBSUB_PORT envsubst '${PORT}' < ./configs/redis.single.conf.template | redis-server - &
+PORT=$REDIS_PUBSUB_PORT envsubst '${PORT}' <./configs/redis.single.conf.template | redis-server - &
 echo "==> started redis pubsub"
 
 # starts a classic 3 master 3 slave redis cluster for system state. each individual node is configured to be cluster aware
 for PORT in $REDIS_PORTS
     mkdir -p "$WORKSPACE/redis/configs/$PORT"
-    PORT=$PORT WORKSPACE=$WORKSPACE envsubst '${PORT} ${WORKSPACE}' < ./configs/redis.conf.template | redis-server - &
+    PORT=$PORT WORKSPACE=$WORKSPACE envsubst '${PORT} ${WORKSPACE}' <./configs/redis.conf.template | redis-server - &
 end
 echo "==> started redis cluster nodes"
 
@@ -54,13 +57,13 @@ end
 set ALLOY_CONFIG_FILE "./configs/config.alloy"
 set ALLOY_LOG_FILE "$WORKSPACE/alloy.log"
 set ALLOY_STORAGE_PATH "$WORKSPACE/.alloy-data"
-alloy run "$ALLOY_CONFIG_FILE" --storage.path="$ALLOY_STORAGE_PATH" > "$ALLOY_LOG_FILE" 2>&1 &
+alloy run "$ALLOY_CONFIG_FILE" --storage.path="$ALLOY_STORAGE_PATH" >"$ALLOY_LOG_FILE" 2>&1 &
 echo "==> started alloy"
 
 # starts loki with custom config
 set LOKI_DATA_DIR "$WORKSPACE/loki"
 set LOKI_CONFIG_FILE "./configs/loki.yaml"
-sudo mkdir -p "$LOKI_DATA_DIR"
+mkdir -p "$LOKI_DATA_DIR"
 loki -config.file="$LOKI_CONFIG_FILE" -config.expand-env=true &
 echo "==> started loki"
 
@@ -79,3 +82,10 @@ echo "==> started postgres"
 # starts standard grafana UI
 systemctl start grafana-server
 echo "==> started grafana"
+
+# starts standard elasticsearch
+sudo cp ./configs/elasticsearch.yml /etc/elasticsearch/elasticsearch.yml
+sudo chown root:elasticsearch /etc/elasticsearch/elasticsearch.yml
+sudo chmod 660 /etc/elasticsearch/elasticsearch.yml
+systemctl start elasticsearch
+echo "==> started elasticsearch"

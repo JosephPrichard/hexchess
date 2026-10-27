@@ -363,13 +363,13 @@ func (server *HttpServer) HandleSearchPlayers(w http.ResponseWriter, r *http.Req
 	queryCtx := queryParseCtx{Values: r.URL.Query(), RespErr: &BadRequestError{}}
 
 	page := parseDefaultInt(queryCtx, "page", 1)
-	name := queryCtx.Values.Get("username")
+	searchInput := queryCtx.Values.Get("searchInput")
 
-	slog.InfoContext(ctx, "searching players", "page", page, "name", name)
+	slog.InfoContext(ctx, "searching players", "page", page, "searchInput", searchInput)
 
-	users, err := server.service.SearchUsers(ctx, name, int32(page), defaultPaginationCount)
+	users, err := server.service.SearchUsers(ctx, searchInput, int32(page), defaultPaginationCount)
 	if err != nil {
-		return serrors.New("search users by name", err, "name", name)
+		return serrors.New("search users by name", err, "searchInput", searchInput)
 	}
 
 	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: users})

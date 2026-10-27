@@ -2,7 +2,7 @@ package slogutil
 
 import (
 	"context"
-	"hexchess-svc/utils/config"
+	"hexchess-svc/config"
 	"log/slog"
 	"os"
 

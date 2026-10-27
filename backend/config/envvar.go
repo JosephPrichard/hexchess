@@ -2,26 +2,28 @@ package config
 
 import (
 	"bufio"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"strings"
 )
 
 type Config struct {
-	ServerPort        string   `json:"serverPort"`
-	DbURL             string   `json:"dbURL"`
-	DbReadURL         string   `json:"dbReadURL"`
-	RedisPrimaryNodes []string `json:"redisPrimaryNodes"`
-	RedisPubSubNode   string   `json:"redisPubSubNode"`
-	EsClientEndpoint  string   `json:"esClientEndpoint"`
-	Profile           Profile  `json:"profile"`
-	AwsRegion         string   `json:"awsRegion"`
-	AwsEndpoint       string   `json:"awsEndpoint"`
-	AwsUsername       string   `json:"awsUsername"`
-	AwsPassword       string   `json:"-"`
-	AllowedOrigins    string   `json:"allowedOrigins"`
-	OltpEndpoint      string   `json:"oltpEndpoint"`
-	ProfileBucket     string   `json:"profileBucket"`
+	ServerPort        string       `json:"serverPort"`
+	DbURL             string       `json:"dbURL"`
+	DbReadURL         string       `json:"dbReadURL"`
+	RedisPrimaryNodes []string     `json:"redisPrimaryNodes"`
+	RedisPubSubNode   string       `json:"redisPubSubNode"`
+	Profile           Profile      `json:"profile"`
+	AwsRegion         string       `json:"awsRegion"`
+	AwsEndpoint       string       `json:"awsEndpoint"`
+	AwsUsername       string       `json:"awsUsername"`
+	AwsPassword       string       `json:"-"`
+	EsEndpoint        string       `json:"esEndpoint"`
+	AllowedOrigins    string       `json:"allowedOrigins"`
+	OltpEndpoint      string       `json:"oltpEndpoint"`
+	ProfileBucket     string       `json:"profileBucket"`
+	FeatureFlagConfig FeatureFlags `json:"featureFlagConfig"`
 }
 
 func LoadDotenv() {
@@ -52,7 +54,7 @@ func loadConfig() Config {
 		DbReadURL:         os.Getenv("DB_READ_URL"),
 		RedisPrimaryNodes: strings.Split(os.Getenv("REDIS_SOR_NODES"), ","),
 		RedisPubSubNode:   os.Getenv("REDIS_PUBSUB_NODE"),
-		EsClientEndpoint:  os.Getenv("ES_CLIENT_ENDPOINT"),
+		EsEndpoint:        os.Getenv("ES_ENDPOINT"),
 		Profile:           ParseProfile(os.Getenv("ACTIVE_PROFILE")),
 		AwsRegion:         os.Getenv("AWS_REGION"),
 		AwsEndpoint:       os.Getenv("AWS_ENDPOINT"),
@@ -65,6 +67,18 @@ func loadConfig() Config {
 
 	if config.DbReadURL == "" {
 		config.DbReadURL = config.DbURL
+	}
+
+	featureFlagConfigJson := os.Getenv("FEATURE_FLAGS")
+
+	var err error
+	if featureFlagConfigJson != "" {
+		err = json.Unmarshal([]byte(featureFlagConfigJson), &config.FeatureFlagConfig)
+	}
+	if err == nil {
+		slog.Info("loaded feature flag configuration", "featureFlagConfigJson", featureFlagConfigJson, "loadedFlagConfig", config.FeatureFlagConfig)
+	} else {
+		slog.Warn("failed to load feature flag configuration", "featureFlagConfigJson", featureFlagConfigJson)
 	}
 
 	slog.Info("loaded config", "config", config)

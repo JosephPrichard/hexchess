@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"hexchess-svc/utils/config"
+	"hexchess-svc/config"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/pubsub"
@@ -15,7 +16,6 @@ import (
 	"hexchess-svc/utils/perf"
 
 	"hexchess-svc/model"
-	"hexchess-svc/utils/config"
 	"hexchess-svc/utils/slogutil"
 	"log"
 	"log/slog"

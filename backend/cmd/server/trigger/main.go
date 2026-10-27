@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"hexchess-svc/cache"
+	"hexchess-svc/config"
 	"hexchess-svc/trigger"
-	"hexchess-svc/utils/config"
 	"log/slog"
 	"time"
 )

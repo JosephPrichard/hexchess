@@ -6,7 +6,7 @@
 	import {type EloBuckets, type Replay} from '$lib/api/models.js';
 	import { getClientSession } from '$lib/utils/storage';
 	import { getNotificationsContext } from '$lib/utils/context';
-	import type { ColorSelect, FullPlayer, GameMode } from '$lib/api/models';
+	import type { ColorSelect, GameMode } from '$lib/api/models';
 	import { services } from '$lib/api/services';
 	import 'chartjs-adapter-date-fns';
 	import '$lib/utils/chart';

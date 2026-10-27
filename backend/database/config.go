@@ -2,7 +2,7 @@ package database
 
 import (
 	"context"
-	"hexchess-svc/utils/config"
+	"hexchess-svc/config"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"

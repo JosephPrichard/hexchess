@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
 	"hexchess-svc/cloud"
+	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
@@ -55,18 +56,19 @@ type HttpServices struct {
 }
 
 type HttpServerConfig struct {
-	Database        database.Database
-	RiverClient     database.RiverClientAPI
-	RealRiverClient *river.Client[pgx.Tx]
-	Redis           cache.Redis
-	Broadcaster     pubsub.Broadcaster
-	AWS             cloud.AWSClient
-	SDKs            cloud.SDKs
-	EsClient        *elasticsearch.TypedClient
-	Entropy         entropy.Generator
-	Dispatcher      async.Dispatcher
-	Broadcasters    *pubsub.LocalBroadcasters
-	AllowedOrigins  string
+	Database          database.Database
+	RiverClient       database.RiverClientAPI
+	RealRiverClient   *river.Client[pgx.Tx]
+	Redis             cache.Redis
+	Broadcaster       pubsub.Broadcaster
+	AWS               cloud.AWSClient
+	SDKs              cloud.SDKs
+	EsClient          *elasticsearch.TypedClient
+	Entropy           entropy.Generator
+	Dispatcher        async.Dispatcher
+	Broadcasters      *pubsub.LocalBroadcasters
+	AllowedOrigins    string
+	FeatureFlagConfig config.FeatureFlags
 }
 
 func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
@@ -82,18 +84,7 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 		config.Dispatcher = async.AsyncDispatcher{}
 	}
 
-	server := NewHttpServer(HttpServerConfig{
-		Database:       config.Database,
-		RiverClient:    config.RiverClient,
-		Redis:          config.Redis,
-		Broadcaster:    config.Broadcaster,
-		AWS:            config.AWS,
-		SDKs:           config.SDKs,
-		Entropy:        config.Entropy,
-		Dispatcher:     config.Dispatcher,
-		Broadcasters:   config.Broadcasters,
-		AllowedOrigins: config.AllowedOrigins,
-	})
+	server := NewHttpServer(config)
 
 	r.Post("/api/register", Rest(server.HandleRegister))
 	r.Post("/api/login", Rest(server.HandleLogin))
@@ -166,19 +157,18 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 
 func NewHttpServer(config HttpServerConfig) HttpServer {
 	return HttpServer{
-		service:      NewHttpServices(config),
-		broadcaster:  config.Broadcaster,
-		broadcasters: config.Broadcasters,
-		dispatcher:   config.Dispatcher,
-		entropy:      config.Entropy,
-		authenticator: HttpAuthenticator{
-			service: service.NewSessionService(config.Redis),
-		},
-		staticData: NewStaticData(),
+		service:       NewHttpServices(config),
+		broadcaster:   config.Broadcaster,
+		broadcasters:  config.Broadcasters,
+		dispatcher:    config.Dispatcher,
+		entropy:       config.Entropy,
+		authenticator: HttpAuthenticator{service: service.NewSessionService(config.Redis)},
+		staticData:    NewStaticData(),
 	}
 }
 
 func NewHttpServices(config HttpServerConfig) HttpServices {
+	// set default values
 	if config.Entropy == nil {
 		config.Entropy = entropy.RealSource{}
 	}
@@ -186,38 +176,31 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 		config.Dispatcher = async.AsyncDispatcher{}
 	}
 
+	// initialize services
 	riverProducer := producers.NewRiverProducer(config.RiverClient)
-
 	userService := service.NewUserService(config.Database, riverProducer)
 	userSearchService := service.NewUserSearchService(config.Database.Querier, config.EsClient)
-
 	replayService := service.NewReplayService(config.Database)
 	replaySearchService := service.NewReplaySearchService(config.Database)
-
 	challengeService := service.NewChallengeService(config.Database, config.Entropy)
-
 	leaderboardService := service.NewLeaderboardService(config.Redis, config.Database.Querier)
-
 	chessMetaService := service.NewChessMetadataService(config.Database, config.Entropy, config.Broadcaster)
 	chessRepoService := service.NewChessRepoService(config.Redis)
 	gameplayService := service.NewGameplayService(config.Redis, chessRepoService)
 	gameCreateService := service.NewGameCreateService(config.Redis, chessRepoService)
-
 	orphanService := service.NewOrphanService(config.AWS, config.Database.Querier)
 	profileService := service.NewProfileService(config.AWS, config.Dispatcher, config.Entropy)
-
 	sessionService := service.NewSessionService(config.Redis)
-
 	tournamentUpdater := service.NewTournamentUpdater(config.Database, config.Redis, riverProducer)
 	tournamentRetriever := service.NewRetrieveTournamentService(config.Database.Querier, config.Redis)
 	tournamentNotifier := service.NewTournamentNotifier(leaderboardService, config.Broadcaster)
-
 	activeUserService := service.NewActiveUserService(config.Redis, config.Broadcaster)
-	chatService := service.NewChatService(config.Redis, config.Database.Querier, config.Entropy)
-
-	personaOrchestrator := service.NewPersonaService(config.Database, config.Redis)
-
+	chatService := service.NewChatService(config.Redis, config.Database.Querier, config.EsClient, config.Entropy, config.Dispatcher)
+	personaService := service.NewPersonaService(config.Database, config.Redis)
 	authTokenService := service.NewAuthTokenService(config.SDKs)
+
+	// override feature flags
+	userSearchService.FeatureFlags = config.FeatureFlagConfig
 
 	return HttpServices{
 		UserService:          userService,
@@ -238,7 +221,7 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 		TournamentNotifier:   tournamentNotifier,
 		ActiveUserService:    activeUserService,
 		ChatService:          chatService,
-		PersonaService:       personaOrchestrator,
+		PersonaService:       personaService,
 		AuthTokenService:     authTokenService,
 	}
 }
