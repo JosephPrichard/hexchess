@@ -14,7 +14,7 @@ import (
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
@@ -219,8 +219,8 @@ func advanceInProgressTournament(ctx context.Context, query database.QuerierMuta
 			Round:    row.Round,
 			WhiteID:  row.WhiteID,
 			BlackID:  row.BlackID,
-			WhiteElo: userelo.DefaultUserElo(row.WhiteElo),
-			BlackElo: userelo.DefaultUserElo(row.BlackElo),
+			WhiteElo: userdata.DefaultUserElo(row.WhiteElo),
+			BlackElo: userdata.DefaultUserElo(row.BlackElo),
 			Result:   result,
 		})
 	}

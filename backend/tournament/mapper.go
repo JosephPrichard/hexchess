@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/gameid"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/enum"
 	"time"
 )
@@ -67,11 +67,11 @@ func mapTourneyParticipantFromRow(participant query.SelectParticipantsWithUserBy
 		Username:   participant.Username,
 		Country:    participant.Country,
 		JoinedOn:   participant.UserJoinedOn.Time,
-		Elo:        userelo.DefaultUserElo(participant.Elo),
-		HighestElo: userelo.DefaultUserElo(participant.HighestElo),
+		Elo:        userdata.DefaultUserElo(participant.Elo),
+		HighestElo: userdata.DefaultUserElo(participant.HighestElo),
 		Wins:       participant.Wins.Int32,
 		Losses:     participant.Losses.Int32,
-		Winrate:    userelo.CalcUserWinrate(participant.Wins.Int32, participant.Losses.Int32, participant.Draws.Int32),
+		Winrate:    userdata.CalcUserWinrate(participant.Wins.Int32, participant.Losses.Int32, participant.Draws.Int32),
 	}
 }
 

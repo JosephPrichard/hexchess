@@ -7,7 +7,7 @@ import (
 )
 
 const GameIDChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz123456789"
-const GameIDPartitionChars = "abcdefghijklmnopqrstuvwxyz"
+const GameIDPartitionChars = "123456789"
 
 func randChar(str string) byte {
 	n, err := rand.Int(rand.Reader, big.NewInt(int64(len(str))))

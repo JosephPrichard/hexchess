@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/gamedata"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/perf"
@@ -75,11 +75,11 @@ func (service *ChallengeService) InsertChallenge(ctx context.Context, inst Chall
 		ChallengerID:      row.ChallengerID,
 		ChallengerName:    row.ChallengerName,
 		ChallengerCountry: row.ChallengerCountry,
-		ChallengerElo:     userelo.DefaultUserElo(row.ChallengerElo),
+		ChallengerElo:     userdata.DefaultUserElo(row.ChallengerElo),
 		ChallengeeID:      row.ChallengeeID,
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry,
-		ChallengeeElo:     userelo.DefaultUserElo(row.ChallengeeElo),
+		ChallengeeElo:     userdata.DefaultUserElo(row.ChallengeeElo),
 		Mode:              enum.Expect(row.Mode, gamedata.GameModeEnums),
 		StartColor:        enum.Expect(row.StartColor, gamedata.GameColorEnums),
 		MadeOn:            row.MadeOn.Time,
@@ -155,11 +155,11 @@ func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context,
 			ChallengerID:      row.ChallengerID,
 			ChallengerName:    row.ChallengerName,
 			ChallengerCountry: row.ChallengerCountry,
-			ChallengerElo:     userelo.DefaultUserElo(row.ChallengerElo),
+			ChallengerElo:     userdata.DefaultUserElo(row.ChallengerElo),
 			ChallengeeID:      row.ChallengeeID,
 			ChallengeeName:    row.ChallengeeName,
 			ChallengeeCountry: row.ChallengeeCountry,
-			ChallengeeElo:     userelo.DefaultUserElo(row.ChallengeeElo),
+			ChallengeeElo:     userdata.DefaultUserElo(row.ChallengeeElo),
 			Mode:              enum.Expect(row.Mode, gamedata.GameModeEnums),
 			StartColor:        enum.Expect(row.StartColor, gamedata.GameColorEnums),
 			MadeOn:            row.MadeOn.Time,

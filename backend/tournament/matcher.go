@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/replay"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"math"
 	"slices"
 
@@ -137,7 +137,7 @@ func makeMatchesLinearly(participants []FirstMatchParticipant, gameMode gamedata
 func makeMatchesCrissCrossElos(participants []FirstMatchParticipant, gameMode gamedata.GameMode) []MatchCreation {
 	// sort participants by elo.
 	slices.SortFunc(participants, func(a, b FirstMatchParticipant) int {
-		if n := cmp.Compare(userelo.DefaultUserElo(b.Elo), userelo.DefaultUserElo(a.Elo)); n != 0 {
+		if n := cmp.Compare(userdata.DefaultUserElo(b.Elo), userdata.DefaultUserElo(a.Elo)); n != 0 {
 			return n
 		}
 		return cmp.Compare(a.UserID, b.UserID)

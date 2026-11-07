@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"hexchess-svc/config"
+	"hexchess-svc/gameid"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"
@@ -47,11 +48,23 @@ var Constants = RedisNames{
 	UpdtGameMetaConsumerGroup: "updt_game_meta_consumer_group",
 }
 
+// TotalConsumerPartitionCount is the total number of partitions created by ALL Redis stream consumers
+// since consumers block an entire connection while reading
+// we need a separate pool with the pool size set to the expected number of consumers = (streams * partitions_per_steam)
+// it is computed manually to avoid circular dependencies - consumer should check this value and fail-fast if it creates more consumers than expected
+var (
+	TotalConsumerPartitionCount  = GameJobConsumerCount * len(PartitionsPerGameJobConsumer)
+	GameJobConsumerCount         = 2
+	PartitionsPerGameJobConsumer = gameid.GameIDPartitions()
+)
+
 type Redis struct {
 	PrimaryClient  redis.UniversalClient
 	ConsumerClient redis.UniversalClient
 	PubSubClient   *redigo.Pool
 	PubsubAddr     string `json:"pubsubAddr"`
+
+	TotalPartitionCount int `json:"totalPartitionCount"`
 }
 
 func (redis *Redis) PrimaryHealthCheck(ctx context.Context) error {
@@ -90,11 +103,6 @@ type RedisConfig struct {
 	PrimaryAddr []string `json:"primaryAddr"`
 	PubsubAddr  string   `json:"pubsubAddr"`
 
-	// (opt) since consumers block an entire connection while reading
-	// we need a separate pool with the pool size set to the expected number of consumers = (streams * partitions_per_steam)
-	// defaults to the redis connection pool default which is not suitable for the game events usecase
-	ConsumerPoolSize int `json:"consumerPoolSize"`
-
 	// (opt) username and password authentication is used for non-local setups
 	// password authentication is an additional security layer,  we really rely on network ACLs and firewalls to make redis access secure
 	PrimaryUsername string `json:"primaryUsername"`
@@ -107,16 +115,13 @@ type RedisConfig struct {
 }
 
 func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
-	slog.Info("creating redis clients", "config", redisCfg)
+	slog.Info("creating redis clients", "config", redisCfg, "totalConsumerPartitionCount", TotalConsumerPartitionCount)
 
 	var pubsubDialer func() (redigo.Conn, error)
 
 	if redisCfg.ActiveProfile != config.Local {
 		pubsubDialer = func() (redigo.Conn, error) {
-			return redigo.Dial("tcp",
-				redisCfg.PubsubAddr,
-				redigo.DialUsername(redisCfg.PubsubUsername),
-				redigo.DialPassword(redisCfg.PubsubPassword))
+			return redigo.Dial("tcp", redisCfg.PubsubAddr, redigo.DialUsername(redisCfg.PubsubUsername), redigo.DialPassword(redisCfg.PubsubPassword))
 		}
 	} else {
 		pubsubDialer = func() (redigo.Conn, error) {
@@ -142,28 +147,25 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		}
 	}
 
-	var consumerRedisClient redis.UniversalClient
-
-	redisClientClient := NewUniversalClient(RedisClusterConfig{
+	redisPrimaryClient := NewUniversalClient(RedisClusterConfig{
 		ActiveProfile:       redisCfg.ActiveProfile,
 		Nodes:               redisCfg.PrimaryAddr,
-		PoolSize:            0,
+		PoolSize:            0, // default pool size
 		CredentialsProvider: primaryCredsProvider,
 	})
-	if redisCfg.ConsumerPoolSize > 0 {
-		consumerRedisClient = NewUniversalClient(RedisClusterConfig{
-			ActiveProfile:       redisCfg.ActiveProfile,
-			Nodes:               redisCfg.PrimaryAddr,
-			PoolSize:            redisCfg.ConsumerPoolSize,
-			CredentialsProvider: primaryCredsProvider,
-		})
-	}
+	consumerRedisClient := NewUniversalClient(RedisClusterConfig{
+		ActiveProfile:       redisCfg.ActiveProfile,
+		Nodes:               redisCfg.PrimaryAddr,
+		PoolSize:            TotalConsumerPartitionCount,
+		CredentialsProvider: primaryCredsProvider,
+	})
 
 	redisCache := Redis{
-		PrimaryClient:  redisClientClient,
-		ConsumerClient: consumerRedisClient,
-		PubSubClient:   pubsubPool,
-		PubsubAddr:     redisCfg.PubsubAddr,
+		PrimaryClient:       redisPrimaryClient,
+		ConsumerClient:      consumerRedisClient,
+		PubSubClient:        pubsubPool,
+		PubsubAddr:          redisCfg.PubsubAddr,
+		TotalPartitionCount: TotalConsumerPartitionCount,
 	}
 
 	if err := redisCache.PrimaryHealthCheck(ctx); err != nil {
@@ -173,7 +175,7 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 		slogutil.Fatal("execute redis pubsub startup cmd", err)
 	}
 
-	slog.Info("connected to redis node(s) successfully", "primaryClientKind", fmt.Sprintf("%T", redisClientClient))
+	slog.Info("connected to redis node(s) successfully", "primaryClientKind", fmt.Sprintf("%T", redisPrimaryClient))
 	return redisCache
 }
 

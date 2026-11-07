@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/query"
 	"hexchess-svc/gamedata"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 
@@ -57,8 +57,8 @@ func mapFullReplayByIDRow(row query.SelectReplayByIDRow) FullReplay {
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
 			BlackCountry: row.BlackCountry.String,
-			WhiteElo:     userelo.DefaultUserElo(row.WhiteElo),
-			BlackElo:     userelo.DefaultUserElo(row.BlackElo),
+			WhiteElo:     userdata.DefaultUserElo(row.WhiteElo),
+			BlackElo:     userdata.DefaultUserElo(row.BlackElo),
 		},
 		ReplayColorElos: NewReplayView(replay),
 	}

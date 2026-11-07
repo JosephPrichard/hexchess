@@ -9,11 +9,10 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
-	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"math"
 	"strconv"
@@ -43,64 +42,48 @@ func (service *PersonaService) GetPersona(ctx context.Context, userID int64, per
 	defer perf.WithContext(ctx).LogFailable(&err)
 
 	var userData user.User
-	var userDataErr error
-
 	var stats user.UserStats
-	var statsErr error
-
 	var replayList []replay.FullReplay
-	var replayListErr error
-
 	leaderboardRanks := make(map[string]PersonaLeaderboardRank)
-	var leaderboardRanksErr error
+
+	var userDataErr error
 
 	eg, egCtx := errgroup.WithContext(ctx)
 
 	eg.Go(func() (err error) {
-		userData, err = service.getPersonaUserByID(egCtx, userID)
+		// special case: get user by id operation will not be cancelled by error group cancellation
+		userData, err = service.getPersonaUserByID(ctx, userID)
 		if err != nil {
 			userDataErr = serrors.New("get user", err, "userID", userID)
 		}
-		return nil
+		return userDataErr
 	})
 
 	eg.Go(func() (err error) {
 		stats, err = service.getPersonaUserStats(egCtx, userID)
-		if err != nil {
-			statsErr = serrors.New("get user stats", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user stats", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		leaderboardRanks, err = service.getPersonaLeaderboardRanks(egCtx, userID, gamedata.GameModeEnums)
-		if err != nil {
-			replayListErr = serrors.New("get user leaderboard ranks", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user leaderboard ranks", err, "userID", userID)
 	})
 
 	eg.Go(func() (err error) {
 		replayList, err = service.getReplaysByQuery(egCtx, userID, perPage)
-		if err != nil {
-			leaderboardRanksErr = serrors.New("get user replays", err, "userID", userID)
-		}
-		return nil
+		return serrors.New("get user replays", err, "userID", userID)
 	})
 
-	// wait but not check the error, we do not propagate through error context so all operations will finish even if any fails
-	eg.Wait()
-
-	var errorList = []error{userDataErr, statsErr, replayListErr, leaderboardRanksErr}
-
-	slog.Log(ctx, slogutil.ErrorsLevel(errorList), "completed get persona operation",
-		"errors", errorList, "userData", userData, "stats", stats, "leaderboardRanks", leaderboardRanks, "replayList", replayList)
-
-	for _, err := range errorList {
-		if err != nil {
-			return Persona{}, err
-		}
+	egErr := eg.Wait()
+	if userDataErr != nil {
+		// special case: return user error first if it exists, contains "prioritized" error codes such as NotFound, etc.
+		return Persona{}, userDataErr
 	}
+	if egErr != nil {
+		return Persona{}, egErr
+	}
+
+	slog.InfoContext(ctx, "completed get persona operation", "userData", userData, "stats", stats, "leaderboardRanks", leaderboardRanks, "replayList", replayList)
 
 	for i := range stats.ModeStats {
 		modeStats := &stats.ModeStats[i]
@@ -147,7 +130,7 @@ func (service *PersonaService) getPersonaUserStats(ctx context.Context, userID i
 
 	var stats user.UserStats
 	if len(modeEloRows) == 0 {
-		stats = user.UserStats{HighestElo: userelo.StartElo, AvgElo: userelo.StartElo}
+		stats = user.UserStats{HighestElo: userdata.StartElo, AvgElo: userdata.StartElo}
 	} else {
 		stats = user.UserStats{HighestElo: math.SmallestNonzeroFloat64}
 	}
@@ -159,7 +142,7 @@ func (service *PersonaService) getPersonaUserStats(ctx context.Context, userID i
 			Wins:       row.Wins,
 			Losses:     row.Losses,
 			Draws:      row.Draws,
-			Winrate:    userelo.CalcUserWinrate(row.Wins, row.Losses, row.Draws),
+			Winrate:    userdata.CalcUserWinrate(row.Wins, row.Losses, row.Draws),
 			Elo:        row.Elo,
 			HighestElo: row.HighestElo,
 		}
@@ -239,8 +222,8 @@ func (service *PersonaService) getReplaysByQuery(ctx context.Context, userID int
 		UserID:  pgtype.Int8{Int64: userID, Valid: true},
 		// search cursor is unused
 		AfterID: math.MaxInt64,
-		// static sort key determines the 'ORDER BY' in the SQL query (sort by id)
-		SortKey: "id",
+		// default sort key means "sort by id" for the 'ORDER BY' in the SQL query
+		SortKey: "",
 	}
 	replayRows, err := service.Querier.SelectReplaysByQuery(ctx, params)
 	if err != nil {
@@ -282,8 +265,8 @@ func mapFullReplayByIDRow(row query.SelectReplayByIDRow) replay.FullReplay {
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
 			BlackCountry: row.BlackCountry.String,
-			WhiteElo:     userelo.DefaultUserElo(row.WhiteElo),
-			BlackElo:     userelo.DefaultUserElo(row.BlackElo),
+			WhiteElo:     userdata.DefaultUserElo(row.WhiteElo),
+			BlackElo:     userdata.DefaultUserElo(row.BlackElo),
 		},
 		ReplayColorElos: replay.NewReplayView(replayData),
 	}

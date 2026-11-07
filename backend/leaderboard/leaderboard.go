@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/player"
 	"hexchess-svc/user"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -153,11 +153,11 @@ func (e ExpLdbError) Error() string {
 func mapLeaderboardUser(row query.SelectUserWithEloByIDRow) user.LbdUser {
 	return user.LbdUser{
 		ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time,
-		Elo:        userelo.DefaultUserElo(row.Elo),
-		HighestElo: userelo.DefaultUserElo(row.HighestElo),
+		Elo:        userdata.DefaultUserElo(row.Elo),
+		HighestElo: userdata.DefaultUserElo(row.HighestElo),
 		Wins:       row.Wins.Int32,
 		Losses:     row.Losses.Int32,
-		Winrate:    userelo.CalcUserWinrate(row.Wins.Int32, row.Losses.Int32, row.Draws.Int32),
+		Winrate:    userdata.CalcUserWinrate(row.Wins.Int32, row.Losses.Int32, row.Draws.Int32),
 	}
 }
 

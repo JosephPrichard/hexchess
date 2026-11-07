@@ -14,7 +14,7 @@ import (
 	"hexchess-svc/session"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -45,7 +45,7 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 	u, err := server.service.InsertUser(ctx, user.UserInst{
 		Username: body.Username,
 		Password: body.Password,
-		Country:  userelo.DefaultCountry,
+		Country:  userdata.DefaultCountry,
 		JoinedOn: time.Now(),
 	})
 	if errors.Is(err, user.ErrTakenUsername) {
@@ -125,7 +125,7 @@ func (server *HttpServer) HandleGoogleLogin(w http.ResponseWriter, r *http.Reque
 
 	u, err := server.service.SelectOrInsertGoogleUser(ctx, payload.AccountID, user.GoogleUserInst{
 		Username: payload.Username,
-		Country:  userelo.DefaultCountry,
+		Country:  userdata.DefaultCountry,
 	})
 	if err != nil {
 		return serrors.New("upsert verified google user", err)

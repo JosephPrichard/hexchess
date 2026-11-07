@@ -2,144 +2,164 @@ package consumers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"hexchess-svc/cache"
-	"hexchess-svc/config"
-	"hexchess-svc/database"
-	"hexchess-svc/game"
-	"hexchess-svc/gameid"
-	"hexchess-svc/pubsub/publishers"
-	"hexchess-svc/queue/producers"
-	"hexchess-svc/replay"
-	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/errutil"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
+	"runtime/debug"
+	"sync"
+	"time"
 
-	"github.com/bytedance/sonic"
+	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 )
 
-// TotalPartitionCount is the total number of partitions created by ALL redis consumers
-// it can be computed in the function, but it is easier and clearer to keep it hardcoded.
-var (
-	TotalPartitionCount        = 2 * GameConsumerPartitionCount
-	GameConsumerPartitionCount = len(GameConsumerPartitions)
-	GameConsumerPartitions     = gameid.GameIDPartitions()
-)
+type ConsumeFunc func(ctx context.Context, bytes []byte) error
 
-type RedisConsumerConfig struct {
-	Database          database.PostgreSQL
-	Redis             cache.Redis
-	Broadcaster       publishers.Broadcaster
-	RiverClient       database.RiverClientAPI
-	FeatureFlagConfig config.FeatureFlags
+type StreamConsumer struct {
+	streamKey     string
+	consumerGroup string
+	pollCount     int64
+	partitionKeys []string
+	maxEvents     uint64
+	blockDuration time.Duration
+
+	// allows receiving cancellation signals (multiple partition consumers will share the cancellation)
+	ctx context.Context
+	// connects to redis to poll event streams and a database to insert into metadata tables
+	redis redis.UniversalClient
+	// an implementation for consuming a single event
+	consumeFunc ConsumeFunc
+	// send a signal on each successfully consumed message to allow determinism (CSP)
+	ackChan chan redis.XMessage
 }
 
-func StartRedisConsumers(config RedisConsumerConfig) {
-	slog.Info("start redis consumers", "config", config)
+type StreamConfig struct {
+	StreamKey     string        `json:"streamKey"`     // (required) the `parent` stream name for each partition
+	ConsumerGroup string        `json:"consumerGroup"` // (required) prevents multiple server nodes from receiving duplicate events
+	PollCount     int64         `json:"pollCount"`     // (required) the number of max number messages received in poll attempt. each event is handled on a separate goroutine.
+	PartitionKeys []string      `json:"partitionKeys"` // (required) specifies the substreams for a stream to be split into to enable sharding. an empty list will provide no streams
+	BlockDuration time.Duration `json:"blockDuration"` // (optional) species the number of time before an XReadGroup will try again to receive messages
 
-	finishGameWorker := NewFinishedGameWorker(config.Database, config.Redis, config.RiverClient, config.Broadcaster)
-	updtGameWorker := NewUpdtGameMetadataWorker(config.Database, entropy.RealSource{}, config.Broadcaster)
+	// allows receiving cancellation signals
+	Context context.Context
 
-	redisClient := config.Redis.ConsumerClient
-	metricQuerier := config.Database.QuerierMutator
+	Redis     redis.UniversalClient `json:"-"`
+	ConsumeFn ConsumeFunc           `json:"-"`
+	AckChan   chan redis.XMessage   `json:"-"`
+}
 
-	streamConfigs := []StreamConfig{
-		{
-			StreamKey:     cache.Constants.FinishGameStreamKey,
-			ConsumerGroup: cache.Constants.FinishGameConsumerGroup,
-			PollCount:     8,
-			PartitionKeys: GameConsumerPartitions,
+func NewStreamConsumer(config StreamConfig) *StreamConsumer {
+	slog.Info("created redis stream consumer", "config", config)
 
-			Redis:          redisClient,
-			MetricsQuerier: metricQuerier,
+	return &StreamConsumer{
+		streamKey:     config.StreamKey,
+		consumerGroup: config.ConsumerGroup,
+		pollCount:     config.PollCount,
+		partitionKeys: config.PartitionKeys,
+		blockDuration: config.BlockDuration,
 
-			ConsumeFn: finishGameWorker.Handle,
-		},
-		{
-			StreamKey:     cache.Constants.UpdtGameMetaStreamKey,
-			ConsumerGroup: cache.Constants.UpdtGameMetaConsumerGroup,
-			PollCount:     8,
-			PartitionKeys: GameConsumerPartitions,
-
-			Redis:          redisClient,
-			MetricsQuerier: metricQuerier,
-
-			ConsumeFn: updtGameWorker.Handle,
-		},
-	}
-
-	for _, cfg := range streamConfigs {
-		consumer := NewStreamConsumer(cfg)
-		go consumer.Consume()
+		ctx:         config.Context,
+		redis:       config.Redis,
+		consumeFunc: config.ConsumeFn,
+		ackChan:     config.AckChan,
 	}
 }
 
-type FinishedGameWorker struct {
-	service     *game.GameOverService
-	replay      *replay.ReplayService
-	broadcaster publishers.Broadcaster
+func (consumer *StreamConsumer) Consume() {
+	var wg sync.WaitGroup
+	for _, partitionKey := range consumer.partitionKeys {
+		wg.Go(func() {
+			consumer.consumePartition(partitionKey)
+		})
+	}
+	wg.Wait()
+
+	slog.Info("redis stream consumer exited", "consumer", consumer.streamKey)
 }
 
-func NewFinishedGameWorker(
-	database database.PostgreSQL,
-	redis cache.Redis,
-	riverClient database.RiverClientAPI,
-	broadcaster publishers.Broadcaster,
-) *FinishedGameWorker {
-	return &FinishedGameWorker{
-		service: game.NewGameoverService(
-			database,
-			redis,
-			producers.NewRiverProducer(riverClient),
-			broadcaster,
-			game.NewChessRepoService(redis),
-		),
-		replay:      replay.NewReplayService(database),
-		broadcaster: broadcaster,
+func (consumer *StreamConsumer) consumePartition(partitionKey string) {
+	consumerID := uuid.NewString()
+
+	stream := cache.FmtStreamKey(consumer.streamKey, partitionKey)
+	streams := []string{stream, ">"}
+
+	// consumer groups must be created in redis before we consume - they must be provided as constant to consumers of the same stream name to prevent duplicate events
+	err := consumer.redis.XGroupCreateMkStream(consumer.ctx, stream, consumer.consumerGroup, "0").Err()
+	slog.Warn("create stream consumer group", "error", err, "stream", stream, "consumerGroup", consumer.consumerGroup)
+
+	var wg sync.WaitGroup
+
+	for {
+		ctx := slogutil.TracedContext(consumer.ctx, uuid.NewString())
+
+		xArgs := &redis.XReadGroupArgs{
+			Group:    consumer.consumerGroup,
+			Consumer: consumerID,
+			Streams:  streams,
+			Count:    consumer.pollCount,
+			Block:    consumer.blockDuration,
+		}
+		entries, err := consumer.redis.XReadGroup(ctx, xArgs).Result()
+		if errors.Is(err, context.Canceled) {
+			slog.InfoContext(ctx, "stream consumer error: context cancelled, exiting consume partition loop", "stream", stream)
+			return
+		} else if err != nil {
+			slog.ErrorContext(ctx, "stream consumer error: failed to read from redis stream", "error", err, "stream", stream)
+			continue
+		}
+
+		start := time.Now()
+
+		for _, entry := range entries {
+			for _, msg := range entry.Messages {
+				wg.Go(func() {
+					consumer.handleXReadMessage(ctx, msg)
+				})
+			}
+		}
+
+		wg.Wait()
+
+		slog.InfoContext(ctx, "finished redis stream consume operation", "stream", stream, "timeTaken", time.Since(start).String())
 	}
 }
 
-func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
-	var event game.FinishGameEvent
-	if err := sonic.Unmarshal(bytes, &event); err != nil {
-		return NonRetryableQueueError{Err: err}
+func (consumer *StreamConsumer) handleXReadMessage(ctx context.Context, msg redis.XMessage) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.ErrorContext(ctx, "panic: handle redis stream event", "err", r, "streamKey", consumer.streamKey, "stack", string(debug.Stack()))
+		}
+	}()
+
+	// send the acknowledgement if data is invalid OR message succeeds, retry otherwise
+	anyData := msg.Values["data"]
+	data, ok := anyData.(string)
+	if !ok {
+		slog.ErrorContext(ctx, "failed to xread message, data field is incorrect type", "type", fmt.Sprintf("%T", anyData))
+		return
 	}
 
-	slog.InfoContext(ctx, "handling finished game event", "gameID", event.GameID)
+	consumedOn := time.Now()
 
-	// insert the finished game into the system of record
-	result, err := w.service.HandleFinishedGame(ctx, event)
+	err := consumer.consumeFunc(ctx, []byte(data))
 	if err != nil {
-		return serrors.New("insert finished game failed", err)
+		slog.ErrorContext(ctx, "failed to handle redis consumer event", "error", err)
+	}
+	if errutil.IsType[NonRetryableQueueError](err) {
+		slog.WarnContext(ctx, "discarding non retryable redis streams event", "error", err)
+		return
 	}
 
-	// notify any subscribers of the game that replay has been created (game has ended)
-	// note: replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
-	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
-	if err != nil {
-		return serrors.New("get replay by id", err, "replayID", result.ReplayID)
+	if err := consumer.redis.XAck(ctx, consumer.streamKey, consumer.consumerGroup, msg.ID).Err(); err != nil {
+		slog.ErrorContext(ctx, "failed to send xack for stream message", "error", err)
+		return
 	}
-	w.broadcaster.BroadcastGamesEvent(ctx, game.SerializeReplayOutput(game.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay}))
-
-	return nil
-}
-
-type UpdtGameMetadataWorker struct {
-	service *game.ChessMetadataService
-}
-
-func NewUpdtGameMetadataWorker(database database.PostgreSQL, entropy entropy.Generator, broadcaster publishers.Broadcaster) *UpdtGameMetadataWorker {
-	return &UpdtGameMetadataWorker{
-		service: game.NewChessMetadataService(database, entropy, broadcaster),
-	}
-}
-
-func (w UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
-	var event game.UpdtGameMetadataEvent
-	if err := sonic.Unmarshal(bytes, &event); err != nil {
-		return NonRetryableQueueError{Err: err}
+	if consumer.ackChan != nil {
+		consumer.ackChan <- msg
 	}
 
-	slog.InfoContext(ctx, "handling update game metadata event", "gameID", event.GameID)
-
-	return w.service.UpdateGameMetadata(ctx, event)
+	slog.InfoContext(ctx, "finished handling redis stream event", "stream", consumer.streamKey, "timeTaken", time.Since(consumedOn).String())
 }

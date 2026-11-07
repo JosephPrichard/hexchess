@@ -14,7 +14,7 @@ import (
 	"hexchess-svc/player"
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/replay"
-	"hexchess-svc/userelo"
+	"hexchess-svc/userdata"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"strconv"
@@ -323,7 +323,7 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 
 	mode := mutate.ModeEnum(result.ReplayMode.String())
 
-	whiteElo, blackElo := userelo.StartElo, userelo.StartElo
+	whiteElo, blackElo := userdata.StartElo, userdata.StartElo
 	for _, row := range userModeElos {
 		switch row.UserID {
 		case result.WhiteID:
@@ -338,8 +338,8 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
 
 		updts = []mutate.UpsertUserEloParams{
-			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: userelo.StartElo},
-			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: userelo.StartElo},
+			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: userdata.StartElo},
+			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: userdata.StartElo},
 		}
 	} else {
 		var winElo, loseElo float64
@@ -367,8 +367,8 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
 		updts = []mutate.UpsertUserEloParams{
-			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: userelo.StartElo},
-			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: userelo.StartElo},
+			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: userdata.StartElo},
+			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: userdata.StartElo},
 		}
 	}
 

@@ -2,176 +2,134 @@ package consumers
 
 import (
 	"context"
-	"hexchess-svc/cache"
-	"hexchess-svc/chess"
-	"hexchess-svc/database"
-	"hexchess-svc/database/testquery"
-	"hexchess-svc/game"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
-	"hexchess-svc/pb"
-	"hexchess-svc/pubsub/publishers"
-	"hexchess-svc/queue"
-	"hexchess-svc/replay"
-	"hexchess-svc/user"
-	"hexchess-svc/utils/entropy"
-	"hexchess-svc/utils/opt"
-
+	"encoding/json"
+	"fmt"
 	"hexchess-svc/itest"
-	"hexchess-svc/queue/producers"
-	"hexchess-svc/utils/async"
-	"hexchess-svc/utils/testutil"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandleFinishedGameEvent(t *testing.T) {
-	ctx := t.Context()
-
-	consumerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	testinfra := itest.SetupIntegrationTest(t)
-	defer testinfra.Close()
-
-	worker := NewFinishedGameWorker(testinfra.Database, testinfra.Redis, database.NewRiverClient(testinfra.Pool), publishers.NewSyncBroadcaster(testinfra.Redis))
-
-	whiteUser0 := user.TestUsers[0]
-	blackUser1 := user.TestUsers[1]
-	newGameID := gameid.NewGameID()
-	partitionID := newGameID.Partition()
-
-	finishedGame := queue.FinishGameJob{
-		GameID:       newGameID,
-		InitialBoard: chess.NewEmptyBoard(true),
-		Moves:        []chess.HistMove{},
-		WhiteID:      whiteUser0.ID, // winner
-		BlackID:      blackUser1.ID, // loser
-		ReplayMode:   gamedata.ModeCorrespondence1.String(),
-		ReplayCause:  replay.Checkmate.String(),
-		ReplayResult: replay.WhiteWin.String(),
-	}
-
-	wantGameOutputs := []*pb.GameOutput{
-		{
-			GameId: newGameID.String(),
-			Value: &pb.GameOutput_Replay{Replay: &pb.ReplayOutput{
-				BlackCountry: "us",
-				BlackElo:     985,
-				BlackEloDiff: -15,
-				BlackId:      2,
-				BlackName:    "user2",
-				Cause:        "CHECKMATE",
-				LoseEloDiff:  -15,
-				Mode:         "CORRESPONDENCE_1",
-				Result:       "WHITE_WINS",
-				WhiteCountry: "us",
-				WhiteElo:     1015,
-				WhiteEloDiff: 15,
-				WhiteId:      1,
-				WhiteName:    "user1",
-				WinEloDiff:   15,
-			}},
-		},
-	}
-	assertBroadcasts := game.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
-
-	err := producers.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
-	require.NoError(t, err)
-
-	consumer := StreamConsumer{
-		ctx:         consumerCtx,
-		cancel:      cancel,
-		redis:       testinfra.Redis.PrimaryClient,
-		consumeFunc: worker.Handle,
-
-		querier:    testinfra.Database.QuerierMutator,
-		dispatcher: async.SyncDispatcher{},
-
-		pollCount:     1,
-		maxEvents:     1,
-		blockDuration: time.Millisecond,
-		streamKey:     cache.Constants.FinishGameStreamKey,
-		consumerGroup: cache.Constants.FinishGameConsumerGroup,
-		partitionKeys: []string{string(partitionID)},
-	}
-
-	consumer.ConsumePartition(string(partitionID))
-
-	userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, testquery.SelectUserModeElosByIDsParams{
-		ID:   []int64{whiteUser0.ID, blackUser1.ID},
-		Mode: testquery.ModeEnumCORRESPONDENCE1,
-	})
-	require.NoError(t, err)
-
-	wantUserElos := []testquery.UserModeElo{
-		{UserID: whiteUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},
-		{UserID: blackUser1.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1},
-	}
-	assert.Equal(t, wantUserElos, userElos)
-
-	assertBroadcasts()
+type testEvent struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
 }
 
-func TestHandleUpdtGameEvent(t *testing.T) {
-	ctx := t.Context()
+type testEventHandler struct {
+	lock           sync.Mutex
+	cancel         func()
+	outputEvents   []testEvent
+	wantEventCount int
+}
 
-	consumerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	testinfra := itest.SetupIntegrationTest(t)
-	defer testinfra.Close()
-
-	worker := NewUpdtGameMetadataWorker(testinfra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, publishers.NewSyncBroadcaster(testinfra.Redis))
-
-	whiteUser0 := user.TestUsers[0]
-	blackUser1 := user.TestUsers[1]
-	gameID := gameid.NewGameID()
-	partitionID := gameID.Partition()
-
-	updtGame := queue.UpdtGameMetadataJob{
-		GameID:      gameID,
-		WhitePlayer: opt.Some(whiteUser0.ID),
-		BlackPlayer: opt.Some(blackUser1.ID),
-		Mode:        gamedata.ModeCorrespondence1.String(),
-		FirstColor:  gamedata.Random.String(),
+func (h *testEventHandler) handleEvent(_ context.Context, bytes []byte) error {
+	var e testEvent
+	if err := json.Unmarshal(bytes, &e); err != nil {
+		return err
 	}
 
-	err := producers.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)
-	require.NoError(t, err)
+	h.lock.Lock()
+	h.outputEvents = append(h.outputEvents, e)
+	h.lock.Unlock()
 
-	consumer := StreamConsumer{
-		ctx:         consumerCtx,
-		cancel:      cancel,
-		redis:       testinfra.Redis.PrimaryClient,
-		consumeFunc: worker.Handle,
-
-		querier:    testinfra.Database.QuerierMutator,
-		dispatcher: async.SyncDispatcher{},
-
-		pollCount:     1,
-		maxEvents:     1,
-		blockDuration: time.Millisecond,
-		streamKey:     cache.Constants.UpdtGameMetaStreamKey,
-		consumerGroup: cache.Constants.UpdtGameMetaConsumerGroup,
-		partitionKeys: []string{string(partitionID)},
+	if len(h.outputEvents) == h.wantEventCount {
+		h.cancel()
 	}
-	consumer.ConsumePartition(string(partitionID))
+	return nil
+}
 
-	gameRow, err := testinfra.Querier.SelectGameMeta(ctx, gameID.String())
-	require.NoError(t, err)
+func TestRedisConsumer(t *testing.T) {
+	consumingStream := "stream-key"
 
-	wantGameRow := testquery.GamesMetadatum{
-		Ordering:  4,
-		GameID:    gameID.String(),
-		Mode:      "CORRESPONDENCE_1",
-		WhiteID:   pgtype.Int8{Int64: whiteUser0.ID, Valid: true},
-		BlackID:   pgtype.Int8{Int64: blackUser1.ID, Valid: true},
-		UpdatedOn: pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+	marshal := func(v any) []byte {
+		data, err := json.Marshal(v)
+		require.NoError(t, err)
+		return data
 	}
-	testutil.Equal(t, wantGameRow, gameRow)
+
+	tests := []struct {
+		name          string
+		inputStream   string
+		inputEvents   []map[string]any
+		partitionKeys []string
+		wantEvents    []testEvent
+	}{
+		{
+			name:          "ConsumesEvents",
+			inputStream:   fmt.Sprintf("%s:{0}", consumingStream),
+			partitionKeys: []string{"0", "1"},
+			inputEvents: []map[string]any{
+				{
+					"data": "invalid",
+				},
+				{
+					"unknown": "field",
+				},
+				{
+					"data": marshal(testEvent{
+						Key:   "KeyOne",
+						Value: "ValueOne",
+					}),
+				},
+				{
+					"data": marshal(testEvent{
+						Key:   "KeyTwo",
+						Value: "ValueTwo",
+					}),
+				},
+			},
+			wantEvents: []testEvent{
+				{
+					Key:   "KeyOne",
+					Value: "ValueOne",
+				},
+				{
+					Key:   "KeyTwo",
+					Value: "ValueTwo",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testinfra := itest.SetupIntegrationTest(t)
+			defer testinfra.Close()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+
+			inputEvents := append([]map[string]any{}, tt.inputEvents...)
+
+			for _, event := range inputEvents {
+				xArgs := &redis.XAddArgs{
+					Stream: tt.inputStream,
+					Values: event,
+				}
+				err := testinfra.Redis.PrimaryClient.XAdd(ctx, xArgs).Err()
+				require.NoError(t, err)
+			}
+
+			h := testEventHandler{cancel: cancel, wantEventCount: len(tt.wantEvents)}
+			consumer := StreamConsumer{
+				ctx:   ctx,
+				redis: testinfra.Redis.PrimaryClient,
+
+				consumeFunc: h.handleEvent,
+
+				streamKey:     consumingStream,
+				consumerGroup: "consumer-group",
+				pollCount:     8,
+				partitionKeys: tt.partitionKeys,
+				blockDuration: time.Millisecond,
+			}
+			consumer.Consume()
+
+			assert.ElementsMatch(t, tt.wantEvents, h.outputEvents)
+		})
+	}
 }
