@@ -1,7 +1,7 @@
 package network
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
@@ -55,14 +55,14 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 
 func Json(v any) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		b, err := json.Marshal(v)
+		bytes, err := json.Marshal(v)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if _, err = w.Write(b); err != nil {
+		if _, err = w.Write(bytes); err != nil {
 			slog.ErrorContext(r.Context(), "write json", "error", err)
 		}
 	}

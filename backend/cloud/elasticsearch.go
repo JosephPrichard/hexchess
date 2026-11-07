@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/config"
-	"hexchess-svc/utils/slogutil"
 	"log/slog"
 
 	"github.com/elastic/go-elasticsearch/v8"
@@ -31,14 +30,15 @@ func NewElasticSearchClient(cfg EsConfig) *elasticsearch.TypedClient {
 		Addresses: []string{cfg.Address},
 	})
 	if err != nil {
-		slogutil.Fatal("start elastic search client", err)
+		slog.Error("failed to start elastic search client", "error", err)
+		return nil
 	}
 
 	slog.Info("created elasticsearch client", "config", cfg)
 
 	if cfg.CreateIndices {
 		if _, err := CreateElasticSearchIndices(context.Background(), esClient); err != nil {
-			slogutil.Fatal("failed to create elastic search indices", err)
+			slog.Error("failed to create elastic search indices", "error", err)
 		}
 	}
 	return esClient

@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"io"
 	"net/http/httptest"
 	"reflect"
@@ -35,15 +35,17 @@ func assertRespBody[V any](wantBody V, w *httptest.ResponseRecorder, opts ...cmp
 	resp := w.Result()
 	defer resp.Body.Close()
 
-	b, err := io.ReadAll(resp.Body)
+	bytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err.Error(), ""
 	}
+	str := string(bytes)
+
 	var actualBody V
-	if err = json.Unmarshal(b, &actualBody); err != nil {
+	if err = json.Unmarshal(bytes, &actualBody); err != nil {
 		return err.Error(), ""
 	}
-	return cmp.Diff(wantBody, actualBody, opts...), string(b)
+	return cmp.Diff(wantBody, actualBody, opts...), str
 }
 
 func CmpIgnoreExcept(target any, keepFields ...string) cmp.Option {

@@ -2,28 +2,26 @@ package config
 
 import (
 	"bufio"
-	"encoding/json"
 	"log/slog"
 	"os"
 	"strings"
 )
 
 type Config struct {
-	ServerPort        string       `json:"serverPort"`
-	DbURL             string       `json:"dbURL"`
-	DbReadURL         string       `json:"dbReadURL"`
-	RedisPrimaryNodes []string     `json:"redisPrimaryNodes"`
-	RedisPubSubNode   string       `json:"redisPubSubNode"`
-	Profile           Profile      `json:"profile"`
-	AwsRegion         string       `json:"awsRegion"`
-	AwsEndpoint       string       `json:"awsEndpoint"`
-	AwsUsername       string       `json:"awsUsername"`
-	AwsPassword       string       `json:"-"`
-	EsEndpoint        string       `json:"esEndpoint"`
-	AllowedOrigins    string       `json:"allowedOrigins"`
-	OltpEndpoint      string       `json:"oltpEndpoint"`
-	ProfileBucket     string       `json:"profileBucket"`
-	FeatureFlagConfig FeatureFlags `json:"featureFlagConfig"`
+	ServerPort        string   `json:"serverPort"`
+	DbURL             string   `json:"dbURL"`
+	DbReadURL         string   `json:"dbReadURL"`
+	RedisPrimaryNodes []string `json:"redisPrimaryNodes"`
+	RedisPubSubNode   string   `json:"redisPubSubNode"`
+	Profile           Profile  `json:"profile"`
+	AwsRegion         string   `json:"awsRegion"`
+	AwsEndpoint       string   `json:"awsEndpoint"`
+	AwsUsername       string   `json:"awsUsername"`
+	AwsPassword       string   `json:"-"`
+	EsEndpoint        string   `json:"esEndpoint"`
+	AllowedOrigins    string   `json:"allowedOrigins"`
+	OltpEndpoint      string   `json:"oltpEndpoint"`
+	ProfileBucket     string   `json:"profileBucket"`
 }
 
 func LoadDotenv() {
@@ -67,18 +65,6 @@ func loadConfig() Config {
 
 	if config.DbReadURL == "" {
 		config.DbReadURL = config.DbURL
-	}
-
-	featureFlagConfigJson := os.Getenv("FEATURE_FLAGS")
-
-	var err error
-	if featureFlagConfigJson != "" {
-		err = json.Unmarshal([]byte(featureFlagConfigJson), &config.FeatureFlagConfig)
-	}
-	if err == nil {
-		slog.Info("loaded feature flag configuration", "featureFlagConfigJson", featureFlagConfigJson, "loadedFlagConfig", config.FeatureFlagConfig)
-	} else {
-		slog.Warn("failed to load feature flag configuration", "featureFlagConfigJson", featureFlagConfigJson)
 	}
 
 	slog.Info("loaded config", "config", config)

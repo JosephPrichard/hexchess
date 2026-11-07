@@ -2,7 +2,7 @@ package network
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/pubsub/subscribers"
 	svc "hexchess-svc/user"

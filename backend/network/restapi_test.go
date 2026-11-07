@@ -1,7 +1,7 @@
 package network_test
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"hexchess-svc/challenges"
@@ -46,7 +46,7 @@ var serviceViewCmpOpts = []cmp.Option{
 	cmpopts.IgnoreFields(network.OneError{}, "Message"),
 }
 
-var testSessionViewCmpOpts = cmpopts.IgnoreFields(network.SessionView{}, "ID", "TTLSecs")
+var testSessionViewCmpOpts = cmpopts.IgnoreFields(network.SessionView{}, "ID")
 
 func asJSONReader(v any) *strings.Reader {
 	b, err := json.Marshal(v)
@@ -67,7 +67,7 @@ func TestHandleRegister(t *testing.T) {
 		{
 			name:        "ValidUsername",
 			body:        network.RegisterBody{Username: "testing-name", Password: "testing-password", ConfirmPassword: "testing-password"},
-			wantSuccess: network.SessionView{Username: "testing-name", Country: "un"},
+			wantSuccess: network.SessionView{Username: "testing-name", Country: "un", TTLSecs: 2592000},
 			wantStatus:  http.StatusOK,
 		},
 		{
@@ -135,7 +135,7 @@ func TestHandleLogin(t *testing.T) {
 		{
 			name:        "ValidLogin",
 			body:        network.LoginBody{Username: u.Username, Password: "password1"},
-			wantSuccess: network.SessionView{Username: u.Username, Country: "us"},
+			wantSuccess: network.SessionView{Username: u.Username, Country: "us", TTLSecs: 2592000},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -202,7 +202,7 @@ func TestHandleGoogleLogin(t *testing.T) {
 				return cloud.NewOptRemoteAPIs(cloud.WithGoogleIDTokenValidator(mockValidator, apiKey))
 			},
 			body:        network.GoogleLoginBody{Token: "testToken123"},
-			wantSuccess: network.SessionView{Username: "email@domain.com", Country: "un"},
+			wantSuccess: network.SessionView{Username: "email@domain.com", Country: "un", TTLSecs: 2592000},
 			wantStatus:  http.StatusOK,
 		},
 	}

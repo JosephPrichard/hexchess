@@ -1,12 +1,12 @@
 package game
 
 import (
+	"encoding/json/v2"
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
@@ -70,17 +70,17 @@ func BenchmarkJsonChessSerializer(b *testing.B) {
 	input.Game.InitPieceMoves()
 	b.ResetTimer()
 	for range b.N {
-		bytes, err := sonic.Marshal(input)
+		bytes, err := json.Marshal(input)
 		if err != nil {
 			b.Fatalf("marshal state: %v", err)
 		}
 		var output ChessState
-		if err := sonic.Unmarshal(bytes, &output); err != nil {
+		if err := json.Unmarshal(bytes, &output); err != nil {
 			b.Fatalf("unmarshal state: %v", err)
 		}
 	}
 
-	bytes, err := sonic.Marshal(input)
+	bytes, err := json.Marshal(input)
 	if err != nil {
 		b.Fatalf("marshal chess state: %v", err)
 	}

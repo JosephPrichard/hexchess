@@ -1,6 +1,7 @@
 package tournament
 
 import (
+	"encoding/json/v2"
 	"hexchess-svc/cache"
 	"hexchess-svc/game"
 	"hexchess-svc/pubsub"
@@ -8,7 +9,6 @@ import (
 	"hexchess-svc/utils/testutil"
 	"testing"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKe
 		func(lb *subscribers.LocalBroadcasters, ch chan []byte) { lb.Tournament.Subscribe(tournamentKey, ch) },
 		func(bytes []byte) TournamentOutput {
 			var o TournamentOutput
-			require.NoError(t, sonic.Unmarshal(bytes, &o))
+			require.NoError(t, json.Unmarshal(bytes, &o))
 			return o
 		},
 		cmpOptsFullMatch,

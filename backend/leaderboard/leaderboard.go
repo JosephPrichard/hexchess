@@ -112,35 +112,6 @@ func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode 
 	return leaderboard, err
 }
 
-func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) (err error) {
-	defer perf.WithContext(ctx).LogFailable(&err)
-
-	for _, mode := range gamedata.GameModeEnums {
-		afterID := int64(0)
-		for {
-			rows, err := service.querier.SelectEloList(ctx, query.SelectEloListParams{ID: afterID, Mode: query.ModeEnum(mode.String()), Limit: 20})
-			if err != nil {
-				return serrors.New("select elo list", err, "afterID", afterID)
-			}
-			var changes []SetLbChangeSet
-			for i, row := range rows {
-				if i == len(rows)-1 {
-					afterID = row.UserID
-				}
-				changes = append(changes, SetLbChangeSet{ID: row.UserID, Mode: mode, EloDiff: row.Elo})
-			}
-			slog.InfoContext(ctx, "syncing leaderboard changes", "changes", changes, "nextAfterID", afterID)
-			if len(changes) == 0 {
-				break
-			}
-			if err := service.SetLeaderboard(ctx, changes...); err != nil {
-				return serrors.New("set leaderboard", err)
-			}
-		}
-	}
-	return nil
-}
-
 type ExpLdbError struct {
 	ExpCount    int64
 	ActualCount int64
@@ -241,4 +212,33 @@ func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, 
 
 	slog.InfoContext(ctx, "selected users", "ids", ids, "leaderboardUsers", leaderboardUsers, "rnkUsers", rankUsers)
 	return leaderboardUsers, missingIDs, nil
+}
+
+func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) (err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	for _, mode := range gamedata.GameModeEnums {
+		afterID := int64(0)
+		for {
+			rows, err := service.querier.SelectEloList(ctx, query.SelectEloListParams{ID: afterID, Mode: query.ModeEnum(mode.String()), Limit: 20})
+			if err != nil {
+				return serrors.New("select elo list", err, "afterID", afterID)
+			}
+			var changes []SetLbChangeSet
+			for i, row := range rows {
+				if i == len(rows)-1 {
+					afterID = row.UserID
+				}
+				changes = append(changes, SetLbChangeSet{ID: row.UserID, Mode: mode, EloDiff: row.Elo})
+			}
+			slog.InfoContext(ctx, "syncing leaderboard changes", "changes", changes, "nextAfterID", afterID)
+			if len(changes) == 0 {
+				break
+			}
+			if err := service.SetLeaderboard(ctx, changes...); err != nil {
+				return serrors.New("set leaderboard", err)
+			}
+		}
+	}
+	return nil
 }

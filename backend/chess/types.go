@@ -1,6 +1,7 @@
 package chess
 
 import (
+	"encoding/json/v2"
 	"fmt"
 	"strconv"
 	"strings"
@@ -70,10 +71,33 @@ func (m AnnotatedMove) String() string {
 
 type HistMove struct {
 	PieceMove
-	Promotion  Promotion
-	Notation   string
-	WhiteTimer time.Duration
-	BlackTimer time.Duration
+	Promotion  Promotion `json:"promotion"`
+	Notation   string    `json:"notation"`
+	WhiteTimer Timer     `json:"whiteTimer"`
+	BlackTimer Timer     `json:"blackTimer"`
+}
+
+type Timer time.Duration
+
+func (d Timer) MarshalJSON() ([]byte, error) {
+	return json.Marshal(time.Duration(d).String())
+}
+
+func (d *Timer) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	v, err := time.ParseDuration(s)
+	if err != nil {
+		return err
+	}
+	*d = Timer(v)
+	return nil
+}
+
+func (d Timer) Duration() time.Duration {
+	return time.Duration(d)
 }
 
 type Promotion int

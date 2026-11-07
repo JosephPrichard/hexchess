@@ -87,6 +87,8 @@ func NewMatchmakerService(config MatchmakerServiceConfig) *MatchmakerService {
 		nodeMap[mode] = matchmaker
 	}
 
+	slog.Info("created matchmaker service", "config", config)
+
 	return &MatchmakerService{nodeMap: nodeMap, ackedRequestChan: config.ackedRequestChan}
 }
 

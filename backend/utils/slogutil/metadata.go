@@ -1,13 +1,12 @@
 package slogutil
 
 import (
+	"encoding/json/v2"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/bytedance/sonic"
 )
 
 type ecsTaskMetadataBody struct {
@@ -39,7 +38,7 @@ func getEcsMetadata() *ecsTaskMetadataBody {
 	}
 
 	var ecsTaskMetadata ecsTaskMetadataBody
-	if err := sonic.Unmarshal(bodyBytes, &ecsTaskMetadata); err != nil {
+	if err := json.Unmarshal(bodyBytes, &ecsTaskMetadata); err != nil {
 		slog.Warn("failed to parse ecs metadata response body", "error", err, "metadataEndpoint", metadataEndpoint)
 		return nil
 	}

@@ -1,6 +1,7 @@
 package tournament
 
 import (
+	"encoding/json/v2"
 	"hexchess-svc/database/testquery"
 	"hexchess-svc/game"
 	"hexchess-svc/gamedata"
@@ -13,7 +14,6 @@ import (
 	"hexchess-svc/utils/testutil"
 	"testing"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -328,7 +328,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 	require.NoError(t, err)
 
 	var edata MatchCreations
-	require.NoError(t, sonic.Unmarshal(eventData, &edata))
+	require.NoError(t, json.Unmarshal(eventData, &edata))
 
 	cmpOptsFullMatch := cmpopts.IgnoreFields(FullMatch{}, "GameID", "CreatedOn")
 	testutil.Equal(t, wantTournaments, edata.Creations, cmpOptsFullMatch)

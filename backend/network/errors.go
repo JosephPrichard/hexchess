@@ -1,7 +1,8 @@
 package network
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"hexchess-svc/challenges"
@@ -90,9 +91,9 @@ func ServiceViewFromErr(err error) ServiceResp {
 	// map business logic errors to http errors
 	err, msg = mapServiceErrors(err)
 
-	// map specific stdlib errors with messages safe for http responses to http errors
+	// map specific stdlib errors to clean responses instead of FATAL_ERROR default
 	switch checkErr := err.(type) {
-	case *json.UnmarshalTypeError:
+	case *json.SemanticError, *jsontext.SyntacticError:
 		err, msg = ErrHttpInvalidJSON, checkErr.Error()
 	}
 

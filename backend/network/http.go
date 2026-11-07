@@ -6,7 +6,6 @@ import (
 	"hexchess-svc/challenges"
 	"hexchess-svc/chess"
 	"hexchess-svc/cloud"
-	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/game"
 	"hexchess-svc/leaderboard"
@@ -64,19 +63,18 @@ type HttpServices struct {
 }
 
 type HttpServerConfig struct {
-	Database          database.PostgreSQL
-	RiverClient       database.RiverClientAPI
-	RealRiverClient   *river.Client[pgx.Tx]
-	Redis             cache.Redis
-	Broadcaster       publishers.Broadcaster
-	AWS               cloud.AWSClient
-	SDKs              cloud.SDKs
-	EsClient          *elasticsearch.TypedClient
-	Entropy           entropy.Generator
-	Dispatcher        async.Dispatcher
-	Broadcasters      *subscribers.LocalBroadcasters
-	AllowedOrigins    string
-	FeatureFlagConfig config.FeatureFlags
+	Database        database.PostgreSQL
+	RiverClient     database.RiverClientAPI
+	RealRiverClient *river.Client[pgx.Tx]
+	Redis           cache.Redis
+	Broadcaster     publishers.Broadcaster
+	AWS             cloud.AWSClient
+	SDKs            cloud.SDKs
+	EsClient        *elasticsearch.TypedClient
+	Entropy         entropy.Generator
+	Dispatcher      async.Dispatcher
+	Broadcasters    *subscribers.LocalBroadcasters
+	AllowedOrigins  string
 }
 
 func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
@@ -206,9 +204,6 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 	chatService := game.NewChatService(config.Redis, config.Database.Querier, config.EsClient, config.Entropy, config.Dispatcher)
 	personaService := persona.NewPersonaService(config.Database, config.Redis)
 	authTokenService := session.NewAuthTokenService(config.SDKs)
-
-	// override feature flags
-	userSearchService.FeatureFlags = config.FeatureFlagConfig
 
 	return HttpServices{
 		UserService:          userService,

@@ -6,6 +6,7 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/config"
 	"hexchess-svc/database"
+	"hexchess-svc/featureflag"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/pubsub/subscribers"
@@ -16,8 +17,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"time"
-
-	"github.com/elastic/go-elasticsearch/v8"
 )
 
 const ServiceName = "hexchess-api"
@@ -34,6 +33,8 @@ func main() {
 
 	shutdown := slogutil.InitLoggers(ServiceName, cfg.OltpEndpoint, cfg.Profile)
 	defer shutdown()
+
+	featureflag.InitS3Client(ctx, cfg.Profile, cfg.AwsRegion)
 
 	// connect to backend infrastructure and prepare cleanup
 	databasePools := database.NewDatabasePools(ctx, database.DatabaseConfig{
@@ -66,10 +67,13 @@ func main() {
 	})
 	remoteAPIs := cloud.NewRemoteAPIs(nil)
 
-	var esClient *elasticsearch.TypedClient
-	if cfg.FeatureFlagConfig.IsUserSearchElasticSearch {
-		esClient = cloud.NewElasticSearchClient(cloud.EsConfig{ActiveProfile: cfg.Profile, Address: cfg.EsEndpoint, CreateIndices: true})
-		defer esClient.Close(nil)
+	esClient := cloud.NewElasticSearchClient(cloud.EsConfig{
+		ActiveProfile: cfg.Profile,
+		Address:       cfg.EsEndpoint,
+		CreateIndices: true,
+	})
+	if esClient != nil {
+		defer esClient.Close(ctx)
 	}
 
 	broadcaster := publishers.NewAsyncBroadcaster(redisClient)
@@ -79,33 +83,30 @@ func main() {
 
 	// start API server and PPROF "sidecar" background task
 	mux := network.NewServeMux(network.HttpServerConfig{
-		Database:          databaseClient,
-		RiverClient:       riverClient,
-		Redis:             redisClient,
-		AWS:               awsClient,
-		EsClient:          esClient,
-		SDKs:              remoteAPIs,
-		Broadcaster:       broadcaster,
-		Broadcasters:      broadcasters,
-		AllowedOrigins:    cfg.AllowedOrigins,
-		FeatureFlagConfig: cfg.FeatureFlagConfig,
+		Database:       databaseClient,
+		RiverClient:    riverClient,
+		Redis:          redisClient,
+		AWS:            awsClient,
+		EsClient:       esClient,
+		SDKs:           remoteAPIs,
+		Broadcaster:    broadcaster,
+		Broadcasters:   broadcasters,
+		AllowedOrigins: cfg.AllowedOrigins,
 	})
 
 	// start background job consumers
 	consumers.StartRedisConsumers(consumers.RedisConsumerConfig{
-		Database:          databaseClient,
-		Redis:             redisClient,
-		Broadcaster:       broadcaster,
-		RiverClient:       riverClient,
-		FeatureFlagConfig: cfg.FeatureFlagConfig,
+		Database:    databaseClient,
+		Redis:       redisClient,
+		Broadcaster: broadcaster,
+		RiverClient: riverClient,
 	})
 	consumers.StartRiverConsumers(consumers.RiverConsumerConfig{
-		PGXPool:           databasePools.Write,
-		Database:          databaseClient,
-		Redis:             redisClient,
-		EsClient:          esClient,
-		Broadcaster:       broadcaster,
-		FeatureFlagConfig: cfg.FeatureFlagConfig,
+		PGXPool:     databasePools.Write,
+		Database:    databaseClient,
+		Redis:       redisClient,
+		EsClient:    esClient,
+		Broadcaster: broadcaster,
 	})
 
 	// start background trigger handlers

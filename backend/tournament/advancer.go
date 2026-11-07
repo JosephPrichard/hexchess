@@ -2,6 +2,7 @@ package tournament
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"hexchess-svc/database"
@@ -21,7 +22,6 @@ import (
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -167,7 +167,7 @@ func selectPreviousAdvanceEvent(ctx context.Context, query database.QuerierMutat
 	case err != nil:
 		return nil, err
 	default:
-		err := sonic.Unmarshal(eventOutput, &matchCreations)
+		err := json.Unmarshal(eventOutput, &matchCreations)
 		return &matchCreations, err
 	}
 }
@@ -284,7 +284,7 @@ func insertTournamentMatches(
 	}
 
 	// step two: insert idempotency key (contains inserted matches)
-	eventInput, err := sonic.Marshal(MatchCreations{Creations: matches})
+	eventInput, err := json.Marshal(MatchCreations{Creations: matches})
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,7 @@
 package enum
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"hexchess-svc/utils/opt"
 	"log/slog"

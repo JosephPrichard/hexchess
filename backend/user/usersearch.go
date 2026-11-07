@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/cloud"
-	"hexchess-svc/config"
 	"hexchess-svc/database/query"
+	"hexchess-svc/featureflag"
 	"hexchess-svc/userdata"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
@@ -23,15 +23,13 @@ import (
 
 type UserSearchService struct {
 	// infra
-	querier  query.Querier
-	esClient *elasticsearch.TypedClient
-
-	// config
-	FeatureFlags config.FeatureFlags
+	querier      query.Querier
+	esClient     *elasticsearch.TypedClient
+	featureFlags featureflag.FeatureFlagAPI
 }
 
 func NewUserSearchService(querier query.Querier, esClient *elasticsearch.TypedClient) *UserSearchService {
-	return &UserSearchService{querier: querier, esClient: esClient}
+	return &UserSearchService{querier: querier, esClient: esClient, featureFlags: &featureflag.FFS3Client{}}
 }
 
 const (
@@ -68,7 +66,7 @@ func (service *UserSearchService) UpdateUserSearch(ctx context.Context, event Up
 func (service *UserSearchService) insertSearchableUser(ctx context.Context, userDocument SearchableUserDocument) (err error) {
 	defer perf.WithContext(ctx).LogFailable(&err)
 
-	if !service.FeatureFlags.IsUserSearchElasticSearch {
+	if !service.featureFlags.Get(featureflag.ElasticSearchFlagKey, featureflag.GlobalFlagUser) {
 		return
 	}
 
@@ -93,7 +91,7 @@ func (service *UserSearchService) SearchUsers(ctx context.Context, searchInput s
 	page = max(page, 1)
 	offset := (page - 1) * perPage
 
-	if service.FeatureFlags.IsUserSearchElasticSearch {
+	if service.featureFlags.Get(featureflag.ElasticSearchFlagKey, featureflag.GlobalFlagUser) {
 		return service.searchUsersEs(ctx, searchInput, offset, page, perPage)
 	} else {
 		return service.searchUsersPostgres(ctx, searchInput, offset, page, perPage)

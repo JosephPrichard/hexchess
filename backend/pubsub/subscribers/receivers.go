@@ -1,6 +1,7 @@
 package subscribers
 
 import (
+	"encoding/json/v2"
 	"hexchess-svc/cache"
 	"hexchess-svc/challenges"
 	"hexchess-svc/gameid"
@@ -9,7 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bytedance/sonic"
 	redigo "github.com/gomodule/redigo/redis"
 )
 
@@ -126,7 +126,7 @@ type TournamentOutputKey struct {
 func (b *LocalBroadcasters) ListenTournamentMessages(rdb cache.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Constants.TournamentsChannel}, func(v redigo.Message) {
 		var output TournamentOutputKey
-		if err := sonic.Unmarshal(v.Data, &output); err != nil {
+		if err := json.Unmarshal(v.Data, &output); err != nil {
 			slog.Error("unmarshal tournament message", "error", err)
 			return
 		}
@@ -139,7 +139,7 @@ func (b *LocalBroadcasters) ListenTournamentMessages(rdb cache.Redis) chan struc
 func (b *LocalBroadcasters) ListenUsersMessages(rdb cache.Redis) chan struct{} {
 	return listenRedisChannels(rdb.PubsubAddr, []string{cache.Constants.UsersChannel}, func(v redigo.Message) {
 		var message challenges.UserMessage
-		if err := sonic.Unmarshal(v.Data, &message); err != nil {
+		if err := json.Unmarshal(v.Data, &message); err != nil {
 			slog.Error("unmarshal user message", "error", err)
 			return
 		}

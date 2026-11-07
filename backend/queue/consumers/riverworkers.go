@@ -3,7 +3,6 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/game"
 	"hexchess-svc/pubsub/publishers"
@@ -25,12 +24,11 @@ import (
 )
 
 type RiverConsumerConfig struct {
-	PGXPool           *pgxpool.Pool
-	Database          database.PostgreSQL
-	Redis             cache.Redis
-	EsClient          *elasticsearch.TypedClient
-	Broadcaster       publishers.Broadcaster
-	FeatureFlagConfig config.FeatureFlags
+	PGXPool     *pgxpool.Pool
+	Database    database.PostgreSQL
+	Redis       cache.Redis
+	EsClient    *elasticsearch.TypedClient
+	Broadcaster publishers.Broadcaster
 }
 
 const RiverQueueMaxWorkers = 100
@@ -41,9 +39,6 @@ func StartRiverConsumers(config RiverConsumerConfig) {
 	// initialize services
 	advanceTournamentWorker := NewAdvanceTournamentWorker(config.Database, config.Redis, config.Broadcaster)
 	updateUserWorker := NewUpdateUserWorker(config.Database, config.EsClient)
-
-	// override feature flags
-	updateUserWorker.service.FeatureFlags = config.FeatureFlagConfig
 
 	// configure and connect to river queue
 	riverConfig := &river.Config{

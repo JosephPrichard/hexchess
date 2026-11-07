@@ -2,7 +2,7 @@ package consumers
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"hexchess-svc/itest"
 	"sync"

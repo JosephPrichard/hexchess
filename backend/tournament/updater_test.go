@@ -39,13 +39,13 @@ func TestCreateTournament(t *testing.T) {
 	key := uuid.New()
 
 	tournamentID, err := service.CreateTournament(ctx, TournamentInst{
-		Key:       key,
-		Name:      "Tournaments 1",
-		Rounds:    2,
-		Mode:      gamedata.ModeCorrespondence1,
-		Countdown: time.Hour,
-		CreatedOn: itest.TimeNow,
-		CreatedBy: 1,
+		Key:             key,
+		Name:            "Tournaments 1",
+		Rounds:          2,
+		Mode:            gamedata.ModeCorrespondence1,
+		CountdownMillis: time.Hour.Milliseconds(),
+		CreatedOn:       itest.TimeNow,
+		CreatedBy:       1,
 	})
 	require.NoError(t, err)
 

@@ -2,12 +2,12 @@ package publishers
 
 import (
 	"context"
+	"encoding/json/v2"
 	"hexchess-svc/cache"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/async"
 	"log/slog"
 
-	"github.com/bytedance/sonic"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -50,7 +50,7 @@ type CountEvent struct {
 func (b *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, count int64) {
 	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
 
-	bytes, err := sonic.Marshal(CountEvent{Count: count})
+	bytes, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal count event", "error", err)
 		return
@@ -80,7 +80,7 @@ func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOu
 func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament any) {
 	slog.InfoContext(ctx, "broadcasting tournament", "tournamentOutput", tournament)
 
-	bytes, err := sonic.Marshal(tournament)
+	bytes, err := json.Marshal(tournament)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal tournament message", "error", err)
 		return
@@ -91,7 +91,7 @@ func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament any) {
 func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message any) {
 	slog.InfoContext(ctx, "broadcasting user message", "message", message)
 
-	bytes, err := sonic.Marshal(message)
+	bytes, err := json.Marshal(message)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal user message", "error", err)
 		return

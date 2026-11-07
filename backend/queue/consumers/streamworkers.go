@@ -2,8 +2,8 @@ package consumers
 
 import (
 	"context"
+	"encoding/json/v2"
 	"hexchess-svc/cache"
-	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/game"
 	"hexchess-svc/pubsub/publishers"
@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -26,8 +25,6 @@ type RedisConsumerConfig struct {
 	Redis       cache.Redis
 	Broadcaster publishers.Broadcaster
 	RiverClient database.RiverClientAPI
-
-	FeatureFlagConfig config.FeatureFlags
 
 	AckChan       chan redis.XMessage
 	BlockDuration time.Duration
@@ -124,7 +121,7 @@ func NewFinishedGameWorker(
 
 func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	var event game.FinishGameEvent
-	if err := sonic.Unmarshal(bytes, &event); err != nil {
+	if err := json.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
 
@@ -159,7 +156,7 @@ func NewUpdtGameMetadataWorker(database database.PostgreSQL, entropy entropy.Gen
 
 func (w UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
 	var event game.UpdtGameMetadataEvent
-	if err := sonic.Unmarshal(bytes, &event); err != nil {
+	if err := json.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
 

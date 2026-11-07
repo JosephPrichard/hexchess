@@ -64,13 +64,13 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 		ID:       u.ID,
 		Username: u.Username,
 		Country:  u.Country,
-		TTLSecs:  ttl,
+		TTLSecs:  int64(ttl.Seconds()),
 	})
 	return nil
 }
 
 func (server *HttpServer) handleLoginSession(ctx context.Context, w http.ResponseWriter, verifiedUser user.VerifiedUser) error {
-	t, err := server.authenticator.SetSessionPlayer(ctx, w, player.NewPlayer(verifiedUser.ID, verifiedUser.Username, verifiedUser.Country))
+	ttlDuration, err := server.authenticator.SetSessionPlayer(ctx, w, player.NewPlayer(verifiedUser.ID, verifiedUser.Username, verifiedUser.Country))
 	if err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func (server *HttpServer) handleLoginSession(ctx context.Context, w http.Respons
 		ID:       verifiedUser.ID,
 		Username: verifiedUser.Username,
 		Country:  verifiedUser.Country,
-		TTLSecs:  t,
+		TTLSecs:  int64(ttlDuration.Seconds()),
 	})
 	return nil
 }
@@ -256,7 +256,7 @@ func (server *HttpServer) HandleRefreshSession(w http.ResponseWriter, r *http.Re
 			ID:       authSession.Player.ID,
 			Username: authSession.Player.Name,
 			Country:  authSession.Player.Country,
-			TTLSecs:  SessionMaxAge,
+			TTLSecs:  int64(SessionMaxAge.Seconds()),
 		},
 	})
 	return nil
@@ -722,11 +722,11 @@ func (server *HttpServer) HandleGetMoveReplay(w http.ResponseWriter, r *http.Req
 }
 
 type CreateTournamentBody struct {
-	Name      string        `json:"name"`
-	Mode      string        `json:"mode"`
-	Ruleset   string        `json:"ruleset"`
-	Rounds    int32         `json:"rounds"`
-	Countdown time.Duration `json:"duration"`
+	Name            string `json:"name"`
+	Mode            string `json:"mode"`
+	Ruleset         string `json:"ruleset"`
+	Rounds          int32  `json:"rounds"`
+	CountdownMillis int64  `json:"countdownMillis"`
 }
 
 type CreateTournamentResp struct {
@@ -747,14 +747,14 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 
 	tournamentKey := uuid.New()
 	tournamentID, err := server.service.CreateTournament(ctx, tournament.TournamentInst{
-		Key:       tournamentKey,
-		Name:      body.Name,
-		Rounds:    body.Rounds,
-		Mode:      body.Mode,
-		Ruleset:   body.Ruleset,
-		Countdown: body.Countdown,
-		CreatedOn: time.Now(),
-		CreatedBy: playerState.ID,
+		Key:             tournamentKey,
+		Name:            body.Name,
+		Rounds:          body.Rounds,
+		Mode:            body.Mode,
+		Ruleset:         body.Ruleset,
+		CountdownMillis: body.CountdownMillis,
+		CreatedOn:       time.Now(),
+		CreatedBy:       playerState.ID,
 	})
 	if errors.Is(err, tournament.ErrInvalidRounds) {
 		return ErrHttpInvalidRounds

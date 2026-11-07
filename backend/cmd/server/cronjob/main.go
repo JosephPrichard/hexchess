@@ -38,8 +38,8 @@ func main() {
 	defer shutdown()
 
 	databasePools := database.NewDatabasePools(ctx, database.DatabaseConfig{
-		ReadWriteDsn:  cfg.DbURL,
 		ActiveProfile: cfg.Profile,
+		ReadWriteDsn:  cfg.DbURL,
 		AwsRegion:     cfg.AwsRegion,
 	})
 
@@ -47,8 +47,8 @@ func main() {
 	defer databaseClient.Close()
 
 	redisClient := cache.NewRedis(ctx, cache.RedisConfig{
-		PrimaryAddr:   cfg.RedisPrimaryNodes,
 		ActiveProfile: cfg.Profile,
+		PrimaryAddr:   cfg.RedisPrimaryNodes,
 	})
 	defer redisClient.Close()
 
@@ -78,8 +78,8 @@ func main() {
 	timeTaken := time.Since(start)
 
 	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		slog.Info("job execution timed out", "job", job, "timeTaken", timeTaken)
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		slog.Error("job execution timed out", "job", job, "timeTaken", timeTaken)
 	case err != nil:
 		slogutil.Fatal("execute job", err, "job", job, "timeTaken", timeTaken)
 	default:

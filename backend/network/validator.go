@@ -19,7 +19,6 @@ import (
 	"hexchess-svc/utils/opt"
 	"net/url"
 	"strings"
-	"time"
 )
 
 var (
@@ -174,11 +173,11 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 }
 
 type CreateTournamentTBody struct {
-	Name      string
-	Mode      gamedata.GameMode
-	Ruleset   tournament.TournamentRuleset
-	Rounds    int32
-	Countdown time.Duration
+	Name            string
+	Mode            gamedata.GameMode
+	Ruleset         tournament.TournamentRuleset
+	Rounds          int32
+	CountdownMillis int64
 }
 
 func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody, error) {
@@ -193,7 +192,7 @@ func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody
 		respErr.Put("CreateTournamentBody.Ruleset", err)
 	}
 
-	return CreateTournamentTBody{Name: body.Name, Mode: mode, Ruleset: ruleset, Rounds: body.Rounds, Countdown: body.Countdown}, respErr.Inner()
+	return CreateTournamentTBody{Name: body.Name, Mode: mode, Ruleset: ruleset, Rounds: body.Rounds, CountdownMillis: body.CountdownMillis}, respErr.Inner()
 }
 
 type ChessMetasQuery struct {

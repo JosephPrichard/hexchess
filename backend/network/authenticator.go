@@ -20,10 +20,10 @@ const SessionIDCharset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01
 const SessionIDLength = 64
 
 type SessionView struct {
-	ID       int64         `json:"id"`
-	Username string        `json:"username"`
-	Country  string        `json:"country"`
-	TTLSecs  time.Duration `json:"ttlSecs,omitempty"`
+	ID       int64  `json:"id"`
+	Username string `json:"username"`
+	Country  string `json:"country"`
+	TTLSecs  int64  `json:"ttlSecs,omitzero"`
 }
 
 func NewSessionID() string {
@@ -43,22 +43,22 @@ func issueTempSession(sessionPlayer player.PlayerState, w http.ResponseWriter) (
 	var tempSessionID string
 
 	if sessionPlayer.Present {
-		player := sessionPlayer
+		playerState := sessionPlayer
 
 		tempSessionID = NewSessionID()
 
 		sessions = []session.SessionInst{
-			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
+			{SessionID: tempSessionID, Player: playerState, Expiry: TempSessionMaxAge},
 		}
 	} else {
-		player := player.NewGuestPlayer()
+		playerState := player.NewGuestPlayer()
 
 		tempSessionID = NewSessionID()
 		guestSessionID := NewSessionID()
 
 		sessions = []session.SessionInst{
-			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
-			{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
+			{SessionID: tempSessionID, Player: playerState, Expiry: TempSessionMaxAge},
+			{SessionID: guestSessionID, Player: playerState, Expiry: SessionMaxAge},
 		}
 
 		w.Header().Set("Set-Cookie", FmtCookie(guestSessionID))
@@ -82,8 +82,8 @@ func (auth *HttpAuthenticator) GetSession(ctx context.Context, r *http.Request) 
 		return Session{}, session.ErrSessionNotFound
 	}
 	sessionToken := cookie.Value
-	player, err := auth.service.GetSession(ctx, sessionToken)
-	return Session{Player: player, Token: sessionToken}, serrors.New("get session player", err)
+	playerState, err := auth.service.GetSession(ctx, sessionToken)
+	return Session{Player: playerState, Token: sessionToken}, serrors.New("get session player", err)
 }
 
 func (auth *HttpAuthenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (player.PlayerState, error) {

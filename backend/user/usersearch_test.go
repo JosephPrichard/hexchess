@@ -2,6 +2,7 @@ package user
 
 import (
 	"hexchess-svc/cloud"
+	"hexchess-svc/featureflag"
 	"hexchess-svc/itest"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ func TestSearchUsers_Database(t *testing.T) {
 	itest.SetupElasticSearchPrecondition(t, testinfra.Es)
 
 	service := NewUserSearchService(testinfra.Database.Querier, nil)
+	service.featureFlags = &featureflag.FFStubClient{Store: map[string]bool{featureflag.ElasticSearchFlagKey: false}}
 
 	users, err := service.SearchUsers(t.Context(), "john", 1, 20)
 	require.NoError(t, err)
@@ -58,8 +60,7 @@ func TestSearchUsers_ElasticSearch(t *testing.T) {
 	defer testinfra.Close()
 
 	service := NewUserSearchService(testinfra.Database.Querier, testinfra.Es)
-
-	service.FeatureFlags.IsUserSearchElasticSearch = true
+	service.featureFlags = &featureflag.FFStubClient{Store: map[string]bool{featureflag.ElasticSearchFlagKey: true}}
 
 	documents := []map[string]any{
 		{"id": "INVALID", "username": "john", "userBiography": "matching bio", "createdAt": time.Now()},

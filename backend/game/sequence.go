@@ -88,8 +88,8 @@ func RandomMoveHistSeq(mode gamedata.GameMode, low, high, maxRetries int) ([]che
 			} else {
 				blackTimer -= time.Duration(incr) * time.Millisecond
 			}
-			moveSeq[moveIdx].WhiteTimer = whiteTimer
-			moveSeq[moveIdx].BlackTimer = blackTimer
+			moveSeq[moveIdx].WhiteTimer = chess.Timer(whiteTimer)
+			moveSeq[moveIdx].BlackTimer = chess.Timer(blackTimer)
 		}
 	}
 	return moveSeq, nil

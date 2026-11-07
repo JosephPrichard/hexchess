@@ -40,14 +40,14 @@ func NewTournamentUpdater(database database.PostgreSQL, redis cache.Redis, produ
 }
 
 type TournamentInst struct {
-	Key       uuid.UUID         `json:"key"`
-	Name      string            `json:"name"`
-	Rounds    int32             `json:"TotalRounds"`
-	Mode      gamedata.GameMode `json:"mode"`
-	Ruleset   TournamentRuleset `json:"ruleset"`
-	Countdown time.Duration     `json:"countdown"`
-	CreatedOn time.Time         `json:"createdOn"`
-	CreatedBy int64             `json:"createdBy"`
+	Key             uuid.UUID         `json:"key"`
+	Name            string            `json:"name"`
+	Rounds          int32             `json:"TotalRounds"`
+	Mode            gamedata.GameMode `json:"mode"`
+	Ruleset         TournamentRuleset `json:"ruleset"`
+	CountdownMillis int64             `json:"countdownMillis"`
+	CreatedOn       time.Time         `json:"createdOn"`
+	CreatedBy       int64             `json:"createdBy"`
 }
 
 const MaxKnockoutTournamentRounds = 5
@@ -78,7 +78,7 @@ func (service *TournamentUpdater) CreateTournament(ctx context.Context, inst Tou
 		Name:          inst.Name,
 		Rounds:        rounds,
 		Status:        mutate.TournamentStatusEnum(InsertionStatus),
-		Countdown:     inst.Countdown.Milliseconds(),
+		Countdown:     inst.CountdownMillis,
 		CreatedOn:     pgtype.Timestamptz{Time: inst.CreatedOn, Valid: true},
 		CreatedBy:     inst.CreatedBy,
 		UpdatedOn:     pgtype.Timestamptz{Time: inst.CreatedOn, Valid: true},

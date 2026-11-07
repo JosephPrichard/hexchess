@@ -385,6 +385,7 @@ func TestNewMove(t *testing.T) {
 			moveResult, err := service.MakeGameMove(ctx, tt.stateID, tt.player, tt.move)
 
 			assert.Equal(t, tt.wantErr, err)
+
 			assertRedisChess(t, testinfra.Redis, tt.wantGame, cmpOptsChessState)
 			if tt.wantErr == nil {
 				testutil.Equal(t, tt.wantGame, moveResult.State, cmpOptsChessState)

@@ -143,8 +143,8 @@ func DeserializeHistMove(pbHistMove *pb.HistMove) HistMove {
 		From:       Hex{File: pbHistMove.FromFile, Rank: pbHistMove.FromRank},
 		To:         Hex{File: pbHistMove.ToFile, Rank: pbHistMove.ToRank},
 		Notation:   pbHistMove.Notation,
-		WhiteTimer: time.Duration(pbHistMove.WhiteTimerMs) * time.Millisecond,
-		BlackTimer: time.Duration(pbHistMove.BlackTimerMs) * time.Millisecond,
+		WhiteTimer: Timer(pbHistMove.WhiteTimerMs) * Timer(time.Millisecond),
+		BlackTimer: Timer(pbHistMove.BlackTimerMs) * Timer(time.Millisecond),
 	}
 }
 
@@ -167,8 +167,8 @@ func SerializeHistMove(histMove HistMove) *pb.HistMove {
 		ToFile:       histMove.To.File,
 		ToRank:       histMove.To.Rank,
 		Notation:     histMove.Notation,
-		WhiteTimerMs: histMove.WhiteTimer.Milliseconds(),
-		BlackTimerMs: histMove.BlackTimer.Milliseconds(),
+		WhiteTimerMs: histMove.WhiteTimer.Duration().Milliseconds(),
+		BlackTimerMs: histMove.BlackTimer.Duration().Milliseconds(),
 	}
 }
 

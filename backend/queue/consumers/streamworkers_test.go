@@ -3,7 +3,6 @@ package consumers
 import (
 	"context"
 	"hexchess-svc/chess"
-	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/database/testquery"
 	"hexchess-svc/game"
@@ -42,8 +41,6 @@ func setupConsumersTest(t *testing.T) (itest.TestInfra, func(int), func()) {
 		Redis:       testinfra.Redis,
 		RiverClient: database.NewRiverClient(testinfra.Pool),
 		Broadcaster: publishers.NewSyncBroadcaster(testinfra.Redis),
-
-		FeatureFlagConfig: config.FeatureFlags{IsUserSearchElasticSearch: true},
 
 		AckChan:       ackChan,
 		BlockDuration: time.Millisecond * 100,

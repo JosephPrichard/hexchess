@@ -2,6 +2,7 @@ package itest
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/gamedata"
@@ -11,7 +12,6 @@ import (
 	"hexchess-svc/utils/perf"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
@@ -679,7 +679,7 @@ var Events = []struct {
 	{
 		ID: TestEventID_TournamentCreation.String(),
 		Data: func() []byte {
-			data, err := sonic.Marshal(struct {
+			data, err := json.Marshal(struct {
 				Creations []fullMatch `json:"creations"`
 			}{
 				Creations: []fullMatch{

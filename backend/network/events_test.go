@@ -3,7 +3,7 @@ package network_test
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"hexchess-svc/challenges"
 	"hexchess-svc/gamedata"

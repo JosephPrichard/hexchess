@@ -1,13 +1,12 @@
 package network
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 
-	"github.com/bytedance/sonic"
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
@@ -42,13 +41,13 @@ func init() {
 func decodeJson[Body any](r *http.Request, body *Body) error {
 	defer r.Body.Close()
 
-	// note: sonic.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
+	// note: json.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return err
 	}
-	return sonic.Unmarshal(bodyBytes, body)
+	return json.Unmarshal(bodyBytes, body)
 }
 
 func parseJSON[Body any](r *http.Request, body *Body) error {
@@ -81,14 +80,14 @@ type OneError struct {
 func writeJSON[V any](w http.ResponseWriter, status int, data V) {
 	v, err := json.Marshal(data)
 	if err != nil {
-		slog.Error("failed to marshal json response", "Err", err)
-		http.Error(w, "internal server error", http.StatusInternalServerError)
+		slog.Error("failed to marshal json response", "error", err)
+		http.Error(w, "internal server error: failed to marshal response", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if _, err := w.Write(v); err != nil {
-		slog.Error("failed to write json response", "Err", err)
+		slog.Error("failed to write json response", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }
