@@ -3,8 +3,11 @@ package network_test
 import (
 	"fmt"
 	"hexchess-svc/cache"
-	"hexchess-svc/model"
+	"hexchess-svc/game"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
 	"hexchess-svc/network"
+	"hexchess-svc/player"
 	"testing"
 	"time"
 
@@ -13,7 +16,7 @@ import (
 
 var TestSessionID1 = "testing-session-id-1"
 var TestSessionID2 = "testing-session-id-2"
-var TestGameID1 = model.NewGameID()
+var TestGameID1 = gameid.NewGameID()
 
 func createTestSessions(t *testing.T, redis cache.Redis) {
 	t.Helper()
@@ -21,13 +24,13 @@ func createTestSessions(t *testing.T, redis cache.Redis) {
 
 	for _, session := range []struct {
 		ID     string
-		Player model.PlayerState
+		Player player.PlayerState
 		Expiry time.Duration
 	}{
-		{ID: TestSessionID1, Player: model.NewPlayer(1, "user1", "us"), Expiry: network.SessionMaxAge},
-		{ID: TestSessionID2, Player: model.NewPlayer(2, "user2", "us"), Expiry: network.SessionMaxAge},
+		{ID: TestSessionID1, Player: player.NewPlayer(1, "user1", "us"), Expiry: network.SessionMaxAge},
+		{ID: TestSessionID2, Player: player.NewPlayer(2, "user2", "us"), Expiry: network.SessionMaxAge},
 	} {
-		data, err := model.MarshalPlayer(session.Player)
+		data, err := player.MarshalPlayer(session.Player)
 		if err != nil {
 			t.Fatalf("marshal session: %v", err)
 		}
@@ -41,22 +44,22 @@ func createTestSessions(t *testing.T, redis cache.Redis) {
 func createTestChessStates(t *testing.T, redis cache.Redis) {
 	t.Helper()
 
-	var testStates = []*model.ChessState{
-		model.NewChessState(model.ChessStateArgs{
+	var testStates = []*game.ChessState{
+		game.NewChessState(game.ChessStateArgs{
 			ID:         TestGameID1,
-			Mode:       model.ModeCorrespondence1,
-			FirstColor: model.Random,
-			Black:      model.NewPlayer(2, "user2", "us"),
-			UndoState:  model.UndoState{UndoID: 2},
+			Mode:       gamedata.ModeCorrespondence1,
+			FirstColor: gamedata.Random,
+			Black:      player.NewPlayer(2, "user2", "us"),
+			UndoState:  game.UndoState{UndoID: 2},
 		}),
-		model.NewChessState(model.ChessStateArgs{ID: "game2", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
-		model.NewChessState(model.ChessStateArgs{ID: "game3", Mode: model.ModeCorrespondence1, FirstColor: model.Random}),
+		game.NewChessState(game.ChessStateArgs{ID: "game2", Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random}),
+		game.NewChessState(game.ChessStateArgs{ID: "game3", Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random}),
 	}
 	ctx := t.Context()
 	for _, state := range testStates {
 		gameKey := fmt.Sprintf("game:%s{%c}", state.ID, state.ID.Partition())
 
-		bytes, err := model.MarshalChessState(state)
+		bytes, err := game.MarshalChessState(state)
 		if err != nil {
 			t.Fatalf("marshal chess state: %v", err)
 		}
@@ -67,7 +70,7 @@ func createTestChessStates(t *testing.T, redis cache.Redis) {
 }
 
 type updtLbChangeSet struct {
-	Mode    model.GameMode
+	Mode    gamedata.GameMode
 	ID      int64
 	EloDiff float64
 }

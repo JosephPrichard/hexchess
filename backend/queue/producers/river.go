@@ -17,10 +17,12 @@ import (
 type NoopRiverClient struct{}
 
 func (_ *NoopRiverClient) InsertTx(_ context.Context, _ pgx.Tx, _ river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	slog.Warn("InsertTx: noop producer dropped insertTx call")
 	return nil, nil
 }
 
 func (_ *NoopRiverClient) Insert(_ context.Context, _ river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	slog.Warn("Insert: noop producer dropped insert call")
 	return nil, nil
 }
 
@@ -34,7 +36,6 @@ type RiverProducer struct {
 
 func NewRiverProducer(riverClient database.RiverClientAPI) *RiverProducer {
 	if riverClient == nil {
-		slog.Warn("NewRiverProducer: river client is not provided, setting noop producer")
 		riverClient = &NoopRiverClient{}
 	}
 	return &RiverProducer{riverClient: riverClient}

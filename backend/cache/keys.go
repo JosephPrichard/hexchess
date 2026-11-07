@@ -2,10 +2,10 @@ package cache
 
 import (
 	"fmt"
-	"hexchess-svc/model"
+	"hexchess-svc/gameid"
 )
 
-func FmtGameKey(gameID model.GameID) string {
+func FmtGameKey(gameID gameid.Identifier) string {
 	return fmt.Sprintf("game:%s{%c}", gameID, gameID.Partition())
 }
 
@@ -13,7 +13,7 @@ func FmtLeaderboardZSet(mode string) string {
 	return fmt.Sprintf("%s/mode:{%s}", Constants.LeaderboardZSet, mode)
 }
 
-func FmtGameChatsZSet(gameID model.GameID) string {
+func FmtGameChatsZSet(gameID gameid.Identifier) string {
 	return fmt.Sprintf("%s/game:%s{%c}", Constants.GameChatsZSet, gameID, gameID.Partition())
 }
 
@@ -29,6 +29,6 @@ func FmtStreamKey(streamKey string, partitionKey string) string {
 	return fmt.Sprintf("%s:{%s}", streamKey, partitionKey)
 }
 
-func FmtGameStreamKey(streamKey string, gameID model.GameID) string {
+func FmtGameStreamKey(streamKey string, gameID gameid.Identifier) string {
 	return fmt.Sprintf("%s:{%c}", streamKey, gameID.Partition())
 }

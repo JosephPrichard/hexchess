@@ -3,7 +3,7 @@ package producers
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/model"
+	"hexchess-svc/queue"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 
@@ -15,7 +15,7 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event model.FinishGameEvent) error {
+func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event queue.FinishGameJob) error {
 	bytes, err := sonic.Marshal(event)
 	if err != nil {
 		return serrors.New("marshal finish game event", err)
@@ -34,7 +34,7 @@ func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event model.Fini
 	return nil
 }
 
-func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, event model.UpdtGameMetadataEvent) error {
+func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, event queue.UpdtGameMetadataJob) error {
 	bytes, err := sonic.Marshal(event)
 	if err != nil {
 		return serrors.New("marshal update game event", err)

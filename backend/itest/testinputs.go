@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/model"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
@@ -547,7 +548,7 @@ var TournamentParticipantInsts = []struct {
 	},
 }
 
-var GameIDNotFinished = model.NewGameID() // does not exist in the replay table
+var GameIDNotFinished = gameid.NewGameID() // does not exist in the replay table
 
 // TournamentMatchInsts JoinedOn must be deterministically ordered.
 var TournamentMatchInsts = []struct {
@@ -639,7 +640,7 @@ var TournamentMatchInsts = []struct {
 
 var TestPbMoveHistory = func() *pb.MoveHistory {
 	wantInitialGame := chess.NewEmptyGame(false)
-	pbInitialGame := model.SerializeGame(&wantInitialGame)
+	pbInitialGame := chess.SerializeGame(&wantInitialGame)
 
 	wantMoveReplay := &pb.MoveHistory{
 		InitialGame: pbInitialGame,
@@ -662,7 +663,14 @@ var ReplayMoveHistories = []struct {
 }
 
 var TestEventID_TournamentCreation = uuid.New()
-var TestEventID_TournamentCreation_GameID = model.NewGameID()
+var TestEventID_TournamentCreation_GameID = gameid.NewGameID()
+
+type fullMatch = struct {
+	GameID   gameid.Identifier             `json:"gameId"`
+	WhiteID  int64                         `json:"whiteId"`
+	BlackID  int64                         `json:"blackId"`
+	GameMode opt.Option[gamedata.GameMode] `json:"gameMode"`
+}
 
 var Events = []struct {
 	ID   string
@@ -671,13 +679,15 @@ var Events = []struct {
 	{
 		ID: TestEventID_TournamentCreation.String(),
 		Data: func() []byte {
-			data, err := sonic.Marshal(model.MatchCreations{
-				Creations: []model.FullMatch{
+			data, err := sonic.Marshal(struct {
+				Creations []fullMatch `json:"creations"`
+			}{
+				Creations: []fullMatch{
 					{
 						GameID:   TestEventID_TournamentCreation_GameID,
 						WhiteID:  1,
 						BlackID:  2,
-						GameMode: opt.Some(model.ModeCorrespondence1),
+						GameMode: opt.Some(gamedata.ModeCorrespondence1),
 					},
 				},
 			})
@@ -690,9 +700,9 @@ var Events = []struct {
 }
 
 var (
-	GameID1 = model.NewGameID()
-	GameID2 = model.NewGameID()
-	GameID3 = model.NewGameID()
+	GameID1 = gameid.NewGameID()
+	GameID2 = gameid.NewGameID()
+	GameID3 = gameid.NewGameID()
 )
 
 var GameMetas = []struct {

@@ -6,16 +6,22 @@ import (
 	"flag"
 	"fmt"
 	"hexchess-svc/cache"
+	"hexchess-svc/challenges"
 	"hexchess-svc/chess"
 	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutate"
-	"hexchess-svc/pubsub"
-	"hexchess-svc/service"
+	"hexchess-svc/game"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
+	"hexchess-svc/leaderboard"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/replay"
+	"hexchess-svc/tournament"
+	"hexchess-svc/user"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
 
-	"hexchess-svc/model"
 	"hexchess-svc/utils/slogutil"
 	"log"
 	"log/slog"
@@ -127,23 +133,23 @@ func main() {
 }
 
 type SeedServices struct {
-	leaderboard *service.LeaderboardService
-	user        *service.UserService
-	challenge   *service.ChallengeService
-	replay      *service.ReplayService
-	gameover    *service.GameOverService
+	leaderboard *leaderboard.LeaderboardService
+	user        *user.UserService
+	challenge   *challenges.ChallengeService
+	replay      *replay.ReplayService
+	gameover    *game.GameOverService
 }
 
-func newSeedServices(redisClient cache.Redis, databaseClient database.Database) SeedServices {
+func newSeedServices(redisClient cache.Redis, databaseClient database.PostgreSQL) SeedServices {
 	return SeedServices{
-		leaderboard: service.NewLeaderboardService(redisClient, databaseClient.Querier),
-		user:        service.NewUserService(databaseClient, nil),
-		challenge:   service.NewChallengeService(databaseClient, entropy.RealSource{}),
-		gameover:    service.NewGameoverService(databaseClient, redisClient, nil, pubsub.Broadcaster{}, nil),
+		leaderboard: leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier),
+		user:        user.NewUserService(databaseClient, nil),
+		challenge:   challenges.NewChallengeService(databaseClient, entropy.RealSource{}),
+		gameover:    game.NewGameoverService(databaseClient, redisClient, nil, publishers.Broadcaster{}, nil),
 	}
 }
 
-func seedUsers(ctx context.Context, userSvc *service.UserService) {
+func seedUsers(ctx context.Context, userSvc *user.UserService) {
 	defer perf.New().Log()
 
 	if _, err := userSvc.BatchInsertUsers(ctx, generateUserInsts()); err != nil {
@@ -151,8 +157,8 @@ func seedUsers(ctx context.Context, userSvc *service.UserService) {
 	}
 }
 
-func generateUserInsts() []service.UserInst {
-	var insts []service.UserInst
+func generateUserInsts() []user.UserInst {
+	var insts []user.UserInst
 	for i := range *usersCount {
 		var username string
 		if *deterministicUsernames {
@@ -161,7 +167,7 @@ func generateUserInsts() []service.UserInst {
 			username = gofakeit.Username()
 		}
 
-		insts = append(insts, service.UserInst{
+		insts = append(insts, user.UserInst{
 			Username: username,
 			Password: "password1",
 			Country:  "us",
@@ -194,28 +200,28 @@ func generateUserIDPairs() (int64, int64) {
 	return firstID, blackID
 }
 
-func generateMode() model.GameMode {
+func generateMode() gamedata.GameMode {
 	switch rand.Intn(3) {
 	case 0:
-		return model.ModeCorrespondence1
+		return gamedata.ModeCorrespondence1
 	case 1:
-		return model.ModeCorrespondence7
+		return gamedata.ModeCorrespondence7
 	default:
-		return model.ModeCorrespondence14
+		return gamedata.ModeCorrespondence14
 	}
 }
 
-func seedChallenges(ctx context.Context, service *service.ChallengeService) error {
+func seedChallenges(ctx context.Context, service *challenges.ChallengeService) error {
 	defer perf.New().Log()
 	return service.BatchInsertChallenges(ctx, generateChallengeInsts())
 }
 
-func generateChallengeInsts() []service.ChallengeInst {
+func generateChallengeInsts() []challenges.ChallengeInst {
 	hashChallengeKey := func(challengerID, challengeeID int64) string {
 		return fmt.Sprintf("%d,%d", challengerID, challengeeID)
 	}
 
-	var insts []service.ChallengeInst
+	var insts []challenges.ChallengeInst
 	for range *challengesCount {
 		// generate two challenges that are unique, this is done by retrying if a duplicate is found.
 		// note: we assume the number of users is large enough to avoid duplicates
@@ -231,10 +237,10 @@ func generateChallengeInsts() []service.ChallengeInst {
 			}
 		}
 
-		insts = append(insts, service.ChallengeInst{
+		insts = append(insts, challenges.ChallengeInst{
 			ChallengerID: challengerID,
 			ChallengeeID: challengeeID,
-			StartColor:   model.Random,
+			StartColor:   gamedata.Random,
 			Mode:         generateMode(),
 			MadeOn:       time.Now(),
 		})
@@ -243,21 +249,21 @@ func generateChallengeInsts() []service.ChallengeInst {
 }
 
 type GameResultInsts struct {
-	WhiteID      int64              `json:"whiteId"`
-	BlackID      int64              `json:"blackId"`
-	ReplayCause  model.ReplayCause  `json:"cause"`
-	ReplayResult model.ReplayResult `json:"result"`
-	ReplayMode   model.GameMode     `json:"mode"`
+	WhiteID      int64               `json:"whiteId"`
+	BlackID      int64               `json:"blackId"`
+	ReplayCause  replay.ReplayCause  `json:"cause"`
+	ReplayResult replay.ReplayResult `json:"result"`
+	ReplayMode   gamedata.GameMode   `json:"mode"`
 }
 
-func generateReplayResult() model.ReplayResult {
+func generateReplayResult() replay.ReplayResult {
 	switch rand.Intn(3) {
 	case 0:
-		return model.WhiteWin
+		return replay.WhiteWin
 	case 1:
-		return model.Draw
+		return replay.Draw
 	default:
-		return model.BlackWin
+		return replay.BlackWin
 	}
 }
 
@@ -268,7 +274,7 @@ func generateGameResults() []GameResultInsts {
 		insts = append(insts, GameResultInsts{
 			WhiteID:      whiteID,
 			BlackID:      blackID,
-			ReplayCause:  model.Checkmate,
+			ReplayCause:  replay.Checkmate,
 			ReplayResult: generateReplayResult(),
 			ReplayMode:   generateMode(),
 		})
@@ -276,7 +282,7 @@ func generateGameResults() []GameResultInsts {
 	return insts
 }
 
-func seedGameResults(ctx context.Context, gameoverSvc *service.GameOverService, insts []GameResultInsts) error {
+func seedGameResults(ctx context.Context, gameoverSvc *game.GameOverService, insts []GameResultInsts) error {
 	defer perf.New().Log()
 
 	a := insts
@@ -294,13 +300,13 @@ func seedGameResults(ctx context.Context, gameoverSvc *service.GameOverService, 
 
 			mode := inst.ReplayMode
 
-			moveSeq, err := service.RandomMoveHistSeq(mode, 10, 30, -1)
+			moveSeq, err := game.RandomMoveHistSeq(mode, 10, 30, -1)
 			if err != nil {
 				return fmt.Errorf("generate random move seq: %w", err)
 			}
 
-			_, err = gameoverSvc.HandleFinishedGame(egCtx, model.FinishGameEvent{
-				GameID:       model.NewGameID(),
+			_, err = gameoverSvc.HandleFinishedGame(egCtx, game.FinishGameEvent{
+				GameID:       gameid.NewGameID(),
 				InitialBoard: chess.InitialBoard(),
 				Moves:        moveSeq,
 				WhiteID:      inst.WhiteID,
@@ -337,13 +343,13 @@ func generateTournaments() []TournamentInsts {
 		pgTkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
 
 		createdBy := generateUserID(nil)
-		status := model.TournamentInProgress
+		status := tournament.TournamentInProgress
 		rounds := rand.Intn(4) + 1
 
 		var participants []mutate.BatchInsertTournamentParticipantParams
 		var usedParticipants = map[int64]struct{}{}
 
-		for i := range service.KnockoutParticipantsAtRound(rounds, 1) {
+		for i := range tournament.KnockoutParticipantsAtRound(rounds, 1) {
 			var participantID int64
 			if i == 0 {
 				participantID = createdBy
@@ -364,7 +370,7 @@ func generateTournaments() []TournamentInsts {
 			whiteID, blackID := participants[i].UserID, participants[i+1].UserID
 			matches = append(matches, mutate.BatchInsertTournamentMatchParams{
 				TournamentKey: pgTkey,
-				GameID:        model.NewGameID().String(), // there are no games in the game store matching this at this point in time
+				GameID:        gameid.NewGameID().String(), // there are no games in the game store matching this at this point in time
 				WhiteID:       whiteID,
 				BlackID:       blackID,
 				Round:         int32(1),
@@ -379,7 +385,7 @@ func generateTournaments() []TournamentInsts {
 				Rounds:        1,
 				Status:        mutate.TournamentStatusEnum(status.String()),
 				Mode:          mutate.ModeEnum(generateMode().String()),
-				Ruleset:       mutate.TournamentRulesetEnum(model.TournamentKnockout.String()),
+				Ruleset:       mutate.TournamentRulesetEnum(tournament.TournamentKnockout.String()),
 				CreatedBy:     createdBy,
 				Countdown:     10,
 				CreatedOn:     pgtype.Timestamptz{Time: time.Now(), Valid: true},

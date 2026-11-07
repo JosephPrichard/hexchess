@@ -4,14 +4,20 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/chess"
+	"hexchess-svc/database"
 	"hexchess-svc/database/testquery"
+	"hexchess-svc/game"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
 	"hexchess-svc/pb"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/queue"
+	"hexchess-svc/replay"
+	"hexchess-svc/user"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/opt"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/testutil"
@@ -32,22 +38,22 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t)
 	defer testinfra.Close()
 
-	worker := NewFinishedGameWorker(testinfra.Database, testinfra.Redis, &producers.NoopRiverClient{}, pubsub.NewSyncBroadcaster(testinfra.Redis))
+	worker := NewFinishedGameWorker(testinfra.Database, testinfra.Redis, database.NewRiverClient(testinfra.Pool), publishers.NewSyncBroadcaster(testinfra.Redis))
 
-	whiteUser0 := itest.TestUser[0]
-	blackUser1 := itest.TestUser[1]
-	newGameID := model.NewGameID()
+	whiteUser0 := user.TestUsers[0]
+	blackUser1 := user.TestUsers[1]
+	newGameID := gameid.NewGameID()
 	partitionID := newGameID.Partition()
 
-	finishedGame := model.FinishGameEvent{
+	finishedGame := queue.FinishGameJob{
 		GameID:       newGameID,
 		InitialBoard: chess.NewEmptyBoard(true),
 		Moves:        []chess.HistMove{},
 		WhiteID:      whiteUser0.ID, // winner
 		BlackID:      blackUser1.ID, // loser
-		ReplayMode:   model.ModeCorrespondence1,
-		ReplayCause:  model.Checkmate,
-		ReplayResult: model.WhiteWin,
+		ReplayMode:   gamedata.ModeCorrespondence1.String(),
+		ReplayCause:  replay.Checkmate.String(),
+		ReplayResult: replay.WhiteWin.String(),
 	}
 
 	wantGameOutputs := []*pb.GameOutput{
@@ -72,7 +78,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 			}},
 		},
 	}
-	assertBroadcasts := pubsub.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
+	assertBroadcasts := game.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
 
 	err := producers.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, finishedGame)
 	require.NoError(t, err)
@@ -120,19 +126,19 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	testinfra := itest.SetupIntegrationTest(t)
 	defer testinfra.Close()
 
-	worker := NewUpdtGameMetadataWorker(testinfra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, pubsub.NewSyncBroadcaster(testinfra.Redis))
+	worker := NewUpdtGameMetadataWorker(testinfra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, publishers.NewSyncBroadcaster(testinfra.Redis))
 
-	whiteUser0 := itest.TestUser[0]
-	blackUser1 := itest.TestUser[1]
-	gameID := model.NewGameID()
+	whiteUser0 := user.TestUsers[0]
+	blackUser1 := user.TestUsers[1]
+	gameID := gameid.NewGameID()
 	partitionID := gameID.Partition()
 
-	updtGame := model.UpdtGameMetadataEvent{
+	updtGame := queue.UpdtGameMetadataJob{
 		GameID:      gameID,
 		WhitePlayer: opt.Some(whiteUser0.ID),
 		BlackPlayer: opt.Some(blackUser1.ID),
-		Mode:        model.ModeCorrespondence1,
-		FirstColor:  model.Random,
+		Mode:        gamedata.ModeCorrespondence1.String(),
+		FirstColor:  gamedata.Random.String(),
 	}
 
 	err := producers.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, updtGame)

@@ -5,10 +5,11 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/config"
 	"hexchess-svc/database"
-	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/game"
+	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/queue"
-	"hexchess-svc/service"
+	"hexchess-svc/tournament"
+	"hexchess-svc/user"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/slogutil"
@@ -25,17 +26,17 @@ import (
 
 type RiverConsumerConfig struct {
 	PGXPool           *pgxpool.Pool
-	Database          database.Database
+	Database          database.PostgreSQL
 	Redis             cache.Redis
 	EsClient          *elasticsearch.TypedClient
-	Broadcaster       pubsub.Broadcaster
+	Broadcaster       publishers.Broadcaster
 	FeatureFlagConfig config.FeatureFlags
 }
 
 const RiverQueueMaxWorkers = 100
 
 func StartRiverConsumers(config RiverConsumerConfig) {
-	slog.Info("start redis consumers", "config", config)
+	slog.Info("start river consumers", "config", config)
 
 	// initialize services
 	advanceTournamentWorker := NewAdvanceTournamentWorker(config.Database, config.Redis, config.Broadcaster)
@@ -113,21 +114,21 @@ func (*defaultErrorHandler) HandlePanic(ctx context.Context, job *rivertype.JobR
 
 type AdvanceTournamentWorker struct {
 	river.WorkerDefaults[queue.AdvanceTournamentJob]
-	service *service.TournamentAdvancer
+	service *tournament.TournamentAdvancer
 }
 
 func NewAdvanceTournamentWorker(
-	database database.Database,
+	database database.PostgreSQL,
 	redis cache.Redis,
-	broadcaster pubsub.Broadcaster,
+	broadcaster publishers.Broadcaster,
 ) *AdvanceTournamentWorker {
 	return &AdvanceTournamentWorker{
-		service: service.NewTournamentAdvancer(
+		service: tournament.NewTournamentAdvancer(
 			database,
 			broadcaster,
-			service.NewGameCreateService(
+			game.NewGameCreateService(
 				redis,
-				service.NewChessRepoService(redis),
+				game.NewChessRepoService(redis),
 			),
 		),
 	}
@@ -137,7 +138,7 @@ func (w *AdvanceTournamentWorker) Work(ctx context.Context, job *river.Job[queue
 	slog.InfoContext(ctx, "begin tournament advance event", "job", job.Args)
 
 	gameIDs, err := w.service.AdvanceTournament(ctx, job.Args.TournamentKey, job.Args.EventID)
-	if errutil.IsType[service.MatchInvariantError](err) {
+	if errutil.IsType[tournament.MatchInvariantError](err) {
 		return NonRetryableQueueError{Err: err}
 	} else if err != nil {
 		return err
@@ -149,22 +150,22 @@ func (w *AdvanceTournamentWorker) Work(ctx context.Context, job *river.Job[queue
 
 type UpdateUserWorker struct {
 	river.WorkerDefaults[queue.UpdateUserJob]
-	service *service.UserSearchService
+	service *user.UserSearchService
 }
 
 func NewUpdateUserWorker(
-	database database.Database,
+	database database.PostgreSQL,
 	esClient *elasticsearch.TypedClient,
 ) *UpdateUserWorker {
 	return &UpdateUserWorker{
-		service: service.NewUserSearchService(database.Querier, esClient),
+		service: user.NewUserSearchService(database.Querier, esClient),
 	}
 }
 
 func (w *UpdateUserWorker) Work(ctx context.Context, job *river.Job[queue.UpdateUserJob]) error {
 	slog.InfoContext(ctx, "begin update user event", "job", job.Args)
 
-	err := w.service.UpdateUserSearch(ctx, model.UpdateUserEvent(job.Args))
+	err := w.service.UpdateUserSearch(ctx, user.UpdateUserEvent(job.Args))
 	if err != nil {
 		return serrors.New("update user search", err)
 	}

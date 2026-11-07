@@ -1,0 +1,157 @@
+package tournament
+
+import (
+	"context"
+	"errors"
+	"hexchess-svc/cache"
+	"hexchess-svc/database"
+	"hexchess-svc/database/query"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/utils/opt"
+	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
+	"log/slog"
+	"math"
+	"strconv"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
+)
+
+type TournamentRetriever struct {
+	querier query.Querier
+	redis   cache.Redis
+}
+
+func NewRetrieveTournamentService(querier query.Querier, redis cache.Redis) *TournamentRetriever {
+	return &TournamentRetriever{querier: querier, redis: redis}
+}
+
+func (service *TournamentRetriever) GetTournament(ctx context.Context, tournamentKey uuid.UUID) (_ FullTournament, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	var tournamentRow query.SelectTournamentByIDRow
+	var matchRows []query.SelectReplayMatchesByTournamentIDRow
+	var participantRows []query.SelectParticipantsWithUserByTournamentIDRow
+
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() (err error) {
+		tournamentRow, err = service.querier.SelectTournamentByID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		return serrors.New(
+			"select tournament by key", err, "key", tournamentKey)
+	})
+
+	eg.Go(func() (err error) {
+		participantRows, err = service.querier.SelectParticipantsWithUserByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		return serrors.New(
+			"select participants by tournament key", err, "key", tournamentKey)
+	})
+
+	eg.Go(func() (err error) {
+		matchRows, err = service.querier.SelectReplayMatchesByTournamentID(egCtx, pgtype.UUID{Bytes: tournamentKey, Valid: true})
+		return serrors.New(
+			"select replay matches by tournament key", err, "key", tournamentKey)
+	})
+
+	if err := eg.Wait(); err != nil {
+		if database.IsErrNoRows(err) {
+			return FullTournament{}, ErrTournamentNotFound
+		} else {
+			return FullTournament{}, err
+		}
+	}
+
+	slog.InfoContext(ctx, "selected tournament", "tournament", tournamentRow, "matchRows", matchRows, "participantRows", participantRows)
+
+	tournament := mapFullTournament(tournamentRow, matchRows, participantRows)
+
+	userLdbRanksMap, err := service.getParticipantsRank(ctx, tournament.Participants, tournament.Mode)
+	if err != nil {
+		return FullTournament{}, serrors.New("get participants leaderboard rank", err, "participantIDs", tournament.Participants)
+	}
+	for i := range tournament.Participants {
+		tournament.Participants[i].Rank = userLdbRanksMap[tournament.Participants[i].ID]
+	}
+
+	slog.InfoContext(ctx, "retrieved full tournament", "tournament", tournament)
+	return tournament, nil
+}
+
+func (service *TournamentRetriever) getParticipantsRank(ctx context.Context, participants []Participant, mode gamedata.GameMode) (map[int64]int64, error) {
+	type getExec struct {
+		userID int64
+		cmd    *redis.IntCmd
+	}
+
+	pipeline := service.redis.PrimaryClient.Pipeline()
+	var getExecs []getExec
+
+	for _, participant := range participants {
+		modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
+		getExecs = append(getExecs, getExec{
+			userID: participant.ID,
+			cmd:    pipeline.ZRevRank(ctx, modeLbZSet, strconv.Itoa(int(participant.ID))),
+		})
+	}
+
+	if err := pipelineExec(ctx, pipeline); err != nil {
+		return nil, err
+	}
+
+	leaderboardRanks := make(map[int64]int64)
+
+	for _, exec := range getExecs {
+		rank, err := exec.cmd.Result()
+		if errors.Is(redis.Nil, err) {
+			continue
+		} else if err != nil {
+			return nil, serrors.New("get participant rank for user", err, "userID", exec.userID)
+		}
+
+		leaderboardRanks[exec.userID] = mapLeaderboardRank(rank)
+	}
+
+	slog.InfoContext(ctx, "retrieved leaderboard ranks", "leaderboardRanks", leaderboardRanks, "mode", mode)
+	return leaderboardRanks, nil
+}
+
+func mapLeaderboardRank(rank int64) int64 {
+	return rank + 1
+}
+
+func (service *TournamentRetriever) GetTournaments(ctx context.Context, participantID opt.Option[int64], afterID opt.Option[int64], perPage int32) (_ []Tournament, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	if !afterID.Present {
+		afterID.Value = int64(math.MaxInt64)
+	}
+
+	var tournaments []Tournament
+
+	if participantID.Present {
+		tournamentRows, err := service.querier.SelectTournamentsByParticipant(ctx, query.SelectTournamentsByParticipantParams{
+			UserID:  participantID.Value,
+			AfterID: afterID.Value,
+			PerPage: perPage,
+		})
+		if err != nil {
+			return nil, serrors.New("select tournaments by participant after id", err, "participantID", participantID, "afterID", afterID)
+		}
+		tournaments = mapTournamentsByParticipantRows(tournamentRows)
+	} else {
+		tournamentRows, err := service.querier.SelectTournaments(ctx, query.SelectTournamentsParams{
+			AfterID: afterID.Value,
+			PerPage: perPage,
+		})
+		if err != nil {
+			return nil, serrors.New("select tournaments after id", err, "afterID", afterID)
+		}
+		tournaments = mapTournamentsRows(tournamentRows)
+	}
+
+	slog.InfoContext(ctx, "selected tournaments", "tournaments", tournaments)
+	return tournaments, nil
+}

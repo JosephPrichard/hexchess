@@ -5,9 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"hexchess-svc/model"
+	"hexchess-svc/challenges"
+	"hexchess-svc/gamedata"
 	"hexchess-svc/network"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/tournament"
+	"hexchess-svc/user"
 	"time"
 
 	"net/http"
@@ -60,9 +63,9 @@ func TestHandleActiveConn(t *testing.T) {
 	sseTest := setupSSETest(t)
 	defer sseTest.Shutdown()
 
-	wantBroadcast := pubsub.GlobalCastEvent{Kind: pubsub.GlobalActiveEvent, Data: `{"count":1}`}
+	wantBroadcast := subscribers.GlobalCastEvent{Kind: subscribers.GlobalActiveEvent, Data: `{"count":1}`}
 
-	broadcastSubscriber := make(chan pubsub.GlobalCastEvent, 1)
+	broadcastSubscriber := make(chan subscribers.GlobalCastEvent, 1)
 	sseTest.localBroadcasters.Counts.Subscribe(broadcastSubscriber)
 
 	go func() {
@@ -75,7 +78,7 @@ func TestHandleActiveConn(t *testing.T) {
 		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one message is sent when the SSE drops
 	}()
 
-	var actualBroadcast pubsub.GlobalCastEvent
+	var actualBroadcast subscribers.GlobalCastEvent
 	select {
 	case e := <-broadcastSubscriber:
 		actualBroadcast = e
@@ -98,10 +101,10 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	inputMessages := []model.UserMessage{
-		{Kind: model.ChallengeKind, Challenge: model.Challenge{ChallengeeID: 2}}, // won't receive this
-		{Kind: model.ChallengeKind, Challenge: model.Challenge{ChallengeeID: 1, Mode: model.ModeCorrespondence1, StartColor: model.White}},
-		{Kind: model.ChallengeKind, Challenge: model.Challenge{ChallengeeID: 1, Mode: model.ModeCorrespondence7, StartColor: model.Black}},
+	inputMessages := []challenges.UserMessage{
+		{Kind: challenges.ChallengeKind, Challenge: challenges.Challenge{ChallengeeID: 2}}, // won't receive this
+		{Kind: challenges.ChallengeKind, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence1, StartColor: gamedata.White}},
+		{Kind: challenges.ChallengeKind, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence7, StartColor: gamedata.Black}},
 	}
 
 	for _, input := range inputMessages {
@@ -145,14 +148,14 @@ func TestHandleTournamentEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// one message for each union category, with full permutations of nil/non-nil fields
-	inputTournaments := []model.TournamentOutput{
+	inputTournaments := []tournament.TournamentOutput{
 		{Key: uuid.NewString()}, // won't receive this
-		{Key: keyString, Kind: model.TournamentStartKind},
-		{Key: keyString, Kind: model.TournamentMatchmakingKind},
+		{Key: keyString, Kind: tournament.TournamentStartKind},
+		{Key: keyString, Kind: tournament.TournamentMatchmakingKind},
 		{
 			Key:  keyString,
-			Kind: model.TournamentMatchmakingKind,
-			Matches: []model.FullMatch{
+			Kind: tournament.TournamentMatchmakingKind,
+			Matches: []tournament.FullMatch{
 				{
 					TournamentKey: keyUUID,
 					Round:         1,
@@ -163,13 +166,13 @@ func TestHandleTournamentEvents(t *testing.T) {
 				},
 			},
 		},
-		{Key: keyString, Kind: model.TournamentCountdownKind},
-		{Key: keyString, Kind: model.TournamentParticipantKind},
+		{Key: keyString, Kind: tournament.TournamentCountdownKind},
+		{Key: keyString, Kind: tournament.TournamentParticipantKind},
 		{
 			Key:  keyString,
-			Kind: model.TournamentParticipantKind,
-			LeaderboardUser: model.LbdUser{
-				User: model.User{
+			Kind: tournament.TournamentParticipantKind,
+			LeaderboardUser: user.LbdUser{
+				User: user.User{
 					ID:       1,
 					Username: "John Doe",
 					Country:  "us",
@@ -177,8 +180,8 @@ func TestHandleTournamentEvents(t *testing.T) {
 				},
 			},
 		},
-		{Key: keyString, Kind: model.TournamentErrorKind, Error: "error"},
-		{Key: keyString, Kind: model.TournamentErrorKind},
+		{Key: keyString, Kind: tournament.TournamentErrorKind, Error: "error"},
+		{Key: keyString, Kind: tournament.TournamentErrorKind},
 	}
 
 	for _, input := range inputTournaments {

@@ -33,7 +33,8 @@ const (
 type TestInfra struct {
 	Querier testquery.Querier
 
-	Database database.Database
+	Pool     *pgxpool.Pool
+	Database database.PostgreSQL
 	Redis    cache.Redis
 	AWS      cloud.AWSClient
 	Es       *elasticsearch.TypedClient
@@ -42,6 +43,7 @@ type TestInfra struct {
 func (i TestInfra) Close() {
 	i.Redis.Close()
 	i.Database.Close()
+	i.Pool.Close()
 }
 
 func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
@@ -55,6 +57,7 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 	infra.Querier = testquery.New(pgPool)
 
 	// infrastructure clients
+	infra.Pool = pgPool
 	infra.Database = database.NewDatabase(database.DatabasePools{Read: pgPool, Write: pgPool})
 	infra.Redis = cache.NewRedis(ctx, cache.RedisConfig{
 		PrimaryAddr:   []string{redisAddr},

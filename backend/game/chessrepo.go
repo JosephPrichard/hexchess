@@ -1,0 +1,170 @@
+package game
+
+import (
+	"context"
+	"errors"
+	"hexchess-svc/cache"
+	"hexchess-svc/gameid"
+	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
+	"log/slog"
+	"time"
+
+	"github.com/redis/go-redis/v9"
+)
+
+type ChessRepoService struct {
+	redis cache.Redis
+}
+
+func NewChessRepoService(redis cache.Redis) *ChessRepoService {
+	return &ChessRepoService{redis: redis}
+}
+
+func (service *ChessRepoService) IsGameAccessible(ctx context.Context, id gameid.Identifier) bool {
+	defer perf.WithContext(ctx).Log()
+
+	gameKey := cache.FmtGameKey(id)
+	exists, err := service.redis.PrimaryClient.Exists(ctx, gameKey).Result()
+
+	return err == nil && exists == 1
+}
+
+var ErrNoChessState = errors.New("no chess state")
+
+func (service *ChessRepoService) GetChessState(ctx context.Context, id gameid.Identifier) (*ChessState, error) {
+	return service.getChessState(ctx, service.redis.PrimaryClient, id)
+}
+
+type RedisChessGetter interface {
+	Get(ctx context.Context, key string) *redis.StringCmd
+}
+
+func (service *ChessRepoService) getChessState(ctx context.Context, getter RedisChessGetter, id gameid.Identifier) (*ChessState, error) {
+	gameKey := cache.FmtGameKey(id)
+
+	bytes, err := getter.Get(ctx, gameKey).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, ErrNoChessState
+	} else if err != nil {
+		return nil, serrors.New("get chess state in redis", err)
+	}
+
+	state, err := UnmarshalChessState(bytes)
+	if err != nil {
+		return nil, serrors.New("unmarshal chess state", err)
+	}
+
+	slog.InfoContext(ctx, "retrieved chess state", "key", gameKey)
+	return state, nil
+}
+
+func (service *ChessRepoService) SetChessState(ctx context.Context, id gameid.Identifier, state *ChessState) error {
+	touch := time.Now()
+	return service.SetChessStatePiped(ctx, service.redis.PrimaryClient, id, state, touch)
+}
+
+type RedisChessSetter interface {
+	Set(ctx context.Context, key string, value any, expiration time.Duration) *redis.StatusCmd
+	ZAdd(ctx context.Context, key string, members ...redis.Z) *redis.IntCmd
+}
+
+func (service *ChessRepoService) SetChessStatePiped(ctx context.Context, setter RedisChessSetter, id gameid.Identifier, state *ChessState, timer time.Time) (err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	bytes, err := MarshalChessState(state)
+	if err != nil {
+		return serrors.New("marshal chess state", err)
+	}
+
+	gameKey := cache.FmtGameKey(id)
+	setter.Set(ctx, gameKey, bytes, 0)
+
+	timerScore := float64(timer.UnixMilli())
+	if timerScore != 0 {
+		gameTimersKey := cache.FmtGameTimersZSet(id.Partition())
+		setter.ZAdd(ctx, gameTimersKey, redis.Z{Score: timerScore, Member: id.String()})
+	}
+
+	slog.InfoContext(ctx, "set chess state", "key", gameKey, "timer", timer, "timerScore", timerScore)
+	return nil
+}
+
+func (service *ChessRepoService) SetChessStates(ctx context.Context, chessStates []ChessState) error {
+	var createdGameID []string
+	pipe := service.redis.PrimaryClient.Pipeline()
+
+	for i := range chessStates {
+		state := &chessStates[i]
+
+		bytes, err := MarshalChessState(state)
+		if err != nil {
+			return serrors.New("marshal chess state", err)
+		}
+		gameKey := cache.FmtGameKey(state.ID)
+		pipe.SetNX(ctx, gameKey, bytes, 0)
+
+		createdGameID = append(createdGameID, state.ID.String())
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		return err
+	}
+
+	slog.InfoContext(ctx, "set many chess states", "gameIDs", createdGameID)
+	return nil
+}
+
+const MaxUpdateChessStateRetries = 5
+
+var ErrMaxChessStateRetries = errors.New("update chess state txn: reached max retries")
+
+type ChessUpdateFn func(*ChessState) error
+type ChessCommitFn func(redis.Pipeliner, *ChessState) error
+
+func (service *ChessRepoService) UpdateChessStateTxn(ctx context.Context, gameID gameid.Identifier, update ChessUpdateFn, commit ChessCommitFn) (_ *ChessState, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	gameKey := cache.FmtGameKey(gameID)
+
+	for i := range MaxUpdateChessStateRetries {
+		var ret *ChessState
+
+		// standard redis Watch+Tx optimistic locking pattern to prevent the 'LostUpdate' race condition
+		err := service.redis.PrimaryClient.Watch(ctx, func(txn *redis.Tx) error {
+			state, err := service.getChessState(ctx, txn, gameID)
+			if err != nil {
+				return err
+			}
+
+			if err := update(state); err != nil {
+				return err
+			}
+
+			_, err = txn.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+				err := service.SetChessStatePiped(ctx, pipe, gameID, state, time.Now())
+				if err != nil {
+					return err
+				}
+				// enables another operation to be executed atomically if chess state update is successful
+				if commit != nil {
+					return commit(pipe, state)
+				}
+				return nil
+			})
+			if err == nil {
+				ret = state
+			}
+			return err
+		}, gameKey)
+
+		if errors.Is(err, redis.TxFailedErr) {
+			slog.WarnContext(ctx, "retrying redis transaction", "error", err, "retry", i)
+			continue
+		}
+		return ret, err
+	}
+
+	slog.ErrorContext(ctx, "exhausted redis transaction retries", "retryCount", MaxUpdateChessStateRetries)
+	return nil, ErrMaxChessStateRetries
+}

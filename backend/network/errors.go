@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"hexchess-svc/service"
+	"hexchess-svc/challenges"
+	"hexchess-svc/session"
+	"hexchess-svc/tournament"
+	"hexchess-svc/user"
 	"net/http"
 )
 
@@ -140,35 +143,35 @@ func ServiceViewFromErr(err error) ServiceResp {
 
 func mapServiceErrors(err error) (error, string) {
 	switch {
-	case errors.Is(err, service.ErrSessionNotFound):
+	case errors.Is(err, session.ErrSessionNotFound):
 		return ErrHttpSessionExpired, err.Error()
-	case errors.Is(err, service.ErrUserNotFound):
+	case errors.Is(err, user.ErrUserNotFound):
 		return ErrHttpInvalidLogin, err.Error()
-	case errors.Is(err, service.ErrTooManyLoginAttempts):
+	case errors.Is(err, user.ErrTooManyLoginAttempts):
 		return ErrHttpTooManyLoginAttempts, err.Error()
-	case errors.Is(err, service.ErrDuplicateChallenge):
+	case errors.Is(err, challenges.ErrDuplicateChallenge):
 		return ErrHttpDuplicateChallenge, err.Error()
-	case errors.Is(err, service.ErrInvalidChallengeMember):
+	case errors.Is(err, challenges.ErrInvalidChallengeMember):
 		return ErrHttpInvalidParticipants, err.Error()
-	case errors.Is(err, service.ErrSelfChallenge):
+	case errors.Is(err, challenges.ErrSelfChallenge):
 		return ErrHttpSelfChallenge, err.Error()
-	case errors.Is(err, service.ErrTournamentNotFound):
+	case errors.Is(err, tournament.ErrTournamentNotFound):
 		return ErrHttpNotFoundTournament, err.Error()
-	case errors.Is(err, service.ErrTooManyParticipants):
+	case errors.Is(err, tournament.ErrTooManyParticipants):
 		return ErrHttpTooManyParticipants, err.Error()
-	case errors.Is(err, service.ErrTournamentNotLobby):
+	case errors.Is(err, tournament.ErrTournamentNotLobby):
 		return ErrHttpTournamentNotLobby, err.Error()
-	case errors.Is(err, service.ErrInvalidCountdownTournamentStatus):
+	case errors.Is(err, tournament.ErrInvalidCountdownTournamentStatus):
 		return ErrHttpInvalidCountdownState, err.Error()
-	case errors.Is(err, service.ErrTournamentCountdownPermissions):
+	case errors.Is(err, tournament.ErrTournamentCountdownPermissions):
 		return ErrHttpCountdownPermissions, err.Error()
-	case errors.Is(err, service.ErrChallengeNotFound):
+	case errors.Is(err, challenges.ErrChallengeNotFound):
 		return ErrHttpNotFoundChallenge, err.Error()
-	case errors.Is(err, service.ErrTournamentNotFound):
+	case errors.Is(err, tournament.ErrTournamentNotFound):
 		return ErrHttpNotFoundTournament, err.Error()
-	case errors.Is(err, service.InvalidChecksum):
+	case errors.Is(err, user.InvalidChecksum):
 		return ErrHttpInvalidChecksum, err.Error()
-	case errors.Is(err, service.ErrProfilePicTooBig):
+	case errors.Is(err, user.ErrProfilePicTooBig):
 		return ErrHttpErrProfilePicTooBig, err.Error()
 	}
 	return err, ""

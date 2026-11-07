@@ -3,8 +3,6 @@ package database
 import (
 	"database/sql"
 	"errors"
-	"hexchess-svc/database/query"
-	"hexchess-svc/model"
 	"hexchess-svc/utils/opt"
 	"time"
 
@@ -43,18 +41,6 @@ func MapOptInt4(o opt.Option[int32]) pgtype.Int4 {
 
 func MapOptTime(o opt.Option[time.Time]) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: o.Value, Valid: o.Present}
-}
-
-func MapOptMode(o opt.Option[model.GameMode]) query.NullModeEnum {
-	return query.NullModeEnum{ModeEnum: query.ModeEnum(o.Value.String()), Valid: o.Present}
-}
-
-func MapOptResult(o opt.Option[model.ReplayResult]) query.NullResultEnum {
-	return query.NullResultEnum{ResultEnum: query.ResultEnum(o.Value.String()), Valid: o.Present}
-}
-
-func MapOptCause(o opt.Option[model.ReplayCause]) query.NullCauseEnum {
-	return query.NullCauseEnum{CauseEnum: query.CauseEnum(o.Value.String()), Valid: o.Present}
 }
 
 func MapInsertErr(err error, uniqueViolationErr error, foreignKeyViolationErr error) error {

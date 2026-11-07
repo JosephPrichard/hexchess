@@ -5,8 +5,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"hexchess-svc/model"
-	"hexchess-svc/service"
+	"hexchess-svc/player"
+	"hexchess-svc/session"
 	"hexchess-svc/utils/serrors"
 	"math/big"
 	"net/http"
@@ -38,8 +38,8 @@ func NewSessionID() string {
 	return string(bytes)
 }
 
-func issueTempSession(sessionPlayer model.PlayerState, w http.ResponseWriter) ([]service.SessionInst, string) {
-	var sessions []service.SessionInst
+func issueTempSession(sessionPlayer player.PlayerState, w http.ResponseWriter) ([]session.SessionInst, string) {
+	var sessions []session.SessionInst
 	var tempSessionID string
 
 	if sessionPlayer.Present {
@@ -47,16 +47,16 @@ func issueTempSession(sessionPlayer model.PlayerState, w http.ResponseWriter) ([
 
 		tempSessionID = NewSessionID()
 
-		sessions = []service.SessionInst{
+		sessions = []session.SessionInst{
 			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
 		}
 	} else {
-		player := model.NewGuestPlayer()
+		player := player.NewGuestPlayer()
 
 		tempSessionID = NewSessionID()
 		guestSessionID := NewSessionID()
 
-		sessions = []service.SessionInst{
+		sessions = []session.SessionInst{
 			{SessionID: tempSessionID, Player: player, Expiry: TempSessionMaxAge},
 			{SessionID: guestSessionID, Player: player, Expiry: SessionMaxAge},
 		}
@@ -68,43 +68,43 @@ func issueTempSession(sessionPlayer model.PlayerState, w http.ResponseWriter) ([
 }
 
 type HttpAuthenticator struct {
-	service *service.SessionService
+	service *session.SessionService
 }
 
 type Session struct {
-	Player model.PlayerState
+	Player player.PlayerState
 	Token  string
 }
 
 func (auth *HttpAuthenticator) GetSession(ctx context.Context, r *http.Request) (Session, error) {
 	cookie, err := r.Cookie(CookieKey)
 	if err != nil {
-		return Session{}, service.ErrSessionNotFound
+		return Session{}, session.ErrSessionNotFound
 	}
 	sessionToken := cookie.Value
 	player, err := auth.service.GetSession(ctx, sessionToken)
 	return Session{Player: player, Token: sessionToken}, serrors.New("get session player", err)
 }
 
-func (auth *HttpAuthenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+func (auth *HttpAuthenticator) GetSessionOptPlayer(ctx context.Context, r *http.Request) (player.PlayerState, error) {
 	sess, err := auth.GetSession(ctx, r)
-	if errors.Is(err, service.ErrSessionNotFound) {
-		return model.PlayerState{}, nil
+	if errors.Is(err, session.ErrSessionNotFound) {
+		return player.PlayerState{}, nil
 	}
 	return sess.Player, err
 }
 
-func (auth *HttpAuthenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (model.PlayerState, error) {
+func (auth *HttpAuthenticator) GetSessionPlayer(ctx context.Context, r *http.Request) (player.PlayerState, error) {
 	sess, err := auth.GetSession(ctx, r)
 	if err != nil {
-		return model.PlayerState{}, err
+		return player.PlayerState{}, err
 	}
 	return sess.Player, err
 }
 
-func (auth *HttpAuthenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player model.PlayerState) (time.Duration, error) {
+func (auth *HttpAuthenticator) SetSessionPlayer(ctx context.Context, w http.ResponseWriter, player player.PlayerState) (time.Duration, error) {
 	sessionToken := NewSessionID()
-	if err := auth.service.SetSessions(ctx, service.SessionInst{
+	if err := auth.service.SetSessions(ctx, session.SessionInst{
 		SessionID: sessionToken,
 		Player:    player,
 		Expiry:    SessionMaxAge,

@@ -3,7 +3,7 @@ package consumers
 import (
 	"hexchess-svc/database/testquery"
 	"hexchess-svc/itest"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/queue"
 	"hexchess-svc/utils/testutil"
 	"testing"
@@ -25,7 +25,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	worker := NewAdvanceTournamentWorker(
 		testinfra.Database,
 		testinfra.Redis,
-		pubsub.NewSyncBroadcaster(testinfra.Redis),
+		publishers.NewSyncBroadcaster(testinfra.Redis),
 	)
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey

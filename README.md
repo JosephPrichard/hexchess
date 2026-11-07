@@ -63,8 +63,6 @@ Run a Migration (up)
 
 `$ go run cmd/server/api/main.go`
 
-`$ go run cmd/server/consumers/main.go`
-
 ### Run UI
 
 `$ cd frontend`

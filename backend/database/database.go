@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Database struct {
+type PostgreSQL struct {
 	pools DatabasePools
 
 	QuerierMutator QuerierMutator
@@ -25,19 +25,19 @@ type Transactor interface {
 	ExecTx(ctx context.Context, args TxArgs) error
 }
 
-func NewDatabase(pools DatabasePools) Database {
-	return Database{pools: pools, QuerierMutator: NewPoolQuerier(pools.Write), Querier: NewPoolQuerier(pools.Read)}
+func NewDatabase(pools DatabasePools) PostgreSQL {
+	return PostgreSQL{pools: pools, QuerierMutator: NewPoolQuerier(pools.Write), Querier: NewPoolQuerier(pools.Read)}
 }
 
-func (db *Database) HealthcheckFunc() health.CheckFunc {
+func (db *PostgreSQL) HealthcheckFunc() health.CheckFunc {
 	return NewHealthcheck(db.pools.Write)
 }
 
-func (db *Database) ReadHealthcheckFunc() health.CheckFunc {
+func (db *PostgreSQL) ReadHealthcheckFunc() health.CheckFunc {
 	return NewHealthcheck(db.pools.Read)
 }
 
-func (db *Database) Close() {
+func (db *PostgreSQL) Close() {
 	if db.pools.Write != nil {
 		db.pools.Write.Close()
 	}
@@ -53,11 +53,11 @@ type TxArgs struct {
 	RetryCount   int
 }
 
-func (db *Database) ExecTx(ctx context.Context, args TxArgs) error {
+func (db *PostgreSQL) ExecTx(ctx context.Context, args TxArgs) error {
 	return execTx(ctx, db, args)
 }
 
-func execTx(ctx context.Context, db *Database, args TxArgs) error {
+func execTx(ctx context.Context, db *PostgreSQL, args TxArgs) error {
 	if args.RetryCount == 0 {
 		args.RetryCount = 1
 	}

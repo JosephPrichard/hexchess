@@ -4,15 +4,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"hexchess-svc/challenges"
 	"hexchess-svc/cloud"
+	"hexchess-svc/gamedata"
 	"hexchess-svc/network"
+	"hexchess-svc/persona"
+	"hexchess-svc/replay"
+	"hexchess-svc/tournament"
+	"hexchess-svc/user"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/opt"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"hexchess-svc/model"
 	"hexchess-svc/pb"
 	"io"
 	"net/http"
@@ -112,7 +117,7 @@ func TestHandleRegister(t *testing.T) {
 }
 
 func TestHandleLogin(t *testing.T) {
-	user := itest.UsersInsts[0]
+	u := itest.UsersInsts[0]
 
 	tests := []struct {
 		name        string
@@ -129,8 +134,8 @@ func TestHandleLogin(t *testing.T) {
 		},
 		{
 			name:        "ValidLogin",
-			body:        network.LoginBody{Username: user.Username, Password: "password1"},
-			wantSuccess: network.SessionView{Username: user.Username, Country: "us"},
+			body:        network.LoginBody{Username: u.Username, Password: "password1"},
+			wantSuccess: network.SessionView{Username: u.Username, Country: "us"},
 			wantStatus:  http.StatusOK,
 		},
 	}
@@ -590,18 +595,18 @@ func TestHandleCreateChallenge(t *testing.T) {
 func TestHandleSearchPlayers(t *testing.T) {
 	tests := []struct {
 		name        string
-		username    string
+		searchInput string
 		page        string
 		wantStatus  int
 		wantSuccess network.SearchPlayersResp
 		wantFail    network.ServiceResp
 	}{
 		{
-			name:       "SearchPlayers_Postgres",
-			username:   "john",
-			wantStatus: http.StatusOK,
+			name:        "SearchPlayers_Postgres",
+			searchInput: "john",
+			wantStatus:  http.StatusOK,
 			wantSuccess: network.SearchPlayersResp{
-				UserList: []model.LbdUser{
+				UserList: []user.LbdUser{
 					{
 						ID:         8,
 						Username:   "john",
@@ -639,7 +644,7 @@ func TestHandleSearchPlayers(t *testing.T) {
 			defer testinfra.Close()
 
 			q := url.Values{}
-			q.Set("username", tt.username)
+			q.Set("searchInput", tt.searchInput)
 			q.Set("page", tt.page)
 			r := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/players/search?%s", q.Encode()), nil)
 			w := httptest.NewRecorder()
@@ -680,11 +685,11 @@ func TestGetLeaderboard(t *testing.T) {
 		},
 		{
 			name:       "ValidLeaderboard",
-			mode:       model.ModeTimed1Plus0.String(),
+			mode:       gamedata.ModeTimed1Plus0.String(),
 			wantStatus: http.StatusOK,
 			wantSuccess: network.LeaderboardResp{
 				TotalPages: 1,
-				UserList: []model.LbdUser{
+				UserList: []user.LbdUser{
 					{
 						ID:         1,
 						Username:   "user1",
@@ -707,7 +712,7 @@ func TestGetLeaderboard(t *testing.T) {
 			h, testinfra := setupMuxTest(t, nil)
 			defer testinfra.Close()
 
-			createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: model.ModeTimed1Plus0, ID: 1, EloDiff: 1000})
+			createLeaderboard(t, testinfra.Redis, updtLbChangeSet{Mode: gamedata.ModeTimed1Plus0, ID: 1, EloDiff: 1000})
 
 			q := url.Values{}
 			q.Set("mode", tt.mode)
@@ -739,26 +744,26 @@ func TestGetPersona(t *testing.T) {
 			name: "GetPlayerWithReplays",
 			id:   "1",
 			wantSuccess: network.GetPersonaResp{
-				Persona: model.Persona{
-					User: itest.TestUser[0],
-					Stats: model.UserStats{
+				Persona: persona.Persona{
+					User: user.TestUsers[0],
+					Stats: user.UserStats{
 						TotalWins:    17,
 						TotalLosses:  14,
 						AvgElo:       1025,
 						HighestElo:   1050,
 						TotalWinrate: 53,
-						ModeStats: []model.ModeStats{
-							{Mode: model.ModeCorrespondence7, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
-							{Mode: model.ModeTimed3Plus2, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
-							{Mode: model.ModeTimed15Plus10, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
-							{Mode: model.ModeTimed1Plus0, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
+						ModeStats: []user.ModeStats{
+							{Mode: gamedata.ModeCorrespondence7, Wins: 2, Losses: 2, Winrate: 50, Elo: 1000, HighestElo: 1000},
+							{Mode: gamedata.ModeTimed3Plus2, Wins: 5, Losses: 4, Winrate: 55, Elo: 1020, HighestElo: 1020},
+							{Mode: gamedata.ModeTimed15Plus10, Wins: 4, Losses: 3, Winrate: 57, Elo: 1030, HighestElo: 1030},
+							{Mode: gamedata.ModeTimed1Plus0, Wins: 6, Losses: 5, Winrate: 54, Elo: 1050, HighestElo: 1050},
 						},
 					},
-					ReplayList: []model.FullReplay{
-						itest.TestReplays[4],
-						itest.TestReplays[3],
-						itest.TestReplays[2],
-						itest.TestReplays[0],
+					ReplayList: []replay.FullReplay{
+						replay.TestReplays[4],
+						replay.TestReplays[3],
+						replay.TestReplays[2],
+						replay.TestReplays[0],
 					},
 				},
 			},
@@ -822,7 +827,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "sent",
 			sessionID:    TestSessionID1,
 			wantSuccess: network.GetChallengesResp{
-				ChallengeList: []model.Challenge{itest.TestChallenge[0]},
+				ChallengeList: []challenges.Challenge{challenges.TestChallenge[0]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -831,7 +836,7 @@ func TestGetChallenges(t *testing.T) {
 			participants: "received",
 			sessionID:    TestSessionID1,
 			wantSuccess: network.GetChallengesResp{
-				ChallengeList: []model.Challenge{itest.TestChallenge[1]},
+				ChallengeList: []challenges.Challenge{challenges.TestChallenge[1]},
 			},
 			wantStatus: http.StatusOK,
 		},
@@ -873,85 +878,85 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:       "GotUserReplays_ByUserID",
 			params:     "userId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[4],
-				itest.TestReplays[3],
-				itest.TestReplays[2],
-				itest.TestReplays[0],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[4],
+				replay.TestReplays[3],
+				replay.TestReplays[2],
+				replay.TestReplays[0],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByUserID_SortedRating",
 			params:     "userId=1&sort=rating",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[4],
-				itest.TestReplays[3],
-				itest.TestReplays[0],
-				itest.TestReplays[2],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[4],
+				replay.TestReplays[3],
+				replay.TestReplays[0],
+				replay.TestReplays[2],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByUserID_SortedTurnCount",
 			params:     "userId=1&sort=turnCount",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[0],
-				itest.TestReplays[3],
-				itest.TestReplays[2],
-				itest.TestReplays[4],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[0],
+				replay.TestReplays[3],
+				replay.TestReplays[2],
+				replay.TestReplays[4],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByWinnerID_LoserID",
 			params:     "winnerId=1&loserId=2",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[0],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[0],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByWhiteID",
 			params:     "whiteId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[4],
-				itest.TestReplays[3],
-				itest.TestReplays[0],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[4],
+				replay.TestReplays[3],
+				replay.TestReplays[0],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByWhiteID_BlackID",
 			params:     "whiteId=3&blackId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[2],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[2],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByWhiteID_WinnerID",
 			params:     "whiteId=1&winnerId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[3],
-				itest.TestReplays[0],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[3],
+				replay.TestReplays[0],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByWhiteID_LoserID",
 			params:     "whiteId=1&loserId=1",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[4],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[4],
 			}},
 		},
 		{
 			name:       "GotUserReplays_ByUserID_Mode_Result_Cause",
 			params:     "userId=1&mode=CORRESPONDENCE_7&result=WHITE_WINS&cause=CHECKMATE",
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[3],
-				itest.TestReplays[0],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[3],
+				replay.TestReplays[0],
 			}},
 		},
 		{
@@ -960,9 +965,9 @@ func TestHandleSearchReplays(t *testing.T) {
 				"userId=1&toDate=%s",
 				(itest.TimeNow.Add(time.Hour * 24 * 2)).Format(time.DateOnly)),
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[2],
-				itest.TestReplays[0],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[2],
+				replay.TestReplays[0],
 			}},
 		},
 		{
@@ -971,10 +976,10 @@ func TestHandleSearchReplays(t *testing.T) {
 				"userId=1&fromDate=%s",
 				(itest.TimeNow.Add(time.Hour * 24 * 2)).Format(time.DateOnly)),
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[4],
-				itest.TestReplays[3],
-				itest.TestReplays[2],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[4],
+				replay.TestReplays[3],
+				replay.TestReplays[2],
 			}},
 		},
 		{
@@ -984,9 +989,9 @@ func TestHandleSearchReplays(t *testing.T) {
 				(itest.TimeNow.Add(time.Hour * 24 * 1)).Format(time.DateOnly),
 				(itest.TimeNow.Add(time.Hour * 24 * 3)).Format(time.DateOnly)),
 			wantStatus: http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{
-				itest.TestReplays[3],
-				itest.TestReplays[2],
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{
+				replay.TestReplays[3],
+				replay.TestReplays[2],
 			}},
 		},
 		// tests for non-existent users
@@ -994,13 +999,13 @@ func TestHandleSearchReplays(t *testing.T) {
 			name:        "GotNoReplaysForNonexistentUser",
 			params:      "userId=999",
 			wantStatus:  http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{}},
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{}},
 		},
 		{
 			name:        "GotNoReplaysForNonexistentUser",
 			params:      "whiteId=999",
 			wantStatus:  http.StatusOK,
-			wantSuccess: network.SearchReplaysResp{ReplayList: []model.FullReplay{}},
+			wantSuccess: network.SearchReplaysResp{ReplayList: []replay.FullReplay{}},
 		},
 		// input field validations
 		{
@@ -1078,7 +1083,7 @@ func TestHandleGetReplay(t *testing.T) {
 			name:        "GotReplay",
 			userID:      "1",
 			wantStatus:  http.StatusOK,
-			wantSuccess: network.GetReplayResp{Replay: itest.TestReplays[0]},
+			wantSuccess: network.GetReplayResp{Replay: replay.TestReplays[0]},
 		},
 		{
 			name:       "GotNoReplay",
@@ -1115,7 +1120,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 		{
 			Ordering:    1,
 			GameID:      itest.GameID1,
-			BlackPlayer: opt.Some(model.User{ID: 2, Username: "user2", Country: "us"}),
+			BlackPlayer: opt.Some(user.User{ID: 2, Username: "user2", Country: "us"}),
 			Mode:        "CORRESPONDENCE_1",
 		},
 	}
@@ -1136,7 +1141,7 @@ func TestHandleGetGameMetadata(t *testing.T) {
 					{
 						Ordering:    1,
 						GameID:      itest.GameID1,
-						BlackPlayer: opt.Some(model.User{ID: 2, Username: "user2", Country: "us"}),
+						BlackPlayer: opt.Some(user.User{ID: 2, Username: "user2", Country: "us"}),
 						Mode:        "CORRESPONDENCE_1",
 					},
 				},
@@ -1206,9 +1211,9 @@ func TestGetTournament(t *testing.T) {
 			tournamentKey: itest.Tournament0LobbyKey.String(),
 			wantStatus:    http.StatusOK,
 			wantResp: network.GetTournamentResp{
-				Tournament:   itest.Tournaments[0],
-				Participants: []model.Participant{},
-				Matches:      []model.FullMatch{},
+				Tournament:   tournament.TestTournaments[0],
+				Participants: []tournament.Participant{},
+				Matches:      []tournament.FullMatch{},
 			},
 		},
 		{
@@ -1216,9 +1221,9 @@ func TestGetTournament(t *testing.T) {
 			tournamentKey: itest.Tournament9InProgressUncompletedKey.String(),
 			wantStatus:    http.StatusOK,
 			wantResp: network.GetTournamentResp{
-				Tournament:   itest.Tournaments[9],
-				Participants: []model.Participant{},
-				Matches:      itest.MatchesTournament9, // stable ordering using the `ordering` column
+				Tournament:   tournament.TestTournaments[9],
+				Participants: []tournament.Participant{},
+				Matches:      tournament.TestMatchesTournament9, // stable ordering using the `ordering` column
 			},
 		},
 		{
@@ -1248,7 +1253,7 @@ func TestGetTournament(t *testing.T) {
 			h, testinfra := setupMuxTest(t, nil)
 			defer testinfra.Close()
 
-			for _, change := range itest.TournamentLbdChangeSets {
+			for _, change := range tournament.TestTournamentLbdChangeSets {
 				createLeaderboard(t, testinfra.Redis, change)
 			}
 
@@ -1262,8 +1267,8 @@ func TestGetTournament(t *testing.T) {
 			assert.Equal(t, tt.wantStatus, w.Code)
 			if w.Code == http.StatusOK {
 				testutil.AssertRespBody(t, tt.wantResp, w,
-					cmpopts.IgnoreFields(model.FullMatch{}, "Ordering"),
-					cmpopts.IgnoreFields(model.Replay{}, "ID"))
+					cmpopts.IgnoreFields(tournament.FullMatch{}, "Ordering"),
+					cmpopts.IgnoreFields(replay.Replay{}, "ID"))
 			} else {
 				testutil.AssertRespBody(t, tt.wantFail, w, serviceViewCmpOpts...)
 			}
@@ -1286,17 +1291,17 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "",
 			wantStatus: http.StatusOK,
 			wantResp: network.GetTournamentsResp{
-				Tournaments: []model.Tournament{
-					itest.Tournaments[9],
-					itest.Tournaments[8],
-					itest.Tournaments[7],
-					itest.Tournaments[6],
-					itest.Tournaments[5],
-					itest.Tournaments[4],
-					itest.Tournaments[3],
-					itest.Tournaments[2],
-					itest.Tournaments[1],
-					itest.Tournaments[0],
+				Tournaments: []tournament.Tournament{
+					tournament.TestTournaments[9],
+					tournament.TestTournaments[8],
+					tournament.TestTournaments[7],
+					tournament.TestTournaments[6],
+					tournament.TestTournaments[5],
+					tournament.TestTournaments[4],
+					tournament.TestTournaments[3],
+					tournament.TestTournaments[2],
+					tournament.TestTournaments[1],
+					tournament.TestTournaments[0],
 				},
 			},
 		},
@@ -1306,9 +1311,9 @@ func TestGetTournaments(t *testing.T) {
 			afterID:    "",
 			wantStatus: http.StatusOK,
 			wantResp: network.GetTournamentsResp{
-				Tournaments: []model.Tournament{
-					itest.Tournaments[5],
-					itest.Tournaments[2],
+				Tournaments: []tournament.Tournament{
+					tournament.TestTournaments[5],
+					tournament.TestTournaments[2],
 				},
 			},
 		},

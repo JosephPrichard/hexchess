@@ -2,11 +2,10 @@ package network
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"hexchess-svc/pubsub"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type SSEClient struct {
@@ -15,36 +14,69 @@ type SSEClient struct {
 	f   http.Flusher
 }
 
-func (sse *SSEClient) event(eventName string, eventData string) {
-	if _, err := fmt.Fprintf(sse.w, "event: %s\ndata: %s\n\n", eventName, eventData); err != nil {
-		slog.ErrorContext(sse.ctx, "failed to write to sse", "error", err)
-	}
+type ListenConfig[Message any] struct {
+	OnClose    func()
+	MapMessage func(Message) SseEvent
+	Stream     chan Message
+}
 
-	sse.f.Flush()
+func (client *SSEClient) StreamMessages[Message any](cfg ListenConfig[Message]) {
+	go func() {
+		<-client.ctx.Done()
+		if cfg.OnClose == nil {
+			close(cfg.Stream)
+		} else {
+			cfg.OnClose()
+		}
+	}()
 
-	if eventName != "KeepAlive" {
-		slog.InfoContext(sse.ctx, "writing server sent event", "event", eventName, "data", eventData)
+	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
+	for {
+		select {
+		case message, ok := <-cfg.Stream:
+			if !ok {
+				return
+			}
+			if cfg.MapMessage == nil {
+				slog.WarnContext(client.ctx, "while streaming messages: mapMessage fn is not provided, dropping message")
+				continue
+			}
+			event := cfg.MapMessage(message)
+			if event == (SseEvent{}) {
+				continue
+			}
+			client.SendEvent(event)
+		case <-keepAliveTicker.C:
+			client.SendEvent(SseEvent{EventName: MetaEvent, EventData: "KeepAlive"})
+		}
 	}
 }
 
-func writeGlobalEvent(client *SSEClient, event pubsub.GlobalCastEvent) {
-	var e string
-	switch event.Kind {
-	case pubsub.GlobalActiveEvent:
-		e = ActiveCountEvent
-	case pubsub.GlobalGamesEvent:
-		e = GamesCountEvent
-	default:
-		slog.ErrorContext(client.ctx, "unknown count event key", "event", e)
-		return
+func (client *SSEClient) Block() {
+	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
+	for {
+		select {
+		case <-client.ctx.Done():
+			return
+		case <-keepAliveTicker.C:
+			client.SendEvent(SseEvent{EventName: MetaEvent, EventData: "KeepAlive"})
+		}
 	}
-	client.event(e, event.Data)
 }
 
-func writeCountEvent(client *SSEClient, kind pubsub.CountEventKind, count int64) {
-	b, err := json.Marshal(pubsub.CountEvent{Count: count})
-	if err != nil {
-		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)
+type SseEvent struct {
+	EventName string `json:"eventName"`
+	EventData string `json:"eventData"`
+}
+
+func (client *SSEClient) SendEvent(event SseEvent) {
+	if _, err := fmt.Fprintf(client.w, "event: %s\ndata: %s\n\n", event.EventName, event.EventData); err != nil {
+		slog.ErrorContext(client.ctx, "failed to write to sse", "error", err)
 	}
-	writeGlobalEvent(client, pubsub.GlobalCastEvent{Kind: kind, Data: string(b)})
+
+	client.f.Flush()
+
+	if event.EventName != "KeepAlive" {
+		slog.InfoContext(client.ctx, "writing server sent event", "event", event.EventName, "data", event.EventData)
+	}
 }

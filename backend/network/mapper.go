@@ -1,8 +1,10 @@
 package network
 
-import "hexchess-svc/model"
+import (
+	"hexchess-svc/game"
+)
 
-func mapChessMetas(metas []model.ChessMeta) []ChessMeta {
+func mapChessMetas(metas []game.ChessMeta) []ChessMeta {
 	result := make([]ChessMeta, 0, len(metas))
 
 	for _, meta := range metas {

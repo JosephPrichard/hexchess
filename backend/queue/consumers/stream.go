@@ -5,10 +5,11 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/config"
 	"hexchess-svc/database"
-	"hexchess-svc/model"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/game"
+	"hexchess-svc/gameid"
+	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/service"
+	"hexchess-svc/replay"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -21,13 +22,13 @@ import (
 var (
 	TotalPartitionCount        = 2 * GameConsumerPartitionCount
 	GameConsumerPartitionCount = len(GameConsumerPartitions)
-	GameConsumerPartitions     = model.GameIDPartitions()
+	GameConsumerPartitions     = gameid.GameIDPartitions()
 )
 
 type RedisConsumerConfig struct {
-	Database          database.Database
+	Database          database.PostgreSQL
 	Redis             cache.Redis
-	Broadcaster       pubsub.Broadcaster
+	Broadcaster       publishers.Broadcaster
 	RiverClient       database.RiverClientAPI
 	FeatureFlagConfig config.FeatureFlags
 }
@@ -73,32 +74,32 @@ func StartRedisConsumers(config RedisConsumerConfig) {
 }
 
 type FinishedGameWorker struct {
-	service     *service.GameOverService
-	replay      *service.ReplayService
-	broadcaster pubsub.Broadcaster
+	service     *game.GameOverService
+	replay      *replay.ReplayService
+	broadcaster publishers.Broadcaster
 }
 
 func NewFinishedGameWorker(
-	database database.Database,
+	database database.PostgreSQL,
 	redis cache.Redis,
 	riverClient database.RiverClientAPI,
-	broadcaster pubsub.Broadcaster,
+	broadcaster publishers.Broadcaster,
 ) *FinishedGameWorker {
 	return &FinishedGameWorker{
-		service: service.NewGameoverService(
+		service: game.NewGameoverService(
 			database,
 			redis,
 			producers.NewRiverProducer(riverClient),
 			broadcaster,
-			service.NewChessRepoService(redis),
+			game.NewChessRepoService(redis),
 		),
-		replay:      service.NewReplayService(database),
+		replay:      replay.NewReplayService(database),
 		broadcaster: broadcaster,
 	}
 }
 
 func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
-	var event model.FinishGameEvent
+	var event game.FinishGameEvent
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
 	}
@@ -117,23 +118,23 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	if err != nil {
 		return serrors.New("get replay by id", err, "replayID", result.ReplayID)
 	}
-	w.broadcaster.BroadcastGamesEvent(ctx, model.SerializeReplayOutput(model.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay}))
+	w.broadcaster.BroadcastGamesEvent(ctx, game.SerializeReplayOutput(game.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay}))
 
 	return nil
 }
 
 type UpdtGameMetadataWorker struct {
-	service *service.ChessMetadataService
+	service *game.ChessMetadataService
 }
 
-func NewUpdtGameMetadataWorker(database database.Database, entropy entropy.Generator, broadcaster pubsub.Broadcaster) *UpdtGameMetadataWorker {
+func NewUpdtGameMetadataWorker(database database.PostgreSQL, entropy entropy.Generator, broadcaster publishers.Broadcaster) *UpdtGameMetadataWorker {
 	return &UpdtGameMetadataWorker{
-		service: service.NewChessMetadataService(database, entropy, broadcaster),
+		service: game.NewChessMetadataService(database, entropy, broadcaster),
 	}
 }
 
 func (w UpdtGameMetadataWorker) Handle(ctx context.Context, bytes []byte) error {
-	var event model.UpdtGameMetadataEvent
+	var event game.UpdtGameMetadataEvent
 	if err := sonic.Unmarshal(bytes, &event); err != nil {
 		return NonRetryableQueueError{Err: err}
 	}

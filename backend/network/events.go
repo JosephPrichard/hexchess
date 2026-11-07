@@ -2,8 +2,10 @@ package network
 
 import (
 	"context"
-	"hexchess-svc/pubsub"
-	svc "hexchess-svc/service"
+	"encoding/json"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/subscribers"
+	svc "hexchess-svc/user"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -35,30 +37,43 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 		return serrors.New("get chess state count", err)
 	}
 
-	writeCountEvent(client, pubsub.GlobalActiveEvent, activeCount)
-	writeCountEvent(client, pubsub.GlobalGamesEvent, gamesCount)
+	sendCountEvent(client, subscribers.GlobalActiveEvent, activeCount)
+	sendCountEvent(client, subscribers.GlobalGamesEvent, gamesCount)
 
-	countsChan := make(chan pubsub.GlobalCastEvent, SSEChanBufCap)
+	countsChan := make(chan subscribers.GlobalCastEvent, SSEChanBufCap)
 	server.broadcasters.Counts.Subscribe(countsChan)
 
-	go func() {
-		<-ctx.Done()
-		server.broadcasters.Counts.Unsubscribe(countsChan)
-		slog.InfoContext(ctx, "finished handle user events stream")
-	}()
+	client.StreamMessages(ListenConfig[subscribers.GlobalCastEvent]{
+		Stream: countsChan,
+		OnClose: func() {
+			server.broadcasters.Counts.Unsubscribe(countsChan)
+			slog.InfoContext(ctx, "finished handle user events stream")
+		},
+		MapMessage: mapGlobalEvent,
+	})
 
-	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-	for {
-		select {
-		case event, ok := <-countsChan:
-			if !ok {
-				return nil
-			}
-			writeGlobalEvent(client, event)
-		case <-keepAliveTicker.C:
-			client.event(MetaEvent, "KeepAlive")
-		}
+	return nil
+}
+
+func mapGlobalEvent(message subscribers.GlobalCastEvent) SseEvent {
+	var eventName string
+	switch message.Kind {
+	case subscribers.GlobalActiveEvent:
+		eventName = ActiveCountEvent
+	case subscribers.GlobalGamesEvent:
+		eventName = GamesCountEvent
+	default:
+		return SseEvent{}
 	}
+	return SseEvent{EventName: eventName, EventData: message.Data}
+}
+
+func sendCountEvent(client *SSEClient, kind subscribers.CountEventKind, count int64) {
+	bytes, err := json.Marshal(publishers.CountEvent{Count: count})
+	if err != nil {
+		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)
+	}
+	client.SendEvent(mapGlobalEvent(subscribers.GlobalCastEvent{Kind: kind, Data: string(bytes)}))
 }
 
 const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
@@ -77,24 +92,17 @@ func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) e
 		return serrors.New("add active user", err)
 	}
 
-	client.event(MetaEvent, strUserID)
+	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: strUserID})
 
-	stop := timeutil.Schedule(RetainActiveUserPeriod, func() {
+	stopScheduledEvent := timeutil.Schedule(RetainActiveUserPeriod, func() {
 		if err := server.service.RetainActiveUser(ctx, strUserID); err != nil {
 			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
 		}
 	})
-	defer stop()
+	defer stopScheduledEvent()
 
-	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-keepAliveTicker.C:
-			client.event(MetaEvent, "KeepAlive")
-		}
-	}
+	client.Block()
+	return nil
 }
 
 func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) error {
@@ -106,34 +114,28 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 	}
 	strUserID := strconv.Itoa(int(player.ID))
 
-	client.event(MetaEvent, strUserID)
+	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: strUserID})
 
 	usersChan := make(chan []byte, SSEChanBufCap)
 	server.broadcasters.Users.Subscribe(strUserID, usersChan)
 
-	go func() {
-		<-ctx.Done()
-		server.broadcasters.Users.Unsubscribe(strUserID, usersChan)
-		slog.InfoContext(ctx, "finishing handle user events stream")
+	client.StreamMessages(ListenConfig[[]byte]{
+		Stream: usersChan,
+		OnClose: func() {
+			server.broadcasters.Users.Unsubscribe(strUserID, usersChan)
+			slog.InfoContext(ctx, "finishing handle user events stream")
 
-		detachedCtx := context.WithoutCancel(ctx)
-		if _, err = server.service.RemoveActiveUser(detachedCtx, strUserID); err != nil {
-			slog.ErrorContext(detachedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
-		}
-	}()
-
-	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-	for {
-		select {
-		case message, ok := <-usersChan:
-			if !ok {
-				return nil
+			detachedCtx := context.WithoutCancel(ctx)
+			if _, err = server.service.RemoveActiveUser(detachedCtx, strUserID); err != nil {
+				slog.ErrorContext(detachedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
 			}
-			client.event(UserChallengeEvent, string(message))
-		case <-keepAliveTicker.C:
-			client.event(MetaEvent, "KeepAlive")
-		}
-	}
+		},
+		MapMessage: func(message []byte) SseEvent {
+			return SseEvent{EventName: UserChallengeEvent, EventData: string(message)}
+		},
+	})
+
+	return nil
 }
 
 func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Request) error {
@@ -144,24 +146,18 @@ func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Requ
 	tournamentChan := make(chan []byte, SSEChanBufCap)
 	server.broadcasters.Tournament.Subscribe(tournamentKey, tournamentChan)
 
-	client.event(MetaEvent, tournamentKey)
+	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: tournamentKey})
 
-	go func() {
-		<-ctx.Done()
-		server.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)
-		slog.InfoContext(ctx, "finishing handle tournament events stream")
-	}()
+	client.StreamMessages(ListenConfig[[]byte]{
+		Stream: tournamentChan,
+		OnClose: func() {
+			server.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)
+			slog.InfoContext(ctx, "finishing handle tournament events stream")
+		},
+		MapMessage: func(message []byte) SseEvent {
+			return SseEvent{EventName: TournamentEvent, EventData: string(message)}
+		},
+	})
 
-	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
-	for {
-		select {
-		case message, ok := <-tournamentChan:
-			if !ok {
-				return nil
-			}
-			client.event(TournamentEvent, string(message))
-		case <-keepAliveTicker.C:
-			client.event(MetaEvent, "KeepAlive")
-		}
-	}
+	return nil
 }

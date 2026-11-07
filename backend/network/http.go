@@ -3,13 +3,21 @@ package network
 import (
 	"fmt"
 	"hexchess-svc/cache"
+	"hexchess-svc/challenges"
 	"hexchess-svc/chess"
 	"hexchess-svc/cloud"
 	"hexchess-svc/config"
 	"hexchess-svc/database"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/game"
+	"hexchess-svc/leaderboard"
+	"hexchess-svc/persona"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/subscribers"
 	"hexchess-svc/queue/producers"
-	"hexchess-svc/service"
+	"hexchess-svc/replay"
+	"hexchess-svc/session"
+	"hexchess-svc/tournament"
+	"hexchess-svc/user"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
 	"log/slog"
@@ -24,8 +32,8 @@ import (
 
 type HttpServer struct {
 	service       HttpServices
-	broadcasters  *pubsub.LocalBroadcasters
-	broadcaster   pubsub.Broadcaster
+	broadcasters  *subscribers.LocalBroadcasters
+	broadcaster   publishers.Broadcaster
 	dispatcher    async.Dispatcher
 	entropy       entropy.Generator
 	authenticator HttpAuthenticator
@@ -33,40 +41,40 @@ type HttpServer struct {
 }
 
 type HttpServices struct {
-	*service.UserService
-	*service.UserSearchService
-	*service.ChallengeService
-	*service.ReplayService
-	*service.ReplaySearchService
-	*service.LeaderboardService
-	*service.ChessMetadataService
-	*service.ChessRepoService
-	*service.GamePlayService
-	*service.GameCreateService
-	*service.OrphanService
-	*service.ProfileService
-	*service.SessionService
-	*service.ActiveUserService
-	*service.ChatService
-	*service.TournamentUpdater
-	*service.TournamentRetriever
-	*service.TournamentNotifier
-	*service.PersonaService
-	*service.AuthTokenService
+	*user.UserService
+	*user.UserSearchService
+	*challenges.ChallengeService
+	*replay.ReplayService
+	*replay.ReplaySearchService
+	*leaderboard.LeaderboardService
+	*game.ChessMetadataService
+	*game.ChessRepoService
+	*game.GamePlayService
+	*game.GameCreateService
+	*user.OrphanProfileService
+	*user.ProfileService
+	*session.SessionService
+	*user.ActiveUserService
+	*game.ChatService
+	*tournament.TournamentUpdater
+	*tournament.TournamentRetriever
+	*tournament.TournamentNotifier
+	*persona.PersonaService
+	*session.AuthTokenService
 }
 
 type HttpServerConfig struct {
-	Database          database.Database
+	Database          database.PostgreSQL
 	RiverClient       database.RiverClientAPI
 	RealRiverClient   *river.Client[pgx.Tx]
 	Redis             cache.Redis
-	Broadcaster       pubsub.Broadcaster
+	Broadcaster       publishers.Broadcaster
 	AWS               cloud.AWSClient
 	SDKs              cloud.SDKs
 	EsClient          *elasticsearch.TypedClient
 	Entropy           entropy.Generator
 	Dispatcher        async.Dispatcher
-	Broadcasters      *pubsub.LocalBroadcasters
+	Broadcasters      *subscribers.LocalBroadcasters
 	AllowedOrigins    string
 	FeatureFlagConfig config.FeatureFlags
 }
@@ -162,7 +170,7 @@ func NewHttpServer(config HttpServerConfig) HttpServer {
 		broadcasters:  config.Broadcasters,
 		dispatcher:    config.Dispatcher,
 		entropy:       config.Entropy,
-		authenticator: HttpAuthenticator{service: service.NewSessionService(config.Redis)},
+		authenticator: HttpAuthenticator{service: session.NewSessionService(config.Redis)},
 		staticData:    NewStaticData(),
 	}
 }
@@ -178,26 +186,26 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 
 	// initialize services
 	riverProducer := producers.NewRiverProducer(config.RiverClient)
-	userService := service.NewUserService(config.Database, riverProducer)
-	userSearchService := service.NewUserSearchService(config.Database.Querier, config.EsClient)
-	replayService := service.NewReplayService(config.Database)
-	replaySearchService := service.NewReplaySearchService(config.Database)
-	challengeService := service.NewChallengeService(config.Database, config.Entropy)
-	leaderboardService := service.NewLeaderboardService(config.Redis, config.Database.Querier)
-	chessMetaService := service.NewChessMetadataService(config.Database, config.Entropy, config.Broadcaster)
-	chessRepoService := service.NewChessRepoService(config.Redis)
-	gameplayService := service.NewGameplayService(config.Redis, chessRepoService)
-	gameCreateService := service.NewGameCreateService(config.Redis, chessRepoService)
-	orphanService := service.NewOrphanService(config.AWS, config.Database.Querier)
-	profileService := service.NewProfileService(config.AWS, config.Dispatcher, config.Entropy)
-	sessionService := service.NewSessionService(config.Redis)
-	tournamentUpdater := service.NewTournamentUpdater(config.Database, config.Redis, riverProducer)
-	tournamentRetriever := service.NewRetrieveTournamentService(config.Database.Querier, config.Redis)
-	tournamentNotifier := service.NewTournamentNotifier(leaderboardService, config.Broadcaster)
-	activeUserService := service.NewActiveUserService(config.Redis, config.Broadcaster)
-	chatService := service.NewChatService(config.Redis, config.Database.Querier, config.EsClient, config.Entropy, config.Dispatcher)
-	personaService := service.NewPersonaService(config.Database, config.Redis)
-	authTokenService := service.NewAuthTokenService(config.SDKs)
+	userService := user.NewUserService(config.Database, riverProducer)
+	userSearchService := user.NewUserSearchService(config.Database.Querier, config.EsClient)
+	replayService := replay.NewReplayService(config.Database)
+	replaySearchService := replay.NewReplaySearchService(config.Database)
+	challengeService := challenges.NewChallengeService(config.Database, config.Entropy)
+	leaderboardService := leaderboard.NewLeaderboardService(config.Redis, config.Database.Querier)
+	chessMetaService := game.NewChessMetadataService(config.Database, config.Entropy, config.Broadcaster)
+	chessRepoService := game.NewChessRepoService(config.Redis)
+	gameplayService := game.NewGameplayService(config.Redis, chessRepoService)
+	gameCreateService := game.NewGameCreateService(config.Redis, chessRepoService)
+	orphanService := user.NewOrphanService(config.AWS, config.Database.Querier)
+	profileService := user.NewProfileService(config.AWS, config.Dispatcher, config.Entropy)
+	sessionService := session.NewSessionService(config.Redis)
+	tournamentUpdater := tournament.NewTournamentUpdater(config.Database, config.Redis, riverProducer)
+	tournamentRetriever := tournament.NewRetrieveTournamentService(config.Database.Querier, config.Redis)
+	tournamentNotifier := tournament.NewTournamentNotifier(leaderboardService, config.Broadcaster)
+	activeUserService := user.NewActiveUserService(config.Redis, config.Broadcaster)
+	chatService := game.NewChatService(config.Redis, config.Database.Querier, config.EsClient, config.Entropy, config.Dispatcher)
+	personaService := persona.NewPersonaService(config.Database, config.Redis)
+	authTokenService := session.NewAuthTokenService(config.SDKs)
 
 	// override feature flags
 	userSearchService.FeatureFlags = config.FeatureFlagConfig
@@ -213,7 +221,7 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 		ChessRepoService:     chessRepoService,
 		GamePlayService:      gameplayService,
 		GameCreateService:    gameCreateService,
-		OrphanService:        orphanService,
+		OrphanProfileService: orphanService,
 		ProfileService:       profileService,
 		SessionService:       sessionService,
 		TournamentUpdater:    tournamentUpdater,

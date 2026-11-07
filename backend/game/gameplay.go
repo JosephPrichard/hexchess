@@ -1,0 +1,269 @@
+package game
+
+import (
+	"context"
+	"crypto/rand"
+	"errors"
+	"hexchess-svc/cache"
+	"hexchess-svc/chess"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
+	"hexchess-svc/player"
+	"hexchess-svc/queue"
+	"hexchess-svc/queue/producers"
+	"hexchess-svc/replay"
+	"hexchess-svc/utils/serrors"
+	"log/slog"
+	"math/big"
+
+	"github.com/redis/go-redis/v9"
+)
+
+type GamePlayService struct {
+	// infra
+	redis cache.Redis
+
+	// service
+	chessState ChessUpdater
+}
+
+type ChessUpdater interface {
+	UpdateChessStateTxn(ctx context.Context, gameID gameid.Identifier, update ChessUpdateFn, commit ChessCommitFn) (*ChessState, error)
+}
+
+func NewGameplayService(redis cache.Redis, chessState ChessUpdater) *GamePlayService {
+	return &GamePlayService{redis: redis, chessState: chessState}
+}
+
+func (service *GamePlayService) JoinGame(ctx context.Context, gameID gameid.Identifier, player player.PlayerState) (*ChessState, error) {
+	update := func(state *ChessState) error {
+		slog.InfoContext(ctx, "updating game state by joining", "player", player.ID, "gameID", gameID)
+
+		if !player.Present {
+			slog.WarnContext(ctx, "player did not join the game", "playerID", player.ID)
+			return nil
+		}
+
+		var playerExists bool
+		if !state.WhitePlayer.Present && !state.BlackPlayer.Present {
+			n, err := rand.Int(rand.Reader, big.NewInt(1000))
+			if err != nil {
+				return serrors.New("generate randint used to select first color", err)
+			}
+			pickWhite := state.FirstColor == gamedata.Random && n.Int64()%2 == 0 || state.FirstColor == gamedata.White
+			if pickWhite {
+				state.WhitePlayer = player
+			} else {
+				state.BlackPlayer = player
+			}
+		} else if state.BlackPlayer.Present && !state.WhitePlayer.Present {
+			if state.BlackPlayer.ID == player.ID {
+				playerExists = true
+			} else {
+				state.WhitePlayer = player
+			}
+		} else if state.WhitePlayer.Present && !state.BlackPlayer.Present {
+			if state.WhitePlayer.ID == player.ID {
+				playerExists = true
+			} else {
+				state.BlackPlayer = player
+			}
+		}
+		if playerExists {
+			slog.WarnContext(ctx, "player has already joined game", "playerID", player.ID, "gameID", gameID)
+		}
+		return nil
+	}
+	commit := func(pipe redis.Pipeliner, state *ChessState) error {
+		slog.InfoContext(ctx, "committing game state when joining", "player", player.ID, "gameID", gameID)
+		return produceUpdtGameMetadata(ctx, pipe, state)
+	}
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "player joined game", "playerID", player.ID, "game", state.String())
+	return state, err
+}
+
+type MoveResult struct {
+	State *ChessState
+	Move  chess.HistMove
+}
+
+func (service *GamePlayService) MakeGameMove(ctx context.Context, gameID gameid.Identifier, player player.PlayerState, move chess.Move) (MoveResult, error) {
+	update := func(state *ChessState) error {
+		slog.InfoContext(ctx, "updating game state by making move", "player", player.ID, "gameID", gameID, "move", move)
+
+		// pre-move validations on chess state
+		if !state.HasBothPlayers() {
+			return ErrStartedGame{GameID: gameID}
+		}
+		if state.EndState.IsEnded() {
+			return ErrFinishedGame{GameID: gameID}
+		}
+		if currPlayer := state.CurrPlayer(); !currPlayer.Present || currPlayer.ID != player.ID {
+			return ErrTurn{GameID: gameID, PlayerID: player.ID, CurrID: currPlayer.ID}
+		}
+		//if time.Now().After(state.ClockTimeout()) {
+		//	return ErrTimeout{GameID: gameID}
+		//}
+
+		// perform move validations then move
+		state.Game.EnsurePieceMoves()
+		if _, err := state.Game.NewValidMove(move); err != nil {
+			return ErrInvalidMove{GameID: gameID, PlayerID: player.ID, Violation: err}
+		}
+
+		// post-move state mutations and processing
+		if state.Game.Checkmate() {
+			state.EndState = Finished
+		}
+		state.UndoState = UndoState{}
+		state.Game.ClearTables()
+
+		return nil
+	}
+	commit := func(pipe redis.Pipeliner, state *ChessState) error {
+		slog.InfoContext(ctx, "committing game state when making move", "player", player.ID, "gameID", gameID)
+
+		if !state.EndState.IsEnded() {
+			return nil
+		}
+		if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
+			return nil
+		}
+
+		result := replay.WhiteWin
+		if state.Game.Board.IsWhiteTurn {
+			result = replay.BlackWin
+		}
+
+		err := producers.ProduceFinishGame(ctx, pipe, queue.FinishGameJob{
+			GameID:       gameID,
+			WhiteID:      state.WhitePlayer.ID,
+			BlackID:      state.BlackPlayer.ID,
+			ReplayMode:   state.Mode.String(),
+			ReplayResult: result.String(),
+			ReplayCause:  replay.Checkmate.String(),
+			InitialBoard: chess.InitialBoard(),
+			Moves:        state.Game.Moves,
+		})
+		return serrors.New("push finished game event", err)
+	}
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
+	if err != nil {
+		return MoveResult{}, err
+	}
+
+	histMove := state.Game.LastMove() // invariant: if this function does not error before this line, it will have at least one move.
+
+	moveResult := MoveResult{State: state, Move: histMove}
+	slog.InfoContext(ctx, "made move on game", "player", player.ID, "gameID", gameID, "moveOutput", histMove, "moveInput", move)
+	return moveResult, nil
+}
+
+var (
+	ErrUndoNoop       = errors.New("no undo to perform")
+	ErrUndoCurrPlayer = errors.New("must not be the current player to undo a move")
+	ErrNoUndo         = errors.New("no undo to accept or reject")
+)
+
+func (service *GamePlayService) AttemptGameUndo(ctx context.Context, gameID gameid.Identifier, player player.PlayerState, kind UndoKind) (*ChessState, error) {
+	update := func(state *ChessState) error {
+		slog.InfoContext(ctx, "updating game state with undo", "gameID", gameID)
+
+		switch kind {
+		case UndoCreate:
+			if player.IsSame(state.CurrPlayer()) {
+				return ErrUndoCurrPlayer
+			}
+			state.UndoID = player.ID
+		case UndoAccept:
+			if state.UndoID == EmptyUndoID {
+				return ErrNoUndo
+			}
+			if state.UndoID != player.ID {
+				if err := state.Undo(); err != nil {
+					return err
+				}
+				state.UndoState = UndoState{}
+			} else {
+				return ErrUndoNoop
+			}
+		case UndoReject:
+			if state.UndoID == EmptyUndoID {
+				return ErrNoUndo
+			}
+			state.UndoState = UndoState{}
+		}
+		return nil
+	}
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	slog.InfoContext(ctx, "attempt game undo", "playerID", player.ID, "game", state.String())
+	return state, nil
+}
+
+func (service *GamePlayService) EndGame(ctx context.Context, gameID gameid.Identifier, player player.PlayerState) (EndKind, error) {
+	update := func(state *ChessState) error {
+		slog.InfoContext(ctx, "updating end game", "gameID", gameID)
+
+		if state.EndState.IsEnded() {
+			return ErrFinishedGame{GameID: gameID}
+		}
+		if !state.IsEitherPlayer(player) {
+			return ErrForfeitPlayer
+		}
+		if state.EndState.IsEnded() {
+			return ErrFinishedGame{GameID: gameID}
+		}
+
+		isForfeit := state.WhitePlayer.Present && state.BlackPlayer.Present
+
+		if isForfeit {
+			state.EndState = Finished
+		} else {
+			state.EndState = Aborted
+		}
+		return nil
+	}
+	commit := func(pipe redis.Pipeliner, state *ChessState) error {
+		slog.InfoContext(ctx, "commiting end game", "gameID", gameID)
+
+		if state.EndState != Finished && state.EndState != Aborted {
+			return nil
+		}
+		if !state.WhitePlayer.Present || !state.BlackPlayer.Present {
+			return nil
+		}
+
+		result := replay.BlackWin
+		if state.BlackPlayer.ID == player.ID {
+			result = replay.WhiteWin
+		}
+
+		err := producers.ProduceFinishGame(ctx, pipe, queue.FinishGameJob{
+			GameID:       gameID,
+			WhiteID:      state.WhitePlayer.ID,
+			BlackID:      state.BlackPlayer.ID,
+			ReplayMode:   state.Mode.String(),
+			ReplayResult: result.String(),
+			ReplayCause:  replay.Forfeit.String(),
+			InitialBoard: chess.InitialBoard(),
+			Moves:        state.Game.Moves,
+		})
+		return serrors.New("push finished game event", err)
+	}
+	state, err := service.chessState.UpdateChessStateTxn(ctx, gameID, update, commit)
+	if err != nil {
+		return NotEnded, err
+	}
+
+	slog.InfoContext(ctx, "player ended game", "playerID", player.ID, "game", state.String())
+	return state.EndState, nil
+}

@@ -6,7 +6,8 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/config"
-	"hexchess-svc/service"
+	"hexchess-svc/leaderboard"
+	"hexchess-svc/user"
 	"log/slog"
 	"os"
 	"time"
@@ -60,8 +61,8 @@ func main() {
 		AWSPassword:   cfg.AwsPassword,
 	})
 
-	leaderboardSvc := service.NewLeaderboardService(redisClient, databaseClient.Querier)
-	profileSvc := service.NewOrphanService(aws, databaseClient.Querier)
+	leaderboardSvc := leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier)
+	profileSvc := user.NewOrphanService(aws, databaseClient.Querier)
 
 	var err error
 
@@ -69,7 +70,7 @@ func main() {
 	case SyncLeaderboardJobName:
 		err = leaderboardSvc.SyncLeaderboard(ctx)
 	case ClearS3OrphansJobName:
-		err = profileSvc.ClearOrphanFiles(ctx, service.PageLength)
+		err = profileSvc.ClearOrphanProfiles(ctx, user.PageLength)
 	default:
 		slogutil.Fatal("unknown job", nil, "job", job)
 	}

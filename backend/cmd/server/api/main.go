@@ -7,7 +7,10 @@ import (
 	"hexchess-svc/config"
 	"hexchess-svc/database"
 	"hexchess-svc/network"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/queue/consumers"
+	"hexchess-svc/trigger"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
@@ -22,7 +25,7 @@ const ServiceName = "hexchess-api"
 func main() {
 	startTime := time.Now()
 
-	slog.Info("begin api app")
+	slog.Info("start server")
 
 	// parse CLI inputs for static input data
 	ctx := context.Background()
@@ -69,9 +72,9 @@ func main() {
 		defer esClient.Close(nil)
 	}
 
-	broadcaster := pubsub.NewAsyncBroadcaster(redisClient)
+	broadcaster := publishers.NewAsyncBroadcaster(redisClient)
 
-	broadcasters := pubsub.NewLocalBroadcasters()
+	broadcasters := subscribers.NewLocalBroadcasters()
 	broadcasters.Listen(redisClient)
 
 	// start API server and PPROF "sidecar" background task
@@ -87,6 +90,26 @@ func main() {
 		AllowedOrigins:    cfg.AllowedOrigins,
 		FeatureFlagConfig: cfg.FeatureFlagConfig,
 	})
+
+	// start background job consumers
+	consumers.StartRedisConsumers(consumers.RedisConsumerConfig{
+		Database:          databaseClient,
+		Redis:             redisClient,
+		Broadcaster:       broadcaster,
+		RiverClient:       riverClient,
+		FeatureFlagConfig: cfg.FeatureFlagConfig,
+	})
+	consumers.StartRiverConsumers(consumers.RiverConsumerConfig{
+		PGXPool:           databasePools.Write,
+		Database:          databaseClient,
+		Redis:             redisClient,
+		EsClient:          esClient,
+		Broadcaster:       broadcaster,
+		FeatureFlagConfig: cfg.FeatureFlagConfig,
+	})
+
+	// start background trigger handlers
+	trigger.Execute(nil, trigger.TriggerConfig{RedisClient: redisClient})
 
 	slog.Info("finished initializing app, starting server", "port", cfg.ServerPort, "allowedOrigins", cfg.AllowedOrigins, "timeTaken", time.Since(startTime).String())
 

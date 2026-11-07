@@ -1,0 +1,244 @@
+package leaderboard
+
+import (
+	"context"
+	"fmt"
+	"hexchess-svc/cache"
+	"hexchess-svc/database/query"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/player"
+	"hexchess-svc/user"
+	"hexchess-svc/userelo"
+	"hexchess-svc/utils/perf"
+	"hexchess-svc/utils/serrors"
+	"log/slog"
+	"math"
+	"sort"
+	"strconv"
+
+	"hexchess-svc/utils/slogutil"
+
+	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
+)
+
+type LeaderboardService struct {
+	// infra
+	redis   cache.Redis
+	querier query.Querier
+}
+
+func NewLeaderboardService(redis cache.Redis, querier query.Querier) *LeaderboardService {
+	return &LeaderboardService{redis: redis, querier: querier}
+}
+
+type SetLbChangeSet struct {
+	Mode    gamedata.GameMode
+	ID      int64
+	EloDiff float64
+}
+
+func (service *LeaderboardService) SetLeaderboard(ctx context.Context, changes ...SetLbChangeSet) error {
+	pipe := service.redis.PrimaryClient.Pipeline()
+
+	var outgoingChanges []SetLbChangeSet
+	for _, change := range changes {
+		if player.IsGuestID(change.ID) {
+			continue
+		}
+		modeLbZSet := cache.FmtLeaderboardZSet(change.Mode.String())
+
+		pipe.ZAddNX(ctx, modeLbZSet, redis.Z{Score: change.EloDiff, Member: change.ID})
+		outgoingChanges = append(outgoingChanges, change)
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		return serrors.New("set leaderboard users", err)
+	}
+
+	slog.InfoContext(ctx, "set leaderboard users", "changes", outgoingChanges)
+
+	return nil
+}
+
+type Leaderboard struct {
+	RankedUsers []user.RankedUser `json:"users"`
+	PageCount   int               `json:"pageCount"`
+}
+
+func (service *LeaderboardService) GetLeaderboard(ctx context.Context, mode gamedata.GameMode, startRank, leaderboardElemCount int64) (Leaderboard, error) {
+	modeLbZSet := cache.FmtLeaderboardZSet(mode.String())
+
+	end := startRank - 1 + leaderboardElemCount
+	strUserIDs, err := service.redis.PrimaryClient.ZRevRange(ctx, modeLbZSet, startRank, end).Result()
+	if err != nil {
+		return Leaderboard{}, serrors.New("retrieve reverse leaderboard by range", err)
+	}
+
+	totalLbdElemCount, err := service.redis.PrimaryClient.ZCount(ctx, modeLbZSet, "-inf", "+inf").Result()
+	if err != nil {
+		return Leaderboard{}, serrors.New("count leaderboard", err)
+	}
+
+	users := make([]user.RankedUser, 0, len(strUserIDs))
+	for i, strUserID := range strUserIDs {
+		userID, err := strconv.Atoi(strUserID)
+		if err != nil {
+			return Leaderboard{}, serrors.New("parse user id", err, "strUserID", strUserID)
+		}
+		users = append(users, user.RankedUser{ID: int64(userID), Rank: startRank + int64(i) + 1})
+	}
+
+	pageCount :=
+		int((totalLbdElemCount / leaderboardElemCount) +
+			int64(math.Min(float64(totalLbdElemCount%leaderboardElemCount), 1)))
+
+	leaderboard := Leaderboard{RankedUsers: users, PageCount: pageCount}
+
+	slog.InfoContext(ctx, "retrieved leaderboard", "modeLbZSet", modeLbZSet, "startRank", startRank, "count", leaderboardElemCount, "leaderboard", leaderboard)
+	return leaderboard, nil
+}
+
+func (service *LeaderboardService) GetLeaderboardPage(ctx context.Context, mode gamedata.GameMode, page, perPage int64) (_ Leaderboard, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	if page < 1 {
+		page = 1
+	}
+	offset := (page - 1) * perPage
+
+	leaderboard, err := service.GetLeaderboard(ctx, mode, offset, perPage)
+
+	slog.Log(ctx, slogutil.ErrorLevel(err), "failed to retrieved leaderboard page", "error", err, "page", page, "perPage", perPage, "leaderboard", leaderboard)
+	return leaderboard, err
+}
+
+func (service *LeaderboardService) SyncLeaderboard(ctx context.Context) (err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	for _, mode := range gamedata.GameModeEnums {
+		afterID := int64(0)
+		for {
+			rows, err := service.querier.SelectEloList(ctx, query.SelectEloListParams{ID: afterID, Mode: query.ModeEnum(mode.String()), Limit: 20})
+			if err != nil {
+				return serrors.New("select elo list", err, "afterID", afterID)
+			}
+			var changes []SetLbChangeSet
+			for i, row := range rows {
+				if i == len(rows)-1 {
+					afterID = row.UserID
+				}
+				changes = append(changes, SetLbChangeSet{ID: row.UserID, Mode: mode, EloDiff: row.Elo})
+			}
+			slog.InfoContext(ctx, "syncing leaderboard changes", "changes", changes, "nextAfterID", afterID)
+			if len(changes) == 0 {
+				break
+			}
+			if err := service.SetLeaderboard(ctx, changes...); err != nil {
+				return serrors.New("set leaderboard", err)
+			}
+		}
+	}
+	return nil
+}
+
+type ExpLdbError struct {
+	ExpCount    int64
+	ActualCount int64
+}
+
+func (e ExpLdbError) Error() string {
+	return fmt.Sprintf("expected leaderboard of length %d users, got %d", e.ExpCount, e.ActualCount)
+}
+
+func mapLeaderboardUser(row query.SelectUserWithEloByIDRow) user.LbdUser {
+	return user.LbdUser{
+		ID: row.ID, Username: row.Username, Country: row.Country, JoinedOn: row.JoinedOn.Time,
+		Elo:        userelo.DefaultUserElo(row.Elo),
+		HighestElo: userelo.DefaultUserElo(row.HighestElo),
+		Wins:       row.Wins.Int32,
+		Losses:     row.Losses.Int32,
+		Winrate:    userelo.CalcUserWinrate(row.Wins.Int32, row.Losses.Int32, row.Draws.Int32),
+	}
+}
+
+func (service *LeaderboardService) GetLeaderboardUser(ctx context.Context, userID int64, mode gamedata.GameMode) (_ user.LbdUser, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	strUserID := strconv.Itoa(int(userID))
+
+	var userRow query.SelectUserWithEloByIDRow
+	var rankScore redis.RankScore
+
+	eg, egCtx := errgroup.WithContext(ctx)
+
+	eg.Go(func() (err error) {
+		userRow, err = service.querier.SelectUserWithEloByID(egCtx, query.SelectUserWithEloByIDParams{
+			ID:   userID,
+			Mode: query.ModeEnum(mode.String()),
+		})
+		return serrors.New("select user with elos by userID", err, "userID", userID)
+	})
+	eg.Go(func() (err error) {
+		rankScore, err = service.redis.PrimaryClient.ZRankWithScore(egCtx, cache.FmtLeaderboardZSet(mode.String()), strUserID).Result()
+		return serrors.New("get user rank by userID", err, "userID", userID)
+	})
+
+	if err := eg.Wait(); err != nil {
+		return user.LbdUser{}, err
+	}
+
+	leaderboardUser := mapLeaderboardUser(userRow)
+	leaderboardUser.Rank = rankScore.Rank
+
+	return leaderboardUser, nil
+}
+
+func (service *LeaderboardService) GetFullLeaderboardUsers(ctx context.Context, mode gamedata.GameMode, rankUsers []user.RankedUser) (_ []user.LbdUser, _ []int64, err error) {
+	defer perf.WithContext(ctx).LogFailable(&err)
+
+	if len(rankUsers) == 0 {
+		return nil, nil, nil
+	}
+
+	ids := make([]int64, 0, len(rankUsers))
+	for _, rankUser := range rankUsers {
+		ids = append(ids, rankUser.ID)
+	}
+	userRows, err := service.querier.SelectUserWithEloByIDs(ctx, query.SelectUserWithEloByIDsParams{
+		Ids:  ids,
+		Mode: query.ModeEnum(mode.String()),
+	})
+	if err != nil {
+		return nil, nil, serrors.New("select many users", err, "userIDs", ids)
+	}
+
+	leaderboardUsers := make([]user.LbdUser, 0, len(rankUsers))
+	var missingIDs []int64
+
+	for _, rnkUser := range rankUsers {
+		var foundRow *query.SelectUserWithEloByIDsRow
+		for i := range userRows {
+			if userRows[i].ID == rnkUser.ID {
+				foundRow = &userRows[i]
+				break
+			}
+		}
+		if foundRow != nil {
+			leaderboardUser := mapLeaderboardUser(query.SelectUserWithEloByIDRow(*foundRow))
+			leaderboardUser.Rank = rnkUser.Rank
+			leaderboardUsers = append(leaderboardUsers, leaderboardUser)
+		} else {
+			missingIDs = append(missingIDs, rnkUser.ID)
+		}
+	}
+
+	if len(missingIDs) > 0 {
+		slog.ErrorContext(ctx, "leaderboard users missing from database", "missingIDs", missingIDs)
+	}
+	sort.Slice(leaderboardUsers, func(i, j int) bool {
+		return leaderboardUsers[i].Rank < leaderboardUsers[j].Rank
+	})
+
+	slog.InfoContext(ctx, "selected users", "ids", ids, "leaderboardUsers", leaderboardUsers, "rnkUsers", rankUsers)
+	return leaderboardUsers, missingIDs, nil
+}

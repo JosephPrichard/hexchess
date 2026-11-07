@@ -4,10 +4,11 @@ import (
 	"context"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
+	"hexchess-svc/matchmaker"
 	"hexchess-svc/network"
-	"hexchess-svc/pubsub"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/subscribers"
 	"hexchess-svc/rpc"
-	"hexchess-svc/service"
 	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/slogutil"
@@ -43,14 +44,14 @@ func setupMuxTest(t slogutil.TestLogger, mocks *serviceMocks) (http.Handler, ite
 		SDKs:        mocks.Remote,
 		Entropy:     mocks.Entropy,
 		Dispatcher:  mocks.Dispatcher,
-		Broadcaster: pubsub.NewSyncBroadcaster(infra.Redis),
+		Broadcaster: publishers.NewSyncBroadcaster(infra.Redis),
 	})
 	return mux, infra
 }
 
 type websocketTestContext struct {
 	testinfra    itest.TestInfra
-	broadcasters *pubsub.LocalBroadcasters
+	broadcasters *subscribers.LocalBroadcasters
 	testServer   *httptest.Server
 }
 
@@ -66,7 +67,7 @@ func (s *websocketTestContext) Shutdown() {
 func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testinfra := itest.SetupIntegrationTest(t)
 
-	localBroadcasters := pubsub.NewLocalBroadcasters()
+	localBroadcasters := subscribers.NewLocalBroadcasters()
 	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
@@ -76,7 +77,8 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 		Database:     testinfra.Database,
 		Redis:        testinfra.Redis,
 		Broadcasters: localBroadcasters,
-		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
+		Broadcaster:  publishers.NewSyncBroadcaster(testinfra.Redis),
+		EsClient:     testinfra.Es,
 		Dispatcher:   async.SyncDispatcher{},
 	}))
 	return websocketTestContext{testinfra: testinfra, broadcasters: localBroadcasters, testServer: testServer}
@@ -84,8 +86,8 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 
 type sseTestContext struct {
 	testinfra         itest.TestInfra
-	localBroadcasters *pubsub.LocalBroadcasters
-	broadcaster       pubsub.Broadcaster
+	localBroadcasters *subscribers.LocalBroadcasters
+	broadcaster       publishers.Broadcaster
 	testServer        *httptest.Server
 }
 
@@ -99,7 +101,7 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 	createTestSessions(t, testinfra.Redis)
 
-	localBroadcasters := pubsub.NewLocalBroadcasters()
+	localBroadcasters := subscribers.NewLocalBroadcasters()
 
 	<-localBroadcasters.ListenCountEvents(testinfra.Redis)
 	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
@@ -110,12 +112,12 @@ func setupSSETest(t *testing.T) sseTestContext {
 		Redis:        testinfra.Redis,
 		Entropy:      &entropy.StableSource{},
 		Dispatcher:   async.SyncDispatcher{},
-		Broadcaster:  pubsub.NewSyncBroadcaster(testinfra.Redis),
+		Broadcaster:  publishers.NewSyncBroadcaster(testinfra.Redis),
 		Broadcasters: localBroadcasters,
 	}))
 	return sseTestContext{
 		testinfra:         testinfra,
-		broadcaster:       pubsub.NewSyncBroadcaster(testinfra.Redis),
+		broadcaster:       publishers.NewSyncBroadcaster(testinfra.Redis),
 		localBroadcasters: localBroadcasters,
 		testServer:        testServer,
 	}
@@ -127,7 +129,7 @@ type grpcTestContext struct {
 }
 
 type grpcTestConfig struct {
-	matchmakingServerConfig *service.MatchmakerServiceConfig
+	matchmakingServerConfig matchmaker.MatchmakerServiceConfig
 }
 
 const grpcServerBufSize = 1024 * 1024
@@ -136,7 +138,7 @@ func setupGRPCTest(t *testing.T, cfg grpcTestConfig) grpcTestContext {
 	listener := bufconn.Listen(grpcServerBufSize)
 	server := grpc.NewServer()
 
-	matchmakerServer := network.NewGRPCServer(service.NewMatchmakerService(cfg.matchmakingServerConfig))
+	matchmakerServer := network.NewGRPCServer(matchmaker.NewMatchmakerService(cfg.matchmakingServerConfig))
 	rpc.RegisterMatchmakerServiceServer(server, &matchmakerServer)
 
 	go func() {
@@ -153,10 +155,7 @@ func setupGRPCTest(t *testing.T, cfg grpcTestConfig) grpcTestContext {
 		t.Fatalf("grpc client did not connect: %v", err)
 	}
 
-	return grpcTestContext{
-		server: server,
-		client: client,
-	}
+	return grpcTestContext{server: server, client: client}
 }
 
 func (s *grpcTestContext) Shutdown() {

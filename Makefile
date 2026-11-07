@@ -6,7 +6,6 @@ CONTRACTS_DIR   := contracts
 BACKEND_CMD_DIR := $(BACKEND_DIR)/cmd
 BACK_WASM_DIR   := $(BACKEND_DIR)/browser
 BACK_API_DIR    := $(BACKEND_CMD_DIR)/server/api
-BACK_CONS_DIR   := $(BACKEND_CMD_DIR)/server/consumers
 BACK_JOB_DIR    := $(BACKEND_CMD_DIR)/server/jobs
 PERF_QUE_DIR    := $(BACKEND_CMD_DIR)/scripts/perftest
 PERF_K6_DIR     := $(PERF_DIR)/k6

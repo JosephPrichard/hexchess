@@ -1,0 +1,337 @@
+package tournament
+
+import (
+	"hexchess-svc/database/testquery"
+	"hexchess-svc/game"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
+	"hexchess-svc/itest"
+	"hexchess-svc/player"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/utils/opt"
+	"hexchess-svc/utils/slogutil"
+	"hexchess-svc/utils/testutil"
+	"testing"
+
+	"github.com/bytedance/sonic"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvancer, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
+
+	service := NewTournamentAdvancer(
+		infra.Database,
+		publishers.NewSyncBroadcaster(infra.Redis),
+		game.NewGameCreateService(infra.Redis, game.NewChessRepoService(infra.Redis)),
+	)
+
+	return service, infra
+}
+
+var sqlcTournamentMatchCmpOpts = cmpopts.IgnoreFields(testquery.TournamentMatch{}, "Ordering", "CreatedOn", "GameID")
+
+func TestAdvanceTournament_StoresMatches(t *testing.T) {
+	tests := []struct {
+		name          string
+		tournamentKey uuid.UUID
+		eventID       uuid.UUID
+		wantErr       error
+		wantStatus    testquery.TournamentStatusEnum
+		wantMatches   []testquery.TournamentMatch
+	}{
+		// Precondition
+		{
+			name:          "StatusPreconditionFailed_Lobby",
+			tournamentKey: itest.Tournament1LobbyFilledKey,
+			wantErr: MatchInvariantError{
+				TournamentKey: itest.Tournament1LobbyFilledKey,
+				Err: TournamentStatusAssertionError{
+					Expected: []TournamentStatus{TournamentScheduled, TournamentInProgress},
+					Got:      TournamentLobby,
+				},
+			},
+		},
+		{
+			name:          "StatusPreconditionFailed_Finished",
+			tournamentKey: itest.Tournament8FinishedKey,
+			wantErr: MatchInvariantError{
+				TournamentKey: itest.Tournament8FinishedKey,
+				Err: TournamentStatusAssertionError{
+					Expected: []TournamentStatus{TournamentScheduled, TournamentInProgress},
+					Got:      TournamentFinished,
+				},
+			},
+		},
+		// Start
+		{
+			name:          "StartingKnockoutTournament",
+			tournamentKey: itest.Tournament2ScheduledKnockoutKey,
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
+				// tournament has 2 rounds with join order of [1,2,3,4], so starting the tournament creates 2 rounds wso the matches go 1-2, 3-4
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
+					Round:         1,
+					WhiteID:       3,
+					BlackID:       4,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament2ScheduledKnockoutKey, Valid: true},
+					Round:         1,
+					WhiteID:       5,
+					BlackID:       6,
+				},
+			},
+		},
+		{
+			name:          "StartingRoundRobinTournament",
+			tournamentKey: itest.Tournament3ScheduledRoundRobinKey,
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
+				// tournament has 4 participants with join order of [1,2,3,4], so the matches go 1-2, 3-4
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament3ScheduledRoundRobinKey, Valid: true},
+					Round:         1,
+					WhiteID:       1,
+					BlackID:       2,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament3ScheduledRoundRobinKey, Valid: true},
+					Round:         1,
+					WhiteID:       5,
+					BlackID:       6,
+				},
+			},
+		},
+		{
+			name:          "StartingSwissTournament",
+			tournamentKey: itest.Tournament4ScheduledSwissKey,
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
+				// tournament has 4 participants with elo ordering of [6,5,2,1] for Correspondence1, so the matches go 6-2, 5-1
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament4ScheduledSwissKey, Valid: true},
+					Round:         1,
+					WhiteID:       6,
+					BlackID:       2,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament4ScheduledSwissKey, Valid: true},
+					Round:         1,
+					WhiteID:       5,
+					BlackID:       1,
+				},
+			},
+		},
+		// Advance
+		{
+			name:          "AdvanceKnockoutTournament",
+			tournamentKey: itest.Tournament5InProgressKnockoutKey,
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
+				// should not delete previous matches
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament5InProgressKnockoutKey, Valid: true},
+					Round:         1,
+					WhiteID:       10,
+					BlackID:       11,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament5InProgressKnockoutKey, Valid: true},
+					Round:         1,
+					WhiteID:       12,
+					BlackID:       13,
+				},
+				// tournament has 2 matches, so we expect 1 more match
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament5InProgressKnockoutKey, Valid: true},
+					Round:         2,
+					WhiteID:       10,
+					BlackID:       12,
+				},
+			},
+		},
+		{
+			name:          "AdvanceRoundRobinTournament",
+			tournamentKey: itest.Tournament6InProgressRoundRobinKey,
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
+				// should not delete previous matches
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament6InProgressRoundRobinKey, Valid: true},
+					Round:         1,
+					WhiteID:       10,
+					BlackID:       11,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament6InProgressRoundRobinKey, Valid: true},
+					Round:         1,
+					WhiteID:       12,
+					BlackID:       13,
+				},
+				// tournament has 2 matches, so we expect 2 more matches
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament6InProgressRoundRobinKey, Valid: true},
+					Round:         2,
+					WhiteID:       10,
+					BlackID:       13,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament6InProgressRoundRobinKey, Valid: true},
+					Round:         2,
+					WhiteID:       11,
+					BlackID:       12,
+				},
+			},
+		},
+		{
+			name:          "AdvanceSwissTournament",
+			tournamentKey: itest.Tournament7InProgressSwissKey,
+			wantStatus:    testquery.TournamentStatusEnumINPROGRESS,
+			wantMatches: []testquery.TournamentMatch{
+				// should not delete previous matches
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament7InProgressSwissKey, Valid: true},
+					Round:         1,
+					WhiteID:       10,
+					BlackID:       11,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament7InProgressSwissKey, Valid: true},
+					Round:         1,
+					WhiteID:       12,
+					BlackID:       13,
+				},
+				// tournament has 2 matches, so we expect 2 more matches
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament7InProgressSwissKey, Valid: true},
+					Round:         2,
+					WhiteID:       10,
+					BlackID:       12,
+				},
+				{
+					TournamentKey: pgtype.UUID{Bytes: itest.Tournament7InProgressSwissKey, Valid: true},
+					Round:         2,
+					WhiteID:       11,
+					BlackID:       13,
+				},
+			},
+		},
+		{
+			name:          "AdvanceUncompletedTournamentMatches",
+			tournamentKey: itest.Tournament9InProgressUncompletedKey,
+			wantErr:       MatchInvariantError{TournamentKey: itest.Tournament9InProgressUncompletedKey, Err: ErrMatchRoundCount},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, testinfra := setupAdvanceTest(t)
+			defer testinfra.Close()
+
+			ctx := t.Context()
+
+			eventID := tt.eventID
+			if eventID == uuid.Nil {
+				eventID = uuid.New()
+			}
+			_, err := service.AdvanceTournament(ctx, tt.tournamentKey, eventID)
+
+			assert.Equal(t, tt.wantErr, leafError(err))
+
+			if tt.wantErr == nil {
+				matches, err := testinfra.Querier.SelectMatches(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				require.NoError(t, err)
+				testutil.Equal(t, tt.wantMatches, matches, sqlcTournamentMatchCmpOpts)
+
+				tournament, err := testinfra.Querier.SelectTournamentByID(ctx, pgtype.UUID{Bytes: tt.tournamentKey, Valid: true})
+				require.NoError(t, err)
+				testutil.Equal(t, tt.wantStatus, tournament.Status)
+			}
+		})
+	}
+}
+
+func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
+	service, testinfra := setupAdvanceTest(t)
+	defer testinfra.Close()
+	ctx := t.Context()
+
+	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
+	gameIDs, err := service.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
+	require.NoError(t, err)
+
+	wantGameIDs := []gameid.Identifier{itest.TestEventID_TournamentCreation_GameID}
+	assert.Equal(t, wantGameIDs, gameIDs)
+
+	wantGames := map[gameid.Identifier]*game.ChessState{
+		itest.TestEventID_TournamentCreation_GameID: {
+			ID:          itest.TestEventID_TournamentCreation_GameID,
+			FirstColor:  gamedata.White,
+			WhitePlayer: player.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
+			BlackPlayer: player.PlayerState{ID: 2, Name: "user2", Country: "us", Present: true},
+		},
+	}
+
+	for _, id := range gameIDs {
+		cmpOptsChessState := cmpopts.IgnoreFields(game.ChessState{}, "Game", "InitialBoard", "StartTime")
+		assertRedisChess(t, testinfra.Redis, wantGames[id], cmpOptsChessState)
+	}
+}
+
+func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
+	service, testinfra := setupAdvanceTest(t)
+	defer testinfra.Close()
+
+	ctx := t.Context()
+
+	tournamentKey := itest.Tournament2ScheduledKnockoutKey
+	eventID := uuid.New()
+
+	wantTournaments := []FullMatch{
+		{
+			Ordering:      10,
+			TournamentKey: tournamentKey,
+			Round:         1,
+			GameMode:      opt.Some(gamedata.ModeCorrespondence1),
+			WhiteID:       3,
+			BlackID:       4,
+		},
+		{
+			Ordering:      11,
+			TournamentKey: tournamentKey,
+			Round:         1,
+			GameMode:      opt.Some(gamedata.ModeCorrespondence1),
+			WhiteID:       5,
+			BlackID:       6,
+		},
+	}
+	wantTournamentOutputs := []TournamentOutput{
+		{
+			Key:     tournamentKey.String(),
+			Kind:    TournamentMatchmakingKind,
+			Matches: wantTournaments,
+		},
+	}
+
+	assertBroadcasts := ExpectBroadcastTournamentOutput(t, testinfra.Redis, tournamentKey.String(), wantTournamentOutputs)
+
+	_, err := service.AdvanceTournament(ctx, tournamentKey, eventID)
+	require.NoError(t, err)
+
+	eventData, err := testinfra.Querier.SelectByEventKeyID(ctx, pgtype.UUID{Bytes: eventID, Valid: true})
+	require.NoError(t, err)
+
+	var edata MatchCreations
+	require.NoError(t, sonic.Unmarshal(eventData, &edata))
+
+	cmpOptsFullMatch := cmpopts.IgnoreFields(FullMatch{}, "GameID", "CreatedOn")
+	testutil.Equal(t, wantTournaments, edata.Creations, cmpOptsFullMatch)
+
+	assertBroadcasts()
+}

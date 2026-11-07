@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hexchess-svc/model"
-	"hexchess-svc/service"
+	"hexchess-svc/chess"
+	"hexchess-svc/game"
+	"hexchess-svc/gameid"
+	"hexchess-svc/player"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/slogutil"
@@ -20,8 +22,8 @@ import (
 
 type GameSocketContext struct {
 	context.Context
-	GameID  model.GameID
-	Player  model.PlayerState
+	GameID  gameid.Identifier
+	Player  player.PlayerState
 	ErrChan chan websocketError
 }
 
@@ -41,7 +43,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 
 	query := r.URL.Query()
-	gameID := model.GameID(query.Get("gameId"))
+	gameID := gameid.Identifier(query.Get("gameId"))
 	sessionID := query.Get("sessionId")
 
 	subChan := make(chan message, GameplayChanBufCap)
@@ -63,14 +65,14 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 	// initialize connection state (begin listening, get session data, etc.)
 	server.broadcasters.Games.Subscribe(gameID, subChan)
 
-	player, err := server.handleGameInit(ctx, gameID, sessionID, conn)
+	playerState, err := server.handleGameInit(ctx, gameID, sessionID, conn)
 	if err != nil {
 		writeGameError(ctx, conn, GameError{GameID: gameID, Error: err})
 	}
 
 	// start input reader (close signal received from client)
 	go func() {
-		ctx := GameSocketContext{Context: context.WithoutCancel(ctx), GameID: gameID, Player: player, ErrChan: errChan}
+		ctx := GameSocketContext{Context: context.WithoutCancel(ctx), GameID: gameID, Player: playerState, ErrChan: errChan}
 		defer cleanup()
 		for {
 			_, input, err := conn.ReadMessage()
@@ -102,7 +104,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 	}()
 }
 
-type GameError = model.ErrorGameOutput
+type GameError = game.ErrorGameOutput
 
 func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError) {
 	err := output.Error
@@ -111,27 +113,27 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	switch {
 	case errutil.IsType[WsMessageTypeError](err):
 		wsErr = ErrWsMessageType
-	case errors.Is(err, service.ErrNoChessState):
+	case errors.Is(err, game.ErrNoChessState):
 		wsErr = ErrWsInvalidGame
-	case errutil.IsType[service.ErrFinishedGame](err):
+	case errutil.IsType[game.ErrFinishedGame](err):
 		wsErr = ErrWsFinishedGame
-	case errors.Is(err, service.ErrForfeitPlayer):
+	case errors.Is(err, game.ErrForfeitPlayer):
 		wsErr = ErrWsForfeitPlayer
-	case errutil.IsType[service.ErrStartedGame](err):
+	case errutil.IsType[game.ErrStartedGame](err):
 		wsErr = ErrWsStartedGame
-	case errutil.IsType[service.ErrTurn](err):
+	case errutil.IsType[game.ErrTurn](err):
 		wsErr = ErrWsTurn
-	case errutil.IsType[service.ErrInvalidMove](err):
+	case errutil.IsType[game.ErrInvalidMove](err):
 		wsErr = ErrWsInvalidMove
-	case errors.Is(err, service.ErrNoChessState):
+	case errors.Is(err, game.ErrNoChessState):
 		// if the state cannot be found, it has expired while an inactive connection has been open
 		wsErr = ErrWsExpiration
-	case errors.Is(err, service.ErrUndoCurrPlayer):
+	case errors.Is(err, game.ErrUndoCurrPlayer):
 		wsErr = ErrWsUndoCurrPlayer
 	case
-		errors.Is(err, model.ErrNoMoveUndo),
-		errors.Is(err, service.ErrUndoNoop),
-		errors.Is(err, service.ErrNoUndo):
+		errors.Is(err, game.ErrNoMoveUndo),
+		errors.Is(err, game.ErrUndoNoop),
+		errors.Is(err, game.ErrNoUndo):
 		wsErr = ErrWsUndoAction
 	default:
 		wsErr = ErrWsFatal
@@ -143,7 +145,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	}
 	slog.Log(ctx, level, "failed to handle ws message", "error", err, "wsErr", wsErr, "messageID", output.MessageID)
 
-	bytes, err := model.MarshalGameOutputError(model.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
+	bytes, err := game.MarshalGameOutputError(game.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to marshal err output", "error", err)
 		bytes = nil
@@ -151,7 +153,7 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 	writeMessage(ctx, conn, bytes)
 }
 
-func (server *HttpServer) handleGameInit(ctx context.Context, gameID model.GameID, sessionID string, conn *websocket.Conn) (player model.PlayerState, err error) {
+func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Identifier, sessionID string, conn *websocket.Conn) (player player.PlayerState, err error) {
 	player, err = server.service.GetSession(ctx, sessionID)
 	if err != nil {
 		return player, serrors.New("get session in game init phase", err)
@@ -161,13 +163,13 @@ func (server *HttpServer) handleGameInit(ctx context.Context, gameID model.GameI
 		return player, serrors.New("join game in init game phase", err)
 	}
 
-	initBytes, err := model.MarshalGameOutputInit(model.InitGameOutput{GameID: gameID, State: chessState, Self: player})
+	initBytes, err := game.MarshalGameOutputInit(game.InitGameOutput{GameID: gameID, State: chessState, Self: player})
 	if err != nil {
 		return player, serrors.New("marshal init output", err)
 	}
 	writeMessage(ctx, conn, initBytes)
 
-	output := model.SerializeGameOutputPlayers(model.PlayersGameOutput{
+	output := game.SerializeGameOutputPlayers(game.PlayersGameOutput{
 		GameID:      gameID,
 		WhitePlayer: chessState.WhitePlayer,
 		BlackPlayer: chessState.BlackPlayer,
@@ -222,7 +224,7 @@ func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID str
 		return serrors.New("forfeit game", err, "gameID", ctx.GameID)
 	}
 
-	output := model.SerializeGameOutputForfeit(model.ForfeitGameOutput{
+	output := game.SerializeGameOutputForfeit(game.ForfeitGameOutput{
 		GameID:    ctx.GameID,
 		MessageID: messageID,
 		EndState:  endState,
@@ -232,12 +234,12 @@ func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID str
 }
 
 func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.MoveInput, messageID string) error {
-	moveResult, err := server.service.MakeGameMove(ctx, ctx.GameID, ctx.Player, model.DeserializeMove(pbInput.Move))
+	moveResult, err := server.service.MakeGameMove(ctx, ctx.GameID, ctx.Player, chess.DeserializeMove(pbInput.Move))
 	if err != nil {
 		return serrors.New("make move on game", err, "gameID", ctx.GameID)
 	}
 
-	output := model.SerializeGameOutputMove(model.MoveGameOutput{
+	output := game.SerializeGameOutputMove(game.MoveGameOutput{
 		GameID:    ctx.GameID,
 		MessageID: messageID,
 		Move:      moveResult.Move,
@@ -249,7 +251,7 @@ func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.Move
 }
 
 func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.ChatInput, messageID string) error {
-	chat := model.Chat{
+	chat := game.Chat{
 		Player:  ctx.Player,
 		Message: pbInput.Message,
 		SentAt:  time.Now(),
@@ -259,13 +261,13 @@ func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.Chat
 		return serrors.New("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
-	outputChat := model.SerializeGameOutputChat(model.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
+	outputChat := game.SerializeGameOutputChat(game.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
 	server.broadcaster.BroadcastGamesEvent(ctx, outputChat)
 	return nil
 }
 
 func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.UndoInput, messageID string) error {
-	undoKind, err := model.DeserializeUndoInput(pbInput)
+	undoKind, err := game.DeserializeUndoInput(pbInput)
 	if err != nil {
 		return err
 	}
@@ -275,7 +277,7 @@ func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 		return serrors.New("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
-	output := model.SerializeGameOutputUndo(model.UndoGameOutput{
+	output := game.SerializeGameOutputUndo(game.UndoGameOutput{
 		GameID:    ctx.GameID,
 		MessageID: messageID,
 		Kind:      pbInput.Kind,

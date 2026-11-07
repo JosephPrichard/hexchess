@@ -1,0 +1,334 @@
+package game
+
+import (
+	"hexchess-svc/cache"
+	"hexchess-svc/chess"
+	"hexchess-svc/database"
+	"hexchess-svc/database/testquery"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/gameid"
+	"hexchess-svc/itest"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/queue/producers"
+	"hexchess-svc/replay"
+	"hexchess-svc/user"
+	"hexchess-svc/utils/slogutil"
+	"hexchess-svc/utils/testutil"
+	"math"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func setupGameoverTest(t slogutil.TestLogger) (*GameOverService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
+
+	service := NewGameoverService(
+		infra.Database,
+		infra.Redis,
+		producers.NewRiverProducer(database.NewRiverClient(infra.Pool)),
+		publishers.NewSyncBroadcaster(infra.Redis),
+		NewChessRepoService(infra.Redis),
+	)
+
+	return service, infra
+}
+
+func TestHandleFinishedGameEvent(t *testing.T) {
+	ctx := t.Context()
+
+	testUser0 := user.TestUsers[0]
+	testUser1 := user.TestUsers[1]
+	newGameID := gameid.NewGameID()
+	newGameIDGuest := gameid.NewGameID()
+
+	tests := []struct {
+		name            string
+		event           FinishGameEvent
+		wantLeaderboard []redis.Z
+	}{
+		{
+			name: "InsertFinishedGame",
+			event: FinishGameEvent{
+				GameID:       newGameID,
+				InitialBoard: chess.NewEmptyBoard(true),
+				Moves:        []chess.HistMove{},
+				WhiteID:      testUser0.ID, // winner
+				BlackID:      testUser1.ID, // loser
+				ReplayMode:   gamedata.ModeCorrespondence1,
+				ReplayCause:  replay.Checkmate,
+				ReplayResult: replay.WhiteWin,
+			},
+			wantLeaderboard: []redis.Z{
+				{
+					Member: strconv.Itoa(int(testUser0.ID)),
+					Score:  15,
+				},
+				{
+					Member: strconv.Itoa(int(testUser1.ID)),
+					Score:  -15,
+				},
+			},
+		},
+		{
+			name: "inserting already inserted finished game",
+			event: FinishGameEvent{
+				GameID:       gameid.Identifier(itest.FirstReplayGameID),
+				InitialBoard: chess.NewEmptyBoard(true),
+				Moves:        []chess.HistMove{},
+				// used only for validation
+				WhiteID: testUser0.ID,
+				BlackID: testUser1.ID,
+				// enum fields are ignored on a noop insertion.
+				ReplayMode:   gamedata.ModeCorrespondence1,
+				ReplayCause:  replay.Forfeit,
+				ReplayResult: replay.BlackWin,
+			},
+			wantLeaderboard: []redis.Z{}, // leaderboard is empty because it will not be updated since stats do not change
+		},
+		{
+			name: "inserting a game with a guest",
+			event: FinishGameEvent{
+				GameID:       newGameIDGuest,
+				InitialBoard: chess.NewEmptyBoard(true),
+				Moves:        []chess.HistMove{},
+				WhiteID:      testUser0.ID, // non-guest winner
+				BlackID:      -10,          // guest loser
+				ReplayMode:   gamedata.ModeCorrespondence1,
+				ReplayCause:  replay.Forfeit,
+				ReplayResult: replay.BlackWin,
+			},
+			wantLeaderboard: []redis.Z{}, // leaderboard is empty because it will not be updated since stats do not change
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, testinfra := setupGameoverTest(t)
+			defer testinfra.Close()
+
+			_, err := service.HandleFinishedGame(ctx, tt.event)
+			require.NoError(t, err)
+
+			modeLbZSet := cache.FmtLeaderboardZSet(tt.event.ReplayMode.String())
+			leaderboardResp, err := testinfra.Redis.PrimaryClient.ZRevRangeWithScores(ctx, modeLbZSet, 0, 2).Result()
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantLeaderboard, leaderboardResp)
+		})
+	}
+}
+
+func TestInsertGameResult(t *testing.T) {
+	ctx := t.Context()
+
+	testUser0 := user.TestUsers[0]
+	testUser1 := user.TestUsers[1]
+
+	now := time.Now()
+
+	tests := []struct {
+		name         string
+		resultInput  FinishGameEvent
+		wantUserElos []testquery.UserModeElo
+		wantReplay   testquery.Replay
+		wantChange   GameResultChangeSet
+	}{
+		{
+			name: "draw by stalemate",
+			resultInput: FinishGameEvent{
+				GameID:       "game1",
+				WhiteID:      testUser0.ID,
+				BlackID:      testUser1.ID,
+				ReplayCause:  replay.Stalemate,
+				ReplayResult: replay.Draw,
+				ReplayMode:   gamedata.ModeTimed1Plus0,
+				InsertedTime: now,
+			},
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumTIMED10, Elo: 1050, HighestElo: 1050, Draws: 1, Wins: 6, Losses: 5}, // update while maintaing old highest elo
+				{UserID: testUser1.ID, Mode: testquery.ModeEnumTIMED10, Elo: 1000, HighestElo: 1000, Draws: 1},                     // insert
+			},
+			wantReplay: testquery.Replay{
+				GameID:      "game1",
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
+				Result:      "DRAW",
+				Cause:       "STALEMATE",
+				Mode:        "TIMED_1+0",
+				WinEloDiff:  0,
+				LoseEloDiff: 0,
+				WhiteElo:    1050,
+				BlackElo:    1000,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
+			},
+			wantChange: GameResultChangeSet{
+				WhiteEloNext: 1050,
+				BlackEloNext: 1000,
+			},
+		},
+		{
+			name: "white wins by checkmate",
+			resultInput: FinishGameEvent{
+				GameID:       "game2",
+				WhiteID:      testUser0.ID,
+				BlackID:      testUser1.ID,
+				ReplayCause:  replay.Checkmate,
+				ReplayResult: replay.WhiteWin,
+				ReplayMode:   gamedata.ModeCorrespondence1,
+				InsertedTime: now,
+			},
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 1015, HighestElo: 1015, Wins: 1},  // insert
+				{UserID: testUser1.ID, Mode: testquery.ModeEnumCORRESPONDENCE1, Elo: 985, HighestElo: 1000, Losses: 1}, // insert with elo lower than start elo
+			},
+			wantReplay: testquery.Replay{
+				GameID:      "game2",
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
+				Result:      "WHITE_WINS",
+				Cause:       "CHECKMATE",
+				Mode:        "CORRESPONDENCE_1",
+				WinEloDiff:  15,
+				LoseEloDiff: -15,
+				WhiteElo:    1015,
+				BlackElo:    985,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
+			},
+			wantChange: GameResultChangeSet{
+				WinID:        testUser0.ID,
+				LoseID:       testUser1.ID,
+				WinEloDiff:   15,
+				LoseEloDiff:  -15,
+				WhiteEloNext: 1015,
+				BlackEloNext: 985,
+			},
+		},
+		{
+			name: "black wins by forfeit",
+			resultInput: FinishGameEvent{
+				GameID:       "game3",
+				WhiteID:      testUser0.ID,
+				BlackID:      testUser1.ID,
+				ReplayCause:  replay.Forfeit,
+				ReplayResult: replay.BlackWin,
+				ReplayMode:   gamedata.ModeCorrespondence7,
+				InsertedTime: now,
+			},
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE7, Elo: 985, HighestElo: 1000, Wins: 2, Losses: 3}, // update while setting new highest elo
+				{UserID: testUser1.ID, Mode: testquery.ModeEnumCORRESPONDENCE7, Elo: 1015, HighestElo: 1015, Wins: 1},           // update
+			},
+			wantReplay: testquery.Replay{
+				GameID:      "game3",
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
+				Result:      "BLACK_WINS",
+				Cause:       "FORFEIT",
+				Mode:        "CORRESPONDENCE_7",
+				WinEloDiff:  15,
+				LoseEloDiff: -15,
+				WhiteElo:    985,
+				BlackElo:    1015,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
+			},
+			wantChange: GameResultChangeSet{
+				WinID:        testUser1.ID,
+				LoseID:       testUser0.ID,
+				WinEloDiff:   15,
+				LoseEloDiff:  -15,
+				WhiteEloNext: 985,
+				BlackEloNext: 1015,
+			},
+		},
+		{
+			name: "inserting already persisted game result",
+			resultInput: FinishGameEvent{
+				GameID:       gameid.Identifier(itest.FirstReplayGameID),
+				WhiteID:      testUser0.ID,
+				BlackID:      testUser1.ID,
+				ReplayCause:  replay.Forfeit,
+				ReplayResult: replay.BlackWin,
+				ReplayMode:   gamedata.ModeCorrespondence7,
+				InsertedTime: now,
+			},
+			wantUserElos: []testquery.UserModeElo{
+				{UserID: testUser0.ID, Mode: testquery.ModeEnumCORRESPONDENCE7, Elo: 1000, HighestElo: 1000, Wins: 2, Losses: 2, Draws: 0}, // no update
+			},
+			wantReplay: testquery.Replay{
+				GameID:      itest.FirstReplayGameID,
+				WhiteID:     pgtype.Int8{Int64: testUser0.ID, Valid: true},
+				BlackID:     pgtype.Int8{Int64: testUser1.ID, Valid: true},
+				Mode:        "CORRESPONDENCE_7",
+				Result:      "WHITE_WINS",
+				Cause:       "CHECKMATE",
+				WinEloDiff:  30,
+				LoseEloDiff: -30,
+				WhiteElo:    1000,
+				BlackElo:    1000,
+				PlayedOn:    pgtype.Timestamptz{Time: itest.TimeNow, Valid: true},
+			},
+			wantChange: GameResultChangeSet{ReplayID: 1, AlreadyExists: true},
+		},
+		{
+			name: "game insert with guest players",
+			resultInput: FinishGameEvent{
+				GameID:       "game4",
+				WhiteID:      -10,
+				BlackID:      -20,
+				ReplayCause:  replay.Forfeit,
+				ReplayResult: replay.BlackWin,
+				ReplayMode:   gamedata.ModeCorrespondence7,
+				InsertedTime: now,
+			},
+			wantUserElos: []testquery.UserModeElo(nil), // not inserted.
+			wantReplay: testquery.Replay{
+				GameID:      "game4",
+				WhiteID:     pgtype.Int8{},
+				BlackID:     pgtype.Int8{},
+				Result:      "BLACK_WINS",
+				Cause:       "FORFEIT",
+				Mode:        "CORRESPONDENCE_7",
+				WinEloDiff:  0,
+				LoseEloDiff: 0,
+				WhiteElo:    0,
+				BlackElo:    0,
+				PlayedOn:    pgtype.Timestamptz{Time: now, Valid: true},
+			},
+			wantChange: GameResultChangeSet{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, testinfra := setupGameoverTest(t)
+			defer testinfra.Close()
+
+			changeSet, err := service.InsertGameResult(ctx, tt.resultInput)
+			require.NoError(t, err)
+
+			userElos, err := testinfra.Querier.SelectUserModeElosByIDs(ctx, testquery.SelectUserModeElosByIDsParams{
+				ID:   []int64{tt.resultInput.WhiteID, tt.resultInput.BlackID},
+				Mode: testquery.ModeEnum(tt.resultInput.ReplayMode.String()),
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.wantUserElos, userElos)
+
+			userReplay, err := testinfra.Querier.SelectReplayByID(ctx, changeSet.ReplayID)
+			require.NoError(t, err)
+
+			testutil.Equal(t, tt.wantReplay, userReplay, cmpopts.IgnoreFields(testquery.Replay{}, "ID", "PlayedOn", "PlayedOnAsDays", "TurnCount", "Rating"))
+
+			changeSet.WinEloDiff = math.Round(changeSet.WinEloDiff)
+			changeSet.LoseEloDiff = math.Round(changeSet.LoseEloDiff)
+			testutil.Equal(t, tt.wantChange, changeSet, cmpopts.IgnoreFields(GameResultChangeSet{}, "ReplayID"))
+		})
+	}
+}

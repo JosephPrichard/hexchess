@@ -2,25 +2,19 @@ package pubsub
 
 import (
 	"hexchess-svc/cache"
-	"hexchess-svc/model"
-	"hexchess-svc/pb"
+	"hexchess-svc/pubsub/subscribers"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
-func expectBroadcast[Message any](
+func ExpectBroadcast[Message any](
 	t *testing.T,
 	rdb cache.Redis,
 	want []Message,
-	subscribe func(lb *LocalBroadcasters, ch chan []byte),
+	subscribe func(lb *subscribers.LocalBroadcasters, ch chan []byte),
 	unmarshal func(bytes []byte) Message,
 	cmpOpts ...cmp.Option,
 ) func() {
@@ -30,7 +24,7 @@ func expectBroadcast[Message any](
 		return func() {}
 	}
 
-	lb := NewLocalBroadcasters()
+	lb := subscribers.NewLocalBroadcasters()
 	lb.Listen(rdb)
 
 	subChan := make(chan []byte, len(want))
@@ -52,37 +46,4 @@ func expectBroadcast[Message any](
 			testutil.Equal(t, want[i], got, cmpOpts...)
 		}
 	}
-}
-
-func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID model.GameID, wantOutputs []*pb.GameOutput) func() {
-	cmpOptsGameOutputs := []cmp.Option{
-		protocmp.Transform(),
-		protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
-	}
-
-	return expectBroadcast(
-		t, rdb, wantOutputs,
-		func(lb *LocalBroadcasters, ch chan []byte) { lb.Games.Subscribe(gameID, ch) },
-		func(bytes []byte) *pb.GameOutput {
-			o := &pb.GameOutput{}
-			require.NoError(t, proto.Unmarshal(bytes, o))
-			return o
-		},
-		cmpOptsGameOutputs...,
-	)
-}
-
-func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKey string, wantOutputs []model.TournamentOutput) func() {
-	cmpOptsFullMatch := cmpopts.IgnoreFields(model.FullMatch{}, "GameID", "CreatedOn")
-
-	return expectBroadcast(
-		t, rdb, wantOutputs,
-		func(lb *LocalBroadcasters, ch chan []byte) { lb.Tournament.Subscribe(tournamentKey, ch) },
-		func(bytes []byte) model.TournamentOutput {
-			var o model.TournamentOutput
-			require.NoError(t, sonic.Unmarshal(bytes, &o))
-			return o
-		},
-		cmpOptsFullMatch,
-	)
 }

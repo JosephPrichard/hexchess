@@ -1,0 +1,187 @@
+package challenges
+
+import (
+	"context"
+	"errors"
+	"hexchess-svc/database/testquery"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/utils/entropy"
+
+	"testing"
+	"time"
+
+	"hexchess-svc/database"
+
+	"hexchess-svc/itest"
+	"hexchess-svc/utils/slogutil"
+	"hexchess-svc/utils/testutil"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func setupChallengeTest(t slogutil.TestLogger) (*ChallengeService, itest.TestInfra) {
+	infra := itest.SetupIntegrationTest(t)
+
+	service := NewChallengeService(infra.Database, entropy.RealSource{})
+
+	return service, infra
+}
+
+func TestInsertChallenge(t *testing.T) {
+	tests := []struct {
+		name         string
+		challengerID int64
+		challengeeID int64
+		wantErr      error
+	}{
+		{
+			name:         "CannotChallengeSelf",
+			challengerID: 1,
+			challengeeID: 1,
+			wantErr:      ErrSelfChallenge,
+		},
+		{
+			name:         "InvalidUser",
+			challengerID: 9000,
+			challengeeID: 1,
+			wantErr:      ErrInvalidChallengeMember,
+		},
+		{
+			name:         "DuplicateChallenge",
+			challengerID: 1,
+			challengeeID: 2,
+			wantErr:      ErrDuplicateChallenge,
+		},
+		{
+			name:         "ValidChallenge",
+			challengerID: 2,
+			challengeeID: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service, testinfra := setupChallengeTest(t)
+			defer testinfra.Close()
+
+			ctx := context.WithValue(t.Context(), slogutil.Trace, tt.name)
+
+			_, err := service.InsertChallenge(ctx, ChallengeInst{
+				ChallengerID: tt.challengerID,
+				ChallengeeID: tt.challengeeID,
+				Mode:         gamedata.ModeCorrespondence7,
+				StartColor:   gamedata.Random,
+			})
+
+			assert.Equal(t, tt.wantErr, err)
+		})
+	}
+}
+
+func TestMapChallengeInsertErr(t *testing.T) {
+	tests := []struct {
+		name  string
+		input error
+		want  error
+	}{
+		{
+			name:  "UniqueViolationReturnsErrDuplicateChallenge",
+			input: &pgconn.PgError{Code: database.ErrPgUniqueViolation},
+			want:  ErrDuplicateChallenge,
+		},
+		{
+			name:  "ForeignKeyViolationReturnsErrParticipantConflict",
+			input: &pgconn.PgError{Code: database.ErrPgForeignKeyViolation},
+			want:  ErrInvalidChallengeMember,
+		},
+		{
+			name:  "CheckViolationReturnsErrParticipantConflict",
+			input: &pgconn.PgError{Code: database.ErrPgCheckViolation},
+			want:  ErrInvalidChallengeMember,
+		},
+		{
+			name:  "UnrecognisedErrorIsReturnedAsIs",
+			input: errors.New("some unexpected transactor error"),
+			want:  nil,
+		},
+		{
+			name:  "UnknownPgErrorCodeIsReturnedAsIs",
+			input: &pgconn.PgError{Code: "99999"},
+			want:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := mapChallengeInsertErr(tt.input)
+			require.Equal(t, tt.want, err)
+		})
+	}
+}
+
+func TestGetChallengesByParticipant(t *testing.T) {
+	// gets only expired challenges
+	service, testinfra := setupChallengeTest(t)
+	defer testinfra.Close()
+
+	service.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+	ctx := t.Context()
+
+	challenges, err := service.GetChallengesByParticipant(ctx, Key{int64(5), -1})
+	require.NoError(t, err)
+
+	testutil.Equal(t, []Challenge{TestChallenge[2], TestChallenge[3]}, challenges)
+}
+
+func TestDeleteExpiredChallenges(t *testing.T) {
+	service, testinfra := setupChallengeTest(t)
+	defer testinfra.Close()
+	ctx := t.Context()
+
+	// gets only expired challenges
+	service.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+
+	require.NoError(t, service.DeleteExpiredChallenges(ctx, 5))
+
+	// gets ALL challenges to check that we deleted expired challenges
+	service.entropy = &entropy.StableSource{CurrTime: time.Unix(0, 0)}
+
+	challengesDel, err := service.GetChallengesByParticipant(ctx, Key{int64(5), -1})
+	require.NoError(t, err)
+
+	assert.Equal(t, []Challenge{TestChallenge[2], TestChallenge[3]}, challengesDel)
+}
+
+func TestDeleteChallenge(t *testing.T) {
+	service, testinfra := setupChallengeTest(t)
+	defer testinfra.Close()
+
+	service.entropy = &entropy.StableSource{CurrTime: itest.TimeNow}
+	ctx := t.Context()
+
+	key := Key{ChallengerID: 1, ChallengeeID: 2}
+
+	challengeBefore, err := testinfra.Querier.SelectChallenge(ctx, testquery.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	require.NoError(t, err)
+
+	dr, err := service.DeleteChallenge(ctx, key.ChallengerID, key.ChallengeeID)
+	require.NoError(t, err)
+
+	_, errAfterDelete := testinfra.Querier.SelectChallenge(ctx, testquery.SelectChallengeParams{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID})
+	require.NoError(t, err)
+
+	challenge := testquery.Challenge{
+		ChallengerID: key.ChallengerID,
+		ChallengeeID: key.ChallengeeID,
+		StartColor:   "RANDOM",
+		MadeOn:       pgtype.Timestamptz{Valid: true, Time: itest.TimeNow.Local()},
+		Mode:         "TIMED_3+2",
+	}
+	assert.Equal(t, challenge, challengeBefore)
+	assert.Error(t, pgx.ErrNoRows, errAfterDelete)
+	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: gamedata.ModeTimed3Plus2, FirstColor: gamedata.Random}, dr)
+}

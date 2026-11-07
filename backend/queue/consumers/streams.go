@@ -89,6 +89,7 @@ func (consumer *StreamConsumer) ConsumePartition(partitionKey string) {
 	stream := cache.FmtStreamKey(consumer.streamKey, partitionKey)
 	streams := []string{stream, ">"}
 
+	// consumer groups must be created in redis before we consume - they must be provided as constant to consumers of the same stream name to prevent duplicate events
 	err := consumer.redis.XGroupCreateMkStream(consumer.ctx, stream, consumer.consumerGroup, "0").Err()
 	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
 		slog.Error("create stream consumer group", "error", err, "stream", stream, "consumerGroup", consumer.consumerGroup)

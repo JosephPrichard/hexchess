@@ -2,23 +2,24 @@ package network
 
 import (
 	"context"
-	"hexchess-svc/model"
+	"hexchess-svc/gamedata"
+	"hexchess-svc/matchmaker"
 	"hexchess-svc/rpc"
-	"hexchess-svc/service"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/slogutil"
 	"io"
 	"log/slog"
 
 	"github.com/google/uuid"
+	"go.uber.org/atomic"
 )
 
 type GRPCServer struct {
 	rpc.UnimplementedMatchmakerServiceServer
-	matchmakerService *service.MatchmakerService
+	matchmakerService *matchmaker.MatchmakerService
 }
 
-func NewGRPCServer(matchmakerService *service.MatchmakerService) GRPCServer {
+func NewGRPCServer(matchmakerService *matchmaker.MatchmakerService) GRPCServer {
 	return GRPCServer{matchmakerService: matchmakerService}
 }
 
@@ -26,23 +27,22 @@ func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_Matchma
 	ctx, cancel := context.WithCancel(slogutil.TracedContext(context.Background(), uuid.NewString()))
 	defer cancel()
 
-	state := &MatchmakingStreamState{
-		service:      server.matchmakerService,
-		responseChan: make(chan service.MatchResponse, 1),
-	}
+	responseChan := make(chan matchmaker.MatchResponse, 1)
+	state := newMatchmakingStreamState(server.matchmakerService, responseChan)
 
 	cleanup := func() {
 		// both close operations are idempotent
-		cancelRequest := service.MatchmakingRequest{Kind: service.CancelMatchRequest, UserID: state.matchmakeID.UserID, Mode: state.matchmakeID.Mode}
-		state.service.SendMatchRequest(cancelRequest) // send close signal to reader
-		cancel()                                      // send close signal to writer
+		matchmakingID := state.getMatchmakingID()
+		cancelRequest := matchmaker.MatchmakingRequest{Kind: matchmaker.CancelMatchRequest, UserID: matchmakingID.UserID, Mode: matchmakingID.Mode}
+		server.matchmakerService.SendMatchRequest(cancelRequest) // send close signal to reader
+		cancel()                                                 // send close signal to writer
 	}
 
 	// writer: send matchmaking service responses through stream
 	go func() {
 		defer cleanup()
 
-		for matchResponse := range state.responseChan {
+		for matchResponse := range responseChan {
 			response := mapMatchmakingResponse(matchResponse)
 			slog.InfoContext(ctx, "sending matchmaking stream response", "response", response)
 
@@ -76,69 +76,86 @@ ReadLoop:
 	return nil
 }
 
-type MatchmakingStreamState struct {
-	service      *service.MatchmakerService
-	responseChan chan service.MatchResponse
-
-	matchmakeID MatchmakingID
-}
-
 type MatchmakingID struct {
-	UserID int64          `json:"userID"`
-	Mode   model.GameMode `json:"mode"`
+	UserID int64             `json:"userID"`
+	Mode   gamedata.GameMode `json:"mode"`
 }
 
-func handleMatchmakingRequest(ctx context.Context, state *MatchmakingStreamState, request *rpc.MatchmakingRequest) {
+type matchmakingStreamState struct {
+	// immutable constructs
+	service      *matchmaker.MatchmakerService
+	responseChan chan matchmaker.MatchResponse
+
+	// mutatable constructs
+	matchmakeID atomic.Pointer[MatchmakingID]
+}
+
+func newMatchmakingStreamState(service *matchmaker.MatchmakerService, responseChan chan matchmaker.MatchResponse) *matchmakingStreamState {
+	return &matchmakingStreamState{service: service, responseChan: responseChan}
+}
+
+func (state *matchmakingStreamState) setMatchmakingID(matchmakingID MatchmakingID) {
+	state.matchmakeID.Store(&matchmakingID)
+}
+
+func (state *matchmakingStreamState) getMatchmakingID() MatchmakingID {
+	matchmakingID := state.matchmakeID.Load()
+	return *matchmakingID
+}
+
+func handleMatchmakingRequest(ctx context.Context, state *matchmakingStreamState, request *rpc.MatchmakingRequest) {
 	switch value := request.Value.(type) {
 	case *rpc.MatchmakingRequest_Begin:
-		inputMode, err := enum.Parse(value.Begin.Mode, model.GameModeEnums)
+		inputMode, err := enum.Parse(value.Begin.Mode, gamedata.GameModeEnums)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid mode in recv begin request - dropping message", "error", err)
+			slog.ErrorContext(ctx, "invalid mode in recv begin request, dropping message", "error", err)
 			return
 		}
 
-		state.matchmakeID = MatchmakingID{UserID: value.Begin.UserId, Mode: inputMode}
-
-		beginRequest := service.MatchmakingRequest{
-			Kind:         service.BeginMatchRequest,
-			UserID:       state.matchmakeID.UserID,
-			Mode:         state.matchmakeID.Mode,
+		matchmakingID := &MatchmakingID{UserID: value.Begin.UserId, Mode: inputMode}
+		beginRequest := matchmaker.MatchmakingRequest{
+			Kind:         matchmaker.BeginMatchRequest,
+			UserID:       matchmakingID.UserID,
+			Mode:         matchmakingID.Mode,
 			UserElo:      value.Begin.UserElo,
 			ResponseChan: state.responseChan,
 		}
 		state.service.SendMatchRequest(beginRequest)
+
+		state.matchmakeID.Store(matchmakingID)
 	case *rpc.MatchmakingRequest_Confirm:
 		if value.Confirm.Accept {
-			confirmRequest := service.MatchmakingRequest{
-				Kind:   service.ConfirmMatchRequest,
-				UserID: state.matchmakeID.UserID,
-				Mode:   state.matchmakeID.Mode,
+			matchmakingID := state.getMatchmakingID()
+			confirmRequest := matchmaker.MatchmakingRequest{
+				Kind:   matchmaker.ConfirmMatchRequest,
+				UserID: matchmakingID.UserID,
+				Mode:   matchmakingID.Mode,
 			}
 			state.service.SendMatchRequest(confirmRequest)
 		}
 	}
 }
 
-func mapMatchmakingResponse(matchResponse service.MatchResponse) *rpc.MatchmakingResponse {
+func mapMatchmakingResponse(matchResponse matchmaker.MatchResponse) *rpc.MatchmakingResponse {
 	response := &rpc.MatchmakingResponse{}
 
 	switch matchResponse.Kind {
-	case service.MatchResponseJoin:
+	case matchmaker.MatchResponseJoin:
 		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Join{
 			Join: &rpc.MatchmakingJoinResponse{},
 		}}
-	case service.MatchResponseProposal:
+	case matchmaker.MatchResponseProposal:
 		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Proposal{
 			Proposal: &rpc.MatchmakingProposalResponse{
 				UserOneId: matchResponse.UserOneID,
 				UserTwoId: matchResponse.UserTwoID,
 			},
 		}}
-	case service.MatchResponseConfirmation:
+	case matchmaker.MatchResponseConfirmationAccepted:
 		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Confirm{
 			Confirm: &rpc.MatchmakingConfirmResponse{},
 		}}
-	case service.MatchResponseCancel:
+	case matchmaker.MatchResponseCancel:
 		response = &rpc.MatchmakingResponse{Value: &rpc.MatchmakingResponse_Cancel{
 			Cancel: &rpc.MatchmakingCancelResponse{},
 		}}
