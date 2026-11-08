@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
-	redigo "github.com/gomodule/redigo/redis"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -116,19 +116,16 @@ func createSchema(ctx context.Context, pool *pgxpool.Pool) error {
 }
 
 func setupRedisPreconditions(t slogutil.TestLogger) {
-	pool := &redigo.Pool{
-		MaxIdle:     1,
-		IdleTimeout: 240 * time.Second,
-		Dial: func() (redigo.Conn, error) {
-			return redigo.Dial("tcp", redisAddr)
-		},
-	}
-	defer pool.Close()
+	client := redis.NewClient(&redis.Options{
+		Addr:         redisAddr,
+		PoolSize:     0, // default pool size
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	})
+	defer client.Close()
 
-	conn := pool.Get()
-	defer conn.Close()
-
-	if _, err := conn.Do("FLUSHALL"); err != nil {
+	if err := client.FlushAll(t.Context()).Err(); err != nil {
 		t.Fatalf("failed to flush redis: %v", err)
 	}
 }

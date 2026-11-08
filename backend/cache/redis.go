@@ -10,9 +10,18 @@ import (
 	"log/slog"
 	"time"
 
-	redigo "github.com/gomodule/redigo/redis"
 	"github.com/redis/go-redis/v9"
 )
+
+type slogAdapter struct{}
+
+func (a slogAdapter) Printf(ctx context.Context, format string, v ...any) {
+	slog.LogAttrs(ctx, slog.LevelInfo, fmt.Sprintf(format, v...), slog.String("component", "go-redis"))
+}
+
+func init() {
+	redis.SetLogger(slogAdapter{})
+}
 
 type RedisNames struct {
 	LeaderboardZSet           string `json:"leaderboardZSet"`
@@ -61,8 +70,7 @@ var (
 type Redis struct {
 	PrimaryClient  redis.UniversalClient
 	ConsumerClient redis.UniversalClient
-	PubSubClient   *redigo.Pool
-	PubsubAddr     string `json:"pubsubAddr"`
+	PubSubClient   *redis.Client
 
 	TotalPartitionCount int `json:"totalPartitionCount"`
 }
@@ -70,21 +78,15 @@ type Redis struct {
 func (redis *Redis) PrimaryHealthCheck(ctx context.Context) error {
 	err := redis.PrimaryClient.Ping(ctx).Err()
 	if err != nil {
-		slog.ErrorContext(ctx, "healthcheck error", "error", err, "kind", "redis")
+		slog.ErrorContext(ctx, "healthcheck error", "error", err, "kind", "primaryRedis")
 	}
 	return err
 }
 
 func (redis *Redis) PubsubHealthCheck(ctx context.Context) error {
-	if redis.PubSubClient == nil {
-		return nil
-	}
-	conn := redis.PubSubClient.Get()
-	defer conn.Close()
-
-	_, err := conn.Do("PING")
+	err := redis.PubSubClient.Ping(ctx).Err()
 	if err != nil {
-		slog.ErrorContext(ctx, "healthcheck error", "error", err, "kind", "redis")
+		slog.ErrorContext(ctx, "healthcheck error", "error", err, "kind", "pubSubRedis")
 	}
 	return err
 }
@@ -117,54 +119,27 @@ type RedisConfig struct {
 func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	slog.Info("creating redis clients", "config", redisCfg, "totalConsumerPartitionCount", TotalConsumerPartitionCount)
 
-	var pubsubDialer func() (redigo.Conn, error)
-
-	if redisCfg.ActiveProfile != config.Local {
-		pubsubDialer = func() (redigo.Conn, error) {
-			return redigo.Dial("tcp", redisCfg.PubsubAddr, redigo.DialUsername(redisCfg.PubsubUsername), redigo.DialPassword(redisCfg.PubsubPassword))
-		}
-	} else {
-		pubsubDialer = func() (redigo.Conn, error) {
-			return redigo.Dial("tcp", redisCfg.PubsubAddr)
-		}
-	}
-
-	var pubsubPool *redigo.Pool
-	if redisCfg.PubsubAddr != "" {
-		pubsubPool = &redigo.Pool{
-			MaxIdle:     8,
-			IdleTimeout: 240 * time.Second,
-			Dial:        pubsubDialer,
-		}
-	}
-
-	// note: disabled until redis cluster issue is resolved
-	var primaryCredsProvider func() (string, string)
-
-	if redisCfg.ActiveProfile != config.Local {
-		primaryCredsProvider = func() (string, string) {
-			return redisCfg.PrimaryUsername, redisCfg.PrimaryPassword
-		}
-	}
+	pubsubClient := NewSimpleClient(redisCfg.PubsubAddr)
 
 	redisPrimaryClient := NewUniversalClient(RedisClusterConfig{
-		ActiveProfile:       redisCfg.ActiveProfile,
-		Nodes:               redisCfg.PrimaryAddr,
-		PoolSize:            0, // default pool size
-		CredentialsProvider: primaryCredsProvider,
+		ActiveProfile: redisCfg.ActiveProfile,
+		Nodes:         redisCfg.PrimaryAddr,
+		PoolSize:      0, // default pool size
+		Username:      redisCfg.PrimaryUsername,
+		Password:      redisCfg.PrimaryPassword,
 	})
 	consumerRedisClient := NewUniversalClient(RedisClusterConfig{
-		ActiveProfile:       redisCfg.ActiveProfile,
-		Nodes:               redisCfg.PrimaryAddr,
-		PoolSize:            TotalConsumerPartitionCount,
-		CredentialsProvider: primaryCredsProvider,
+		ActiveProfile: redisCfg.ActiveProfile,
+		Nodes:         redisCfg.PrimaryAddr,
+		PoolSize:      TotalConsumerPartitionCount,
+		Username:      redisCfg.PrimaryUsername,
+		Password:      redisCfg.PrimaryPassword,
 	})
 
 	redisCache := Redis{
 		PrimaryClient:       redisPrimaryClient,
 		ConsumerClient:      consumerRedisClient,
-		PubSubClient:        pubsubPool,
-		PubsubAddr:          redisCfg.PubsubAddr,
+		PubSubClient:        pubsubClient,
 		TotalPartitionCount: TotalConsumerPartitionCount,
 	}
 
@@ -179,14 +154,33 @@ func NewRedis(ctx context.Context, redisCfg RedisConfig) Redis {
 	return redisCache
 }
 
+func NewSimpleClient(connURL string) *redis.Client {
+	// no TLS config + credentials provider: ElastiCache connectivity is often done without auth: we're relying on firewalls + private subnet to keep our data secure
+	return redis.NewClient(&redis.Options{
+		Addr:         connURL,
+		PoolSize:     0, // default pool size
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	})
+}
+
 type RedisClusterConfig struct {
-	ActiveProfile       config.Profile
-	Nodes               []string
-	PoolSize            int
-	CredentialsProvider func() (string, string)
+	ActiveProfile config.Profile
+	Nodes         []string
+	PoolSize      int
+	Username      string
+	Password      string
 }
 
 func NewUniversalClient(cfg RedisClusterConfig) redis.UniversalClient {
+	var credsProvider func() (string, string)
+	if cfg.ActiveProfile != config.Local {
+		credsProvider = func() (string, string) {
+			return cfg.Username, cfg.Password
+		}
+	}
+
 	var tlsConfig *tls.Config
 	if cfg.ActiveProfile != config.Local {
 		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12}
@@ -199,7 +193,7 @@ func NewUniversalClient(cfg RedisClusterConfig) redis.UniversalClient {
 		ReadTimeout:         5 * time.Second,
 		WriteTimeout:        5 * time.Second,
 		MaxRedirects:        10,
-		CredentialsProvider: cfg.CredentialsProvider,
+		CredentialsProvider: credsProvider,
 		TLSConfig:           tlsConfig,
 	})
 }

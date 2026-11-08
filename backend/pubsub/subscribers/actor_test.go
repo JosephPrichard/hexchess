@@ -22,7 +22,7 @@ func collectMessages(messages [][]byte) []string {
 	return strMessages
 }
 
-func TestMulticasterActor(t *testing.T) {
+func TestMultiCasterActor(t *testing.T) {
 	broker := NewBroadcastBroker[string]("testing-multicasters")
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}

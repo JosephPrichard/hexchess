@@ -8,11 +8,11 @@ import (
 	"hexchess-svc/utils/async"
 	"log/slog"
 
-	"github.com/gomodule/redigo/redis"
+	"github.com/redis/go-redis/v9"
 )
 
 type Broadcaster struct {
-	redis      *redis.Pool
+	redis      *redis.Client
 	dispatcher async.Dispatcher
 }
 
@@ -32,13 +32,12 @@ func NewAsyncBroadcaster(redis cache.Redis) Broadcaster {
 
 func (b *Broadcaster) broadcastMessage(ctx context.Context, channel string, bytes []byte) {
 	b.dispatcher.Go(func() {
-		conn := b.redis.Get()
-		defer conn.Close()
-
-		if _, err := conn.Do("PUBLISH", channel, bytes); err != nil {
+		// TODO(Joseph): consider using unsafe rather than casting to a string here for performance reasons
+		recvCount, err := b.redis.Publish(ctx, channel, string(bytes)).Result()
+		if err != nil {
 			slog.ErrorContext(ctx, "failed to publish message to channel", "channel", channel, "error", err)
 		} else {
-			slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel)
+			slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "recvCount", recvCount, "connURL", b.redis.String())
 		}
 	})
 }

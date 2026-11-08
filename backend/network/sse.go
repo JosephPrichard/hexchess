@@ -16,11 +16,11 @@ type SSEClient struct {
 
 type ListenConfig[Message any] struct {
 	OnClose    func()
-	MapMessage func(Message) SseEvent
 	Stream     chan Message
+	MapMessage func(Message) SseEvent
 }
 
-func (client *SSEClient) StreamMessages[Message any](cfg ListenConfig[Message]) {
+func streamServerSentEvents[Message any](client *SSEClient, cfg ListenConfig[Message]) {
 	go func() {
 		<-client.ctx.Done()
 		if cfg.OnClose == nil {
@@ -52,7 +52,7 @@ func (client *SSEClient) StreamMessages[Message any](cfg ListenConfig[Message]) 
 	}
 }
 
-func (client *SSEClient) Block() {
+func blockSSEClient(client *SSEClient) {
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 	for {
 		select {

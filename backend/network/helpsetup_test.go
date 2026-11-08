@@ -68,7 +68,7 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testinfra := itest.SetupIntegrationTest(t)
 
 	localBroadcasters := subscribers.NewLocalBroadcasters()
-	<-localBroadcasters.ListenGameMessages(testinfra.Redis)
+	localBroadcasters.ListenGameMessages(t.Context(), testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
 	createTestChessStates(t, testinfra.Redis)
@@ -103,9 +103,10 @@ func setupSSETest(t *testing.T) sseTestContext {
 
 	localBroadcasters := subscribers.NewLocalBroadcasters()
 
-	<-localBroadcasters.ListenCountEvents(testinfra.Redis)
-	<-localBroadcasters.ListenUsersMessages(testinfra.Redis)
-	<-localBroadcasters.ListenTournamentMessages(testinfra.Redis)
+	ctx := t.Context()
+	localBroadcasters.ListenCountEvents(ctx, testinfra.Redis)
+	localBroadcasters.ListenUsersMessages(ctx, testinfra.Redis)
+	localBroadcasters.ListenTournamentMessages(ctx, testinfra.Redis)
 
 	testServer := httptest.NewServer(network.NewServeMux(network.HttpServerConfig{
 		Database:     testinfra.Database,

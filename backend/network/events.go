@@ -43,7 +43,7 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 	countsChan := make(chan subscribers.GlobalCastEvent, SSEChanBufCap)
 	server.broadcasters.Counts.Subscribe(countsChan)
 
-	client.StreamMessages(ListenConfig[subscribers.GlobalCastEvent]{
+	streamServerSentEvents(client, ListenConfig[subscribers.GlobalCastEvent]{
 		Stream: countsChan,
 		OnClose: func() {
 			server.broadcasters.Counts.Unsubscribe(countsChan)
@@ -101,7 +101,7 @@ func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) e
 	})
 	defer stopScheduledEvent()
 
-	client.Block()
+	blockSSEClient(client)
 	return nil
 }
 
@@ -119,7 +119,7 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 	usersChan := make(chan []byte, SSEChanBufCap)
 	server.broadcasters.Users.Subscribe(strUserID, usersChan)
 
-	client.StreamMessages(ListenConfig[[]byte]{
+	streamServerSentEvents(client, ListenConfig[[]byte]{
 		Stream: usersChan,
 		OnClose: func() {
 			server.broadcasters.Users.Unsubscribe(strUserID, usersChan)
@@ -148,7 +148,7 @@ func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Requ
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: tournamentKey})
 
-	client.StreamMessages(ListenConfig[[]byte]{
+	streamServerSentEvents(client, ListenConfig[[]byte]{
 		Stream: tournamentChan,
 		OnClose: func() {
 			server.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)

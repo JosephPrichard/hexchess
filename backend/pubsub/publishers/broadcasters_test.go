@@ -14,6 +14,7 @@ import (
 )
 
 func TestBroadcastMessage(t *testing.T) {
+
 	ctx := t.Context()
 
 	testInfra := itest.SetupIntegrationTest(t)
@@ -21,10 +22,12 @@ func TestBroadcastMessage(t *testing.T) {
 
 	defer rdb.Close()
 
-	broadcaster := NewSyncBroadcaster(rdb)
+	globalBroadcaster := NewSyncBroadcaster(rdb)
 
-	localBroadcasters := subscribers.LocalBroadcasters{Games: subscribers.NewBroadcastBroker[gameid.Identifier]("testing-multicaster")}
-	<-localBroadcasters.ListenGameMessages(rdb)
+	localBroadcasters := subscribers.LocalBroadcasters{Games: subscribers.NewBroadcastBroker[gameid.Identifier]("testing-multicast")}
+	err := localBroadcasters.ListenGameMessages(ctx, rdb)
+
+	require.NoError(t, err)
 
 	wantMsgCount := 2
 
@@ -33,7 +36,7 @@ func TestBroadcastMessage(t *testing.T) {
 
 	// note: there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
 	// this is true even though psc.Subscribe is called before "PUBLISH" so the race condition is redis-side and unavoidable
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 
 	for _, input := range []struct {
 		id  string
@@ -43,7 +46,7 @@ func TestBroadcastMessage(t *testing.T) {
 		{id: "2", msg: "test3"},
 		{id: "1", msg: "test2"},
 	} {
-		broadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
+		globalBroadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
 		})

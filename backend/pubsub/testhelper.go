@@ -25,7 +25,7 @@ func ExpectBroadcast[Message any](
 	}
 
 	lb := subscribers.NewLocalBroadcasters()
-	lb.Listen(rdb)
+	lb.Listen(t.Context(), rdb)
 
 	subChan := make(chan []byte, len(want))
 	subscribe(lb, subChan)
