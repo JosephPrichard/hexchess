@@ -46,7 +46,7 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 			writeJSON(w, resp.Status, resp)
 
 			slog.Log(ctx, LevelFromStatus(resp.Status),
-				"failed to handle REST call", "error", err, "path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
+				"handled REST call", "error", err, "path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
 		} else {
 			slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 		}

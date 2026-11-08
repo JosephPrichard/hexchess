@@ -18,10 +18,9 @@ type (
 	SessionIDType string
 )
 
-var (
-	Trace     = "trace"
-	MessageID = "messageID"
-
+const (
+	Trace      = "trace"
+	MessageID  = "messageID"
 	ContextMap = "ctxmap"
 )
 
