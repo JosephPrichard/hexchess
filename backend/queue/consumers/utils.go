@@ -4,7 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/redis/go-redis/v9"
 )
 

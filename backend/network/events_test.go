@@ -16,7 +16,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -149,7 +150,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 
 	// one message for each union category, with full permutations of nil/non-nil fields
 	inputTournaments := []tournament.TournamentOutput{
-		{Key: uuid.NewString()}, // won't receive this
+		{Key: uuid.New().String()}, // won't receive this
 		{Key: keyString, Kind: tournament.TournamentStartKind},
 		{Key: keyString, Kind: tournament.TournamentMatchmakingKind},
 		{

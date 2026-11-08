@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.Handler {
@@ -16,7 +16,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			trace := r.Header.Get("X-trace")
 			if trace == "" {
-				trace = uuid.NewString()
+				trace = uuid.New().String()
 			}
 			r = r.WithContext(slogutil.TracedContext(r.Context(), trace))
 

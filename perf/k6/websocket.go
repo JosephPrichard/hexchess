@@ -11,7 +11,8 @@ import (
 	"time"
 	"xk6-hexchess/pb"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/gorilla/websocket"
 	"go.k6.io/k6/v2/js/modules"
 	"google.golang.org/protobuf/proto"
@@ -132,7 +133,7 @@ func runGameSocket(metrics *Metrics, req RunGameSocketReq) error {
 	}
 	defer conn.Close()
 
-	openMessageID := uuid.NewString()
+	openMessageID := uuid.New().String()
 	metrics.NewMetric(openMessageID, "open")
 
 	var socketState GameSocketState
@@ -178,7 +179,7 @@ func runGameSocket(metrics *Metrics, req RunGameSocketReq) error {
 		}
 
 		// marshal phase: buffer inputs to be sent and evaluate stop condition
-		inputMessageID := uuid.NewString()
+		inputMessageID := uuid.New().String()
 		input, err := MarshalNextGameInput(output.Game, inputMessageID)
 		if err != nil {
 			return err

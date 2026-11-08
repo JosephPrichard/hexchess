@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 
 	"go.uber.org/mock/gomock"
 	"google.golang.org/api/idtoken"
@@ -1228,7 +1228,7 @@ func TestGetTournament(t *testing.T) {
 		},
 		{
 			name:          "TournamentNotFound",
-			tournamentKey: uuid.NewString(),
+			tournamentKey: uuid.New().String(),
 			wantStatus:    http.StatusNotFound,
 			wantFail: network.ServiceResp{
 				Status: http.StatusNotFound,

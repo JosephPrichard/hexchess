@@ -10,7 +10,8 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"go.uber.org/atomic"
 )
 
@@ -24,7 +25,7 @@ func NewGRPCServer(matchmakerService *matchmaker.MatchmakerService) GRPCServer {
 }
 
 func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_MatchmakingStreamServer) error {
-	ctx, cancel := context.WithCancel(slogutil.TracedContext(context.Background(), uuid.NewString()))
+	ctx, cancel := context.WithCancel(slogutil.TracedContext(context.Background(), uuid.New().String()))
 	defer cancel()
 
 	responseChan := make(chan matchmaker.MatchResponse, 1)

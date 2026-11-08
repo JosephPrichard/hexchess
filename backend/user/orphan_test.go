@@ -8,9 +8,10 @@ import (
 	"hexchess-svc/utils/slogutil"
 	"testing"
 
+	"uuid"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,8 +29,8 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	defer testinfra.Close()
 	ctx := t.Context()
 
-	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())          // user exists in db
-	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewString()) // user does not exist in db
+	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.New().String())          // user exists in db
+	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.New().String()) // user does not exist in db
 
 	cloud.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
 		{

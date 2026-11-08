@@ -14,7 +14,8 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/utils/testutil"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +57,7 @@ func TestUpdateChessState(t *testing.T) {
 	defer testinfra.Close()
 
 	testID := gameid.NewGameID()
-	arbitraryKey := uuid.NewString()
+	arbitraryKey := uuid.New().String()
 
 	inState := NewChessState(ChessStateArgs{ID: testID, Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random})
 	ctx := t.Context()

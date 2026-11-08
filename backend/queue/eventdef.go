@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/utils/opt"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 type AdvanceTournamentJob struct {

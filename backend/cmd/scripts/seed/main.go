@@ -28,8 +28,9 @@ import (
 	"math/rand"
 	"time"
 
+	"uuid"
+
 	"github.com/brianvoe/gofakeit"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"
 )

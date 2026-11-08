@@ -15,8 +15,9 @@ import (
 	"log/slog"
 	"runtime/debug"
 
+	"uuid"
+
 	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -75,7 +76,7 @@ func (m *riverQueueMiddleware) Work(
 	job *rivertype.JobRow,
 	doInner func(ctx context.Context) error,
 ) error {
-	ctx = slogutil.TracedContext(ctx, uuid.NewString())
+	ctx = slogutil.TracedContext(ctx, uuid.New().String())
 
 	slog.InfoContext(ctx, "riverqueue middleware: before working job", "jobID", job.ID, "kind", job.Kind)
 

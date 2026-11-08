@@ -12,7 +12,8 @@ import (
 	"hexchess-svc/utils/perf"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/proto"
 
@@ -104,7 +105,7 @@ var ReplayInsts = []struct {
 }{
 	// replay service tests (primarily the replay advanced search functionality)
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(1),
 		BlackID:        new(2),
 		Result:         "WHITE_WINS",
@@ -118,7 +119,7 @@ var ReplayInsts = []struct {
 		TurnCount:      42,
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(2),
 		BlackID:        new(3),
 		Result:         "BLACK_WINS",
@@ -132,7 +133,7 @@ var ReplayInsts = []struct {
 		TurnCount:      36,
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(3),
 		BlackID:        new(1),
 		Result:         "DRAW",
@@ -146,7 +147,7 @@ var ReplayInsts = []struct {
 		TurnCount:      38,
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(1),
 		BlackID:        nil,
 		Result:         "WHITE_WINS",
@@ -160,7 +161,7 @@ var ReplayInsts = []struct {
 		TurnCount:      40,
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(1),
 		BlackID:        new(2),
 		Result:         "BLACK_WINS",
@@ -175,7 +176,7 @@ var ReplayInsts = []struct {
 	},
 	// elo history tests
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -189,7 +190,7 @@ var ReplayInsts = []struct {
 		TurnCount:      25,
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -202,7 +203,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -215,7 +216,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 1, 2, 0, 0, 0, time.UTC),
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -228,7 +229,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 3, 1, 0, 0, 0, time.UTC),
 	},
 	{
-		GameID:         uuid.NewString(),
+		GameID:         uuid.New().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -269,8 +270,8 @@ var ReplayInsts = []struct {
 	},
 }
 
-var GameIDFinishedTournamentMatch1 = uuid.NewString()
-var GameIDFinishedTournamentMatch2 = uuid.NewString()
+var GameIDFinishedTournamentMatch1 = uuid.New().String()
+var GameIDFinishedTournamentMatch2 = uuid.New().String()
 
 var ChallengeInsts = []struct {
 	ChallengerID int64

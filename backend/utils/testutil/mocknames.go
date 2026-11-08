@@ -4,7 +4,7 @@ import (
 	"hexchess-svc/utils/slogutil"
 	"reflect"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 func NewTestNames[T any](d T) *T {

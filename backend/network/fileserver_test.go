@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"uuid"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -104,7 +105,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
-	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewString())
+	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.New().String())
 
 	tests := []struct {
 		name          string

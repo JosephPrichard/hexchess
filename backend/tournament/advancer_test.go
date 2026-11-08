@@ -14,8 +14,9 @@ import (
 	"hexchess-svc/utils/testutil"
 	"testing"
 
+	"uuid"
+
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -237,7 +238,7 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 			ctx := t.Context()
 
 			eventID := tt.eventID
-			if eventID == uuid.Nil {
+			if eventID == uuid.Nil() {
 				eventID = uuid.New()
 			}
 			_, err := service.AdvanceTournament(ctx, tt.tournamentKey, eventID)

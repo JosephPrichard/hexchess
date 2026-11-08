@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 // Generator is a generator for generating things my program determines as "non-deterministic" and therefore must be mocked in tests

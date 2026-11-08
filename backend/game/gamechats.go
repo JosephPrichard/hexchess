@@ -14,9 +14,10 @@ import (
 	"strconv"
 	"time"
 
+	"uuid"
+
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/typedapi/types/enums/refresh"
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -62,7 +63,7 @@ func (service *ChatService) InsertChat(ctx context.Context, gameID gameid.Identi
 	perf.WithContext(ctx).LogFailable(&err)
 
 	if chat.ID == "" {
-		chat.ID = uuid.NewString()
+		chat.ID = uuid.New().String()
 	}
 
 	bytes, err := SerializeChat(chat).MarshalVT()

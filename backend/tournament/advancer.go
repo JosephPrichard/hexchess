@@ -22,7 +22,8 @@ import (
 	"hexchess-svc/utils/serrors"
 	"log/slog"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/sync/errgroup"

@@ -8,8 +8,9 @@ import (
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/slogutil"
 
+	"uuid"
+
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

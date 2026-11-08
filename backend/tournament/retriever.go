@@ -14,7 +14,8 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/errgroup"

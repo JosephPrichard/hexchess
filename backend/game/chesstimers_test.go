@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +39,7 @@ func TestTryExpireTimers(t *testing.T) {
 
 	gameTimersZSet := fmt.Sprintf("%s/game:{%s}", cache.Constants.GameTimersZSet, testPartitionKey)
 	finishGamesStream := fmt.Sprintf("%s:{%s}", cache.Constants.FinishGameStreamKey, testPartitionKey)
-	consumerGroup := uuid.NewString()
+	consumerGroup := uuid.New().String()
 
 	// preconditions: there exists game timers with the following timer values
 	for _, z := range []redis.Z{

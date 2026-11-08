@@ -12,7 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -81,7 +82,7 @@ func (consumer *StreamConsumer) Consume() {
 }
 
 func (consumer *StreamConsumer) consumePartition(partitionKey string) {
-	consumerID := uuid.NewString()
+	consumerID := uuid.New().String()
 
 	stream := cache.FmtStreamKey(consumer.streamKey, partitionKey)
 	streams := []string{stream, ">"}
@@ -93,7 +94,7 @@ func (consumer *StreamConsumer) consumePartition(partitionKey string) {
 	var wg sync.WaitGroup
 
 	for {
-		ctx := slogutil.TracedContext(consumer.ctx, uuid.NewString())
+		ctx := slogutil.TracedContext(consumer.ctx, uuid.New().String())
 
 		xArgs := &redis.XReadGroupArgs{
 			Group:    consumer.consumerGroup,

@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/utils/opt"
 	"time"
 
-	"github.com/google/uuid"
+	"uuid"
 )
 
 type Tournament struct {
