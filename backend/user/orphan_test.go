@@ -29,8 +29,8 @@ func TestRemoveOrphanedBucketObjects(t *testing.T) {
 	defer testinfra.Close()
 	ctx := t.Context()
 
-	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.New().String())          // user exists in db
-	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.New().String()) // user does not exist in db
+	profileKeyUserID1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewV7().String())          // user exists in db
+	profileKeyInvalidUserID := fmt.Sprintf("users/profile-pics/8000/%s", uuid.NewV7().String()) // user does not exist in db
 
 	cloud.SetupS3Test(t, testinfra.AWS, []*s3.PutObjectInput{
 		{

@@ -42,7 +42,7 @@ func TestGetTournament(t *testing.T) {
 		},
 		{
 			name:          "TournamentNotFound",
-			tournamentKey: uuid.New(),
+			tournamentKey: uuid.NewV7(),
 			wantError:     ErrTournamentNotFound,
 		},
 	}

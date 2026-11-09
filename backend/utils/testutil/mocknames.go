@@ -21,7 +21,7 @@ func NewTestNames[T any](d T) *T {
 
 	for _, field := range reflectNames.Fields() {
 		if field.Kind() == reflect.String && field.CanSet() {
-			newValue := field.String() + "-" + uuid.New().String()
+			newValue := field.String() + "-" + uuid.NewV7().String()
 			field.SetString(newValue)
 		}
 	}

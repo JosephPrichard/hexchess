@@ -63,7 +63,7 @@ func (service *ChatService) InsertChat(ctx context.Context, gameID gameid.Identi
 	perf.WithContext(ctx).LogFailable(&err)
 
 	if chat.ID == "" {
-		chat.ID = uuid.New().String()
+		chat.ID = uuid.NewV7().String()
 	}
 
 	bytes, err := SerializeChat(chat).MarshalVT()

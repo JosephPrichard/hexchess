@@ -25,7 +25,7 @@ func NewGRPCServer(matchmakerService *matchmaker.MatchmakerService) GRPCServer {
 }
 
 func (server *GRPCServer) MatchmakingStream(stream rpc.MatchmakerService_MatchmakingStreamServer) error {
-	ctx, cancel := context.WithCancel(slogutil.TracedContext(context.Background(), uuid.New().String()))
+	ctx, cancel := context.WithCancel(slogutil.TracedContext(context.Background(), uuid.NewV7().String()))
 	defer cancel()
 
 	responseChan := make(chan matchmaker.MatchResponse, 1)

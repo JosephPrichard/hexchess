@@ -57,7 +57,7 @@ func TestUpdateChessState(t *testing.T) {
 	defer testinfra.Close()
 
 	testID := gameid.NewGameID()
-	arbitraryKey := uuid.New().String()
+	arbitraryKey := uuid.NewV7().String()
 
 	inState := NewChessState(ChessStateArgs{ID: testID, Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random})
 	ctx := t.Context()

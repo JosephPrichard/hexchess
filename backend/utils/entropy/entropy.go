@@ -17,7 +17,7 @@ type Generator interface {
 type RealSource struct{}
 
 func (_ RealSource) NewUUID() uuid.UUID {
-	return uuid.New()
+	return uuid.NewV7()
 }
 
 func (_ RealSource) GetTime() time.Time {

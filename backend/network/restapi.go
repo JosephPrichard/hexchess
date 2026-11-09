@@ -60,7 +60,7 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 	}
 	slog.InfoContext(ctx, "registered user", "user", u)
 
-	writeJSON(w, http.StatusOK, SessionView{
+	writeJSON(ctx, w, http.StatusOK, SessionView{
 		ID:       u.ID,
 		Username: u.Username,
 		Country:  u.Country,
@@ -76,7 +76,7 @@ func (server *HttpServer) handleLoginSession(ctx context.Context, w http.Respons
 	}
 	slog.InfoContext(ctx, "user has logged in", "user", verifiedUser)
 
-	writeJSON(w, http.StatusOK, SessionView{
+	writeJSON(ctx, w, http.StatusOK, SessionView{
 		ID:       verifiedUser.ID,
 		Username: verifiedUser.Username,
 		Country:  verifiedUser.Country,
@@ -166,7 +166,7 @@ func (server *HttpServer) HandleUpdatePassword(w http.ResponseWriter, r *http.Re
 	}
 	slog.InfoContext(ctx, "user has updated password", "user", u)
 
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(ctx, w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -198,7 +198,7 @@ func (server *HttpServer) HandleUpdateUser(w http.ResponseWriter, r *http.Reques
 	}
 	slog.InfoContext(ctx, "user has updated username", "user", playerState)
 
-	writeJSON(w, http.StatusOK, SessionView{
+	writeJSON(ctx, w, http.StatusOK, SessionView{
 		ID:       u.ID,
 		Username: u.Username,
 		Country:  u.Country,
@@ -225,7 +225,7 @@ func (server *HttpServer) HandleCreateTempSession(w http.ResponseWriter, r *http
 		return serrors.New("set sessions", err)
 	}
 
-	writeJSON(w, http.StatusOK, TempSessionResp{SessionID: tempSessionID})
+	writeJSON(ctx, w, http.StatusOK, TempSessionResp{SessionID: tempSessionID})
 	return nil
 }
 
@@ -238,7 +238,7 @@ func (server *HttpServer) HandleRefreshSession(w http.ResponseWriter, r *http.Re
 
 	authSession, err := server.authenticator.GetSession(ctx, r)
 	if errors.Is(err, session.ErrSessionNotFound) {
-		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
+		writeJSON(ctx, w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	} else if err != nil {
 		return err
@@ -251,7 +251,7 @@ func (server *HttpServer) HandleRefreshSession(w http.ResponseWriter, r *http.Re
 	w.Header().Set("Set-Cookie", FmtCookie(authSession.Token))
 	slog.InfoContext(ctx, "refreshed user session", "user", authSession.Player)
 
-	writeJSON(w, http.StatusOK, RefreshResp{
+	writeJSON(ctx, w, http.StatusOK, RefreshResp{
 		Session: &SessionView{
 			ID:       authSession.Player.ID,
 			Username: authSession.Player.Name,
@@ -274,7 +274,7 @@ func (server *HttpServer) HandleLogout(w http.ResponseWriter, r *http.Request) e
 	}
 	w.Header().Set("Set-Cookie", FmtCookie(sessionID))
 
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(r.Context(), w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -283,7 +283,7 @@ func (server *HttpServer) HandleGetSelf(w http.ResponseWriter, r *http.Request) 
 
 	playerState, err := server.authenticator.GetSessionPlayer(ctx, r)
 	if errors.Is(err, session.ErrSessionNotFound) {
-		writeJSON(w, http.StatusOK, RefreshResp{Session: nil})
+		writeJSON(ctx, w, http.StatusOK, RefreshResp{Session: nil})
 		return nil
 	} else if err != nil {
 		return err
@@ -295,7 +295,7 @@ func (server *HttpServer) HandleGetSelf(w http.ResponseWriter, r *http.Request) 
 	}
 	slog.InfoContext(ctx, "retrieved user", "user", u)
 
-	writeJSON(w, http.StatusOK, u)
+	writeJSON(ctx, w, http.StatusOK, u)
 	return nil
 }
 
@@ -330,7 +330,7 @@ func (server *HttpServer) HandleGetLeaderboard(w http.ResponseWriter, r *http.Re
 	if users == nil {
 		users = []user.LbdUser{}
 	}
-	writeJSON(w, http.StatusOK, LeaderboardResp{TotalPages: leaderboard.PageCount, UserList: users})
+	writeJSON(ctx, w, http.StatusOK, LeaderboardResp{TotalPages: leaderboard.PageCount, UserList: users})
 	return nil
 }
 
@@ -358,7 +358,7 @@ func (server *HttpServer) HandleGetPersona(w http.ResponseWriter, r *http.Reques
 
 	slog.InfoContext(ctx, "retrieved user with replays", "fullUser", playerStatesResp)
 
-	writeJSON(w, http.StatusOK, playerStatesResp)
+	writeJSON(ctx, w, http.StatusOK, playerStatesResp)
 	return nil
 }
 
@@ -381,7 +381,7 @@ func (server *HttpServer) HandleSearchPlayers(w http.ResponseWriter, r *http.Req
 		return serrors.New("search users by name", err, "searchInput", searchInput)
 	}
 
-	writeJSON(w, http.StatusOK, SearchPlayersResp{UserList: users})
+	writeJSON(ctx, w, http.StatusOK, SearchPlayersResp{UserList: users})
 	return nil
 }
 
@@ -423,7 +423,7 @@ func (server *HttpServer) HandleUpdateChallenge(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	writeJSON(w, http.StatusOK, UpdateChallengeResp{GameID: gameID})
+	writeJSON(ctx, w, http.StatusOK, UpdateChallengeResp{GameID: gameID})
 	return nil
 }
 
@@ -461,7 +461,7 @@ func (server *HttpServer) HandleCreateChallenge(w http.ResponseWriter, r *http.R
 		Challenge: challenge,
 	})
 
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(ctx, w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -497,7 +497,7 @@ func (server *HttpServer) HandleGetChallenges(w http.ResponseWriter, r *http.Req
 	}
 
 	slog.InfoContext(ctx, "retrieved challenges", "challengeList", challengeList)
-	writeJSON(w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
+	writeJSON(ctx, w, http.StatusOK, GetChallengesResp{ChallengeList: challengeList})
 	return nil
 }
 
@@ -517,7 +517,7 @@ func (server *HttpServer) HandleCountUserChallenges(w http.ResponseWriter, r *ht
 		return serrors.New("count user challenges", err)
 	}
 
-	writeJSON(w, http.StatusOK, CountChallengesResp{Count: count})
+	writeJSON(ctx, w, http.StatusOK, CountChallengesResp{Count: count})
 	return nil
 }
 
@@ -545,7 +545,7 @@ func (server *HttpServer) HandleCreateGame(w http.ResponseWriter, r *http.Reques
 	}
 	slog.InfoContext(ctx, "created game", "gameID", gameID)
 
-	writeJSON(w, http.StatusOK, CreateGameResp{GameID: gameID})
+	writeJSON(ctx, w, http.StatusOK, CreateGameResp{GameID: gameID})
 	return nil
 }
 
@@ -568,7 +568,7 @@ func (server *HttpServer) HandleGameExistence(w http.ResponseWriter, r *http.Req
 	} else {
 		resp.Message = GameNotExists
 	}
-	writeServiceResp(w, resp)
+	writeServiceResp(ctx, w, resp)
 	return nil
 }
 
@@ -601,7 +601,7 @@ func (server *HttpServer) HandleGetGameMetadata(w http.ResponseWriter, r *http.R
 		return serrors.New("get chess metas", err)
 	}
 
-	writeJSON(w, http.StatusOK, ChessMetasResp{ChessList: mapChessMetas(resp.ChessMetas), SelfChessList: mapChessMetas(resp.UserChessMetas)})
+	writeJSON(ctx, w, http.StatusOK, ChessMetasResp{ChessList: mapChessMetas(resp.ChessMetas), SelfChessList: mapChessMetas(resp.UserChessMetas)})
 	return nil
 }
 
@@ -648,7 +648,7 @@ func (server *HttpServer) HandleGetReplay(w http.ResponseWriter, r *http.Request
 		return serrors.New("get replay by query", err, "replaysQuery", query)
 	}
 
-	writeJSON(w, http.StatusOK, GetReplayResp{Replay: fullReplay})
+	writeJSON(ctx, w, http.StatusOK, GetReplayResp{Replay: fullReplay})
 	return nil
 }
 
@@ -668,7 +668,7 @@ func (server *HttpServer) HandleSearchReplays(w http.ResponseWriter, r *http.Req
 		return serrors.New("get replays by query", err, "query", query)
 	}
 
-	writeJSON(w, http.StatusOK, SearchReplaysResp{ReplayList: replays})
+	writeJSON(ctx, w, http.StatusOK, SearchReplaysResp{ReplayList: replays})
 	return nil
 }
 
@@ -695,7 +695,7 @@ func (server *HttpServer) HandleGetEloHistories(w http.ResponseWriter, r *http.R
 	if err != nil {
 		return serrors.New("retrieve elo histories buckets with params", err, "params", params)
 	}
-	writeJSON(w, http.StatusOK, EloHistoriesResp{Buckets: eloBucketsResp.EloHistories})
+	writeJSON(ctx, w, http.StatusOK, EloHistoriesResp{Buckets: eloBucketsResp.EloHistories})
 
 	//w.Header().Set("Cache-Control", GetEloHistoriesCacheControl)
 	return nil
@@ -745,7 +745,7 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 		return err
 	}
 
-	tournamentKey := uuid.New()
+	tournamentKey := uuid.NewV7()
 	tournamentID, err := server.service.CreateTournament(ctx, tournament.TournamentInst{
 		Key:             tournamentKey,
 		Name:            body.Name,
@@ -764,7 +764,7 @@ func (server *HttpServer) HandleCreateTournament(w http.ResponseWriter, r *http.
 
 	slog.InfoContext(ctx, "created tournament", "tournamentID", tournamentID, "key", tournamentKey)
 
-	writeJSON(w, http.StatusCreated, CreateTournamentResp{TournamentKey: tournamentKey.String()})
+	writeJSON(ctx, w, http.StatusCreated, CreateTournamentResp{TournamentKey: tournamentKey.String()})
 	return nil
 }
 
@@ -799,7 +799,7 @@ func (server *HttpServer) HandleJoinTournament(w http.ResponseWriter, r *http.Re
 		server.service.NotifyTournamentParticipant(context.WithoutCancel(ctx), playerState.ID, tournamentEvent)
 	})
 
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(ctx, w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -827,7 +827,7 @@ func (server *HttpServer) HandleBeginCountdownTournament(w http.ResponseWriter, 
 		Kind: tournament.TournamentCountdownKind,
 	})
 
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(ctx, w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -850,7 +850,7 @@ func (server *HttpServer) HandleGetTournament(w http.ResponseWriter, r *http.Req
 
 	slog.Info("retrieved full tournament", "tournament", tourney)
 
-	writeJSON(w, http.StatusOK, GetTournamentResp(tourney))
+	writeJSON(ctx, w, http.StatusOK, GetTournamentResp(tourney))
 	return nil
 }
 
@@ -872,7 +872,7 @@ func (server *HttpServer) HandleGetTournaments(w http.ResponseWriter, r *http.Re
 	}
 	slog.Info("retrieved tournaments", "tournaments", tournaments)
 
-	writeJSON(w, http.StatusOK, GetTournamentsResp{Tournaments: tournaments})
+	writeJSON(ctx, w, http.StatusOK, GetTournamentsResp{Tournaments: tournaments})
 	return nil
 }
 
@@ -894,7 +894,7 @@ func (server *HttpServer) HandleLeaveTournament(w http.ResponseWriter, r *http.R
 	}
 	slog.Info("attempted to leave tournament", "didLeave", didLeave, "key", tournamentKey, "playerState", playerState)
 
-	writeServiceResp(w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
+	writeServiceResp(ctx, w, ServiceResp{Status: http.StatusOK, Message: "SUCCESS"})
 	return nil
 }
 
@@ -907,7 +907,7 @@ func (server *HttpServer) HandleUserActivityCheck(w http.ResponseWriter, r *http
 
 	isActive := server.service.IsActiveUser(r.Context(), userID)
 
-	writeJSON(w, http.StatusOK, GetUserActivityResp{IsUserActive: isActive})
+	writeJSON(r.Context(), w, http.StatusOK, GetUserActivityResp{IsUserActive: isActive})
 	//w.Header().Set("Cache-Control", "public, max-age=30")
 	return nil
 }

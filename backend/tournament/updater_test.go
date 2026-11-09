@@ -37,7 +37,7 @@ func TestCreateTournament(t *testing.T) {
 	defer testinfra.Close()
 	ctx := t.Context()
 
-	key := uuid.New()
+	key := uuid.NewV7()
 
 	tournamentID, err := service.CreateTournament(ctx, TournamentInst{
 		Key:             key,

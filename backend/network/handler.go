@@ -2,7 +2,6 @@ package network
 
 import (
 	"encoding/json/v2"
-	"fmt"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
@@ -16,7 +15,7 @@ func RouteMiddleware(allowedOrigins string) func(handlerFunc http.Handler) http.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			trace := r.Header.Get("X-trace")
 			if trace == "" {
-				trace = uuid.New().String()
+				trace = uuid.NewV7().String()
 			}
 			r = r.WithContext(slogutil.TracedContext(r.Context(), trace))
 
@@ -38,28 +37,25 @@ func Rest(h func(w http.ResponseWriter, r *http.Request) error) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		start := time.Now()
-		slog.InfoContext(ctx, "received REST call",
-			"method", r.Method, "path", r.URL.Path, "url", r.URL.String(), "headers", r.Header)
+		slog.InfoContext(ctx, "received REST call", "method", r.Method, "path", r.URL.Path, "url", r.URL.String(), "headers", r.Header)
 
 		if err := h(w, r); err != nil {
 			resp := ServiceViewFromErr(err)
-			writeJSON(w, resp.Status, resp)
+			writeJSON(ctx, w, resp.Status, resp)
 
-			slog.Log(ctx, LevelFromStatus(resp.Status),
-				"failed to handle REST call", "error", err, "path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
+			slog.Log(ctx, LevelFromStatus(resp.Status), "failed to handle REST call", "error", err, "path", r.URL.Path, "status", resp.Status, "timeTaken", time.Since(start).String())
 		} else {
 			slog.InfoContext(ctx, "completed REST call", "path", r.URL.Path, "timeTaken", time.Since(start).String())
 		}
 	}
 }
 
-func Json(v any) http.HandlerFunc {
+func Json(object any) http.HandlerFunc {
+	bytes, err := json.Marshal(object)
+	if err != nil {
+		slogutil.Fatal("marshal static object", err)
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		if _, err = w.Write(bytes); err != nil {
@@ -82,12 +78,15 @@ func SSE(h func(w *SSEClient, r *http.Request) error) http.HandlerFunc {
 			return
 		}
 		ctx := r.Context()
-		if err := h(&SSEClient{ctx, w, f}, r); err != nil {
+
+		sseClient := NewSSEClient(ctx, w, f)
+
+		if err := h(sseClient, r); err != nil {
 			resp := ServiceViewFromErr(err)
 
 			slog.Log(ctx, LevelFromStatus(resp.Status), "sse request failed", "error", err, "method", r.Method, "url", r.URL)
 
-			http.Error(w, fmt.Sprintf("%s:%s", MetaEvent, resp.Message), resp.Status)
+			sseClient.SendEvent(SseEvent{EventName: MetaEvent, EventData: resp.Message})
 		}
 		slog.InfoContext(ctx, "finished sse request", "method", r.Method, "url", r.URL)
 	}

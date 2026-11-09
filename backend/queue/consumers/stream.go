@@ -82,7 +82,7 @@ func (consumer *StreamConsumer) Consume() {
 }
 
 func (consumer *StreamConsumer) consumePartition(partitionKey string) {
-	consumerID := uuid.New().String()
+	consumerID := uuid.NewV7().String()
 
 	stream := cache.FmtStreamKey(consumer.streamKey, partitionKey)
 	streams := []string{stream, ">"}
@@ -94,7 +94,7 @@ func (consumer *StreamConsumer) consumePartition(partitionKey string) {
 	var wg sync.WaitGroup
 
 	for {
-		ctx := slogutil.TracedContext(consumer.ctx, uuid.New().String())
+		ctx := slogutil.TracedContext(consumer.ctx, uuid.NewV7().String())
 
 		xArgs := &redis.XReadGroupArgs{
 			Group:    consumer.consumerGroup,

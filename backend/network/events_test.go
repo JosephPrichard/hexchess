@@ -139,7 +139,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	sseTest := setupSSETest(t)
 	defer sseTest.Shutdown()
 
-	keyUUID := uuid.New()
+	keyUUID := uuid.NewV7()
 	keyString := keyUUID.String()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/tournament?tournamentKey="+keyString, nil)
@@ -150,7 +150,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 
 	// one message for each union category, with full permutations of nil/non-nil fields
 	inputTournaments := []tournament.TournamentOutput{
-		{Key: uuid.New().String()}, // won't receive this
+		{Key: uuid.NewV7().String()}, // won't receive this
 		{Key: keyString, Kind: tournament.TournamentStartKind},
 		{Key: keyString, Kind: tournament.TournamentMatchmakingKind},
 		{

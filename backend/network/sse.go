@@ -5,13 +5,20 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 )
 
 type SSEClient struct {
+	lock sync.Mutex
+
 	ctx context.Context
 	w   http.ResponseWriter
 	f   http.Flusher
+}
+
+func NewSSEClient(ctx context.Context, w http.ResponseWriter, f http.Flusher) *SSEClient {
+	return &SSEClient{ctx: ctx, w: w, f: f}
 }
 
 type ListenConfig[Message any] struct {
@@ -69,7 +76,12 @@ type SseEvent struct {
 	EventData string `json:"eventData"`
 }
 
+// SendEvent is a thread-safe wrapper to write an event to the client and flush it immediately
+// generally SendEvent is intended to be called sync, but locking is good practice to prevent mistakes
 func (client *SSEClient) SendEvent(event SseEvent) {
+	client.lock.Lock()
+	defer client.lock.Unlock()
+
 	if _, err := fmt.Fprintf(client.w, "event: %s\ndata: %s\n\n", event.EventName, event.EventData); err != nil {
 		slog.ErrorContext(client.ctx, "failed to write to sse", "error", err)
 	}

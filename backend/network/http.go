@@ -136,7 +136,7 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL.String())
-		writeJSON(w, http.StatusNotFound, ServiceResp{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
+		writeJSON(r.Context(), w, http.StatusNotFound, ServiceResp{Status: http.StatusNotFound, Message: "ROUTE_NOT_FOUND"})
 	})
 
 	SetHealthCheck(r, HealthConfig{

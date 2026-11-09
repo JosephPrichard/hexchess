@@ -133,7 +133,7 @@ func runGameSocket(metrics *Metrics, req RunGameSocketReq) error {
 	}
 	defer conn.Close()
 
-	openMessageID := uuid.New().String()
+	openMessageID := uuid.NewV7().String()
 	metrics.NewMetric(openMessageID, "open")
 
 	var socketState GameSocketState
@@ -179,7 +179,7 @@ func runGameSocket(metrics *Metrics, req RunGameSocketReq) error {
 		}
 
 		// marshal phase: buffer inputs to be sent and evaluate stop condition
-		inputMessageID := uuid.New().String()
+		inputMessageID := uuid.NewV7().String()
 		input, err := MarshalNextGameInput(output.Game, inputMessageID)
 		if err != nil {
 			return err

@@ -53,7 +53,7 @@ func (p *RiverProducer) ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx
 		opts.ScheduledAt = args.ScheduledOn
 	}
 
-	job := queue.AdvanceTournamentJob{TournamentKey: args.TournamentKey, EventID: uuid.New()}
+	job := queue.AdvanceTournamentJob{TournamentKey: args.TournamentKey, EventID: uuid.NewV7()}
 
 	var err error
 	if txn != nil {

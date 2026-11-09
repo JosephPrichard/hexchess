@@ -13,11 +13,10 @@ import (
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"hexchess-svc/pb"
-
-	"github.com/gorilla/websocket"
 )
 
 type GameSocketContext struct {
@@ -28,13 +27,13 @@ type GameSocketContext struct {
 }
 
 type websocketError struct {
-	// messageID allows a client to pair which input message led to which output error
+	// messageID allows a client to pair which input wsMessage led to which output error
 	// it is left blank if the output cannot be traced or is a system-originated error
 	messageID string
 	value     error
 }
 
-// GameplayChanBufCap start dropping messages when a websocket is behind by this many messages
+// GameplayChanBufCap start dropping messages when a WebSocket is behind by this many messages
 // must be higher than the number of messages broadcasted in initialization for tests to be deterministic
 const GameplayChanBufCap = 10
 
@@ -46,7 +45,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 	gameID := gameid.Identifier(query.Get("gameId"))
 	sessionID := query.Get("sessionId")
 
-	subChan := make(chan message, GameplayChanBufCap)
+	subChan := make(chan wsMessage, GameplayChanBufCap)
 	errChan := make(chan websocketError)
 
 	// initialize websocket connection
@@ -56,18 +55,17 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	cleanup := func() {
-		// both close operations are idempotent
-		defer server.broadcasters.Games.Unsubscribe(gameID, subChan) // send close signal to writer
-		defer conn.Close()                                           // send close signal to reader
-	}
+	cleanup := sync.OnceFunc(func() {
+		server.broadcasters.Games.Unsubscribe(gameID, subChan) // send close signal to writer
+		conn.Close()                                           // send close signal to reader
+	})
 
-	// initialize connection state (begin listening, get session data, etc.)
+	// initialize connection state (begin listening, get session data, sent initial responses etc.)
 	server.broadcasters.Games.Subscribe(gameID, subChan)
 
-	playerState, err := server.handleGameInit(ctx, gameID, sessionID, conn)
-	if err != nil {
-		writeGameError(ctx, conn, GameError{GameID: gameID, Error: err})
+	playerState, messages := server.handleGameInit(ctx, gameID, sessionID)
+	for _, message := range messages {
+		writeMessage(ctx, conn, message)
 	}
 
 	// start input reader (close signal received from client)
@@ -91,7 +89,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 		for {
 			select {
 			case wsErr := <-errChan:
-				writeGameError(ctx, conn, GameError{GameID: gameID, MessageID: wsErr.messageID, Error: wsErr.value})
+				writeMessage(ctx, conn, marshalGameError(ctx, GameError{GameID: gameID, MessageID: wsErr.messageID, Error: wsErr.value}))
 			case message, ok := <-subChan:
 				if !ok {
 					// receive close signal from writer
@@ -106,7 +104,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 
 type GameError = game.ErrorGameOutput
 
-func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError) {
+func marshalGameError(ctx context.Context, output GameError) []byte {
 	err := output.Error
 
 	var wsErr error
@@ -150,24 +148,30 @@ func writeGameError(ctx context.Context, conn *websocket.Conn, output GameError)
 		slog.ErrorContext(ctx, "failed to marshal err output", "error", err)
 		bytes = nil
 	}
-	writeMessage(ctx, conn, bytes)
+	return bytes
 }
 
-func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Identifier, sessionID string, conn *websocket.Conn) (player player.PlayerState, err error) {
-	player, err = server.service.GetSession(ctx, sessionID)
-	if err != nil {
-		return player, serrors.New("get session in game init phase", err)
-	}
-	chessState, err := server.service.JoinGame(ctx, gameID, player)
-	if err != nil {
-		return player, serrors.New("join game in init game phase", err)
+func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Identifier, sessionID string) (player.PlayerState, []wsMessage) {
+	errorResponse := func(err error) (player.PlayerState, []wsMessage) {
+		messages := []wsMessage{
+			marshalGameError(ctx, GameError{GameID: gameID, Error: err}),
+		}
+		return player.PlayerState{}, messages
 	}
 
-	initBytes, err := game.MarshalGameOutputInit(game.InitGameOutput{GameID: gameID, State: chessState, Self: player})
+	playerState, err := server.service.GetSession(ctx, sessionID)
 	if err != nil {
-		return player, serrors.New("marshal init output", err)
+		return errorResponse(serrors.New("get session in game init phase", err))
 	}
-	writeMessage(ctx, conn, initBytes)
+	chessState, err := server.service.JoinGame(ctx, gameID, playerState)
+	if err != nil {
+		return errorResponse(serrors.New("join game in init game phase", err))
+	}
+
+	initBytes, err := game.MarshalGameOutputInit(game.InitGameOutput{GameID: gameID, State: chessState, Self: playerState})
+	if err != nil {
+		return errorResponse(serrors.New("marshal init output", err))
+	}
 
 	output := game.SerializeGameOutputPlayers(game.PlayersGameOutput{
 		GameID:      gameID,
@@ -176,7 +180,8 @@ func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Iden
 	})
 	server.broadcaster.BroadcastGamesEvent(ctx, output)
 
-	return player, nil
+	messages := []wsMessage{initBytes}
+	return playerState, messages
 }
 
 type WsMessageTypeError struct {
@@ -187,7 +192,7 @@ func (err WsMessageTypeError) Error() string {
 	return fmt.Sprintf("message type %T is invalid: %+v ", err.pbInput, err.pbInput.GetValue())
 }
 
-func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input message) {
+func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input wsMessage) {
 	var pbInput pb.GameInput
 	if err := pbInput.UnmarshalVT(input); err != nil {
 		ctx.ErrChan <- websocketError{value: err}

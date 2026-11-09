@@ -88,7 +88,7 @@ func SetAdminEndpoints[TTx any](mux *chi.Mux, riverClient *river.Client[TTx]) {
 	mux.Mount("/admin/riverqueue/", uiHandler)
 }
 
-func info(w http.ResponseWriter, _ *http.Request) {
+func info(w http.ResponseWriter, r *http.Request) {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return
@@ -112,5 +112,5 @@ func info(w http.ResponseWriter, _ *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(r.Context(), w, http.StatusOK, resp)
 }

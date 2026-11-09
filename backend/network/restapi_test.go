@@ -1228,7 +1228,7 @@ func TestGetTournament(t *testing.T) {
 		},
 		{
 			name:          "TournamentNotFound",
-			tournamentKey: uuid.New().String(),
+			tournamentKey: uuid.NewV7().String(),
 			wantStatus:    http.StatusNotFound,
 			wantFail: network.ServiceResp{
 				Status: http.StatusNotFound,

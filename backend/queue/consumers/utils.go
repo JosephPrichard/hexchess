@@ -10,7 +10,7 @@ import (
 )
 
 func extractUUID(ctx context.Context, msg redis.XMessage, key string) uuid.UUID {
-	targetID := uuid.New()
+	targetID := uuid.NewV7()
 
 	targetIDStr, _ := msg.Values[key].(string)
 	parsedUUID, err := uuid.Parse(targetIDStr)

@@ -341,7 +341,7 @@ func generateTournaments() []TournamentInsts {
 		// binary.LittleEndian.PutUint64(tkey[:], tkeyUInt64)
 		// tkeyUInt64++
 		// pgTkey := pgtype.UUID{Bytes: tkey, Valid: true}
-		pgTkey := pgtype.UUID{Bytes: uuid.New(), Valid: true}
+		pgTkey := pgtype.UUID{Bytes: uuid.NewV7(), Valid: true}
 
 		createdBy := generateUserID(nil)
 		status := tournament.TournamentInProgress

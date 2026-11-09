@@ -105,7 +105,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 }
 
 func TestHandleGetProfilePic(t *testing.T) {
-	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.New().String())
+	profileKey1 := fmt.Sprintf("users/profile-pics/1/%s", uuid.NewV7().String())
 
 	tests := []struct {
 		name          string

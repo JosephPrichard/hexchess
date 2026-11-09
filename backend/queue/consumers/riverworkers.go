@@ -76,7 +76,7 @@ func (m *riverQueueMiddleware) Work(
 	job *rivertype.JobRow,
 	doInner func(ctx context.Context) error,
 ) error {
-	ctx = slogutil.TracedContext(ctx, uuid.New().String())
+	ctx = slogutil.TracedContext(ctx, uuid.NewV7().String())
 
 	slog.InfoContext(ctx, "riverqueue middleware: before working job", "jobID", job.ID, "kind", job.Kind)
 

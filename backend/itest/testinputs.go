@@ -105,7 +105,7 @@ var ReplayInsts = []struct {
 }{
 	// replay service tests (primarily the replay advanced search functionality)
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(1),
 		BlackID:        new(2),
 		Result:         "WHITE_WINS",
@@ -119,7 +119,7 @@ var ReplayInsts = []struct {
 		TurnCount:      42,
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(2),
 		BlackID:        new(3),
 		Result:         "BLACK_WINS",
@@ -133,7 +133,7 @@ var ReplayInsts = []struct {
 		TurnCount:      36,
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(3),
 		BlackID:        new(1),
 		Result:         "DRAW",
@@ -147,7 +147,7 @@ var ReplayInsts = []struct {
 		TurnCount:      38,
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(1),
 		BlackID:        nil,
 		Result:         "WHITE_WINS",
@@ -161,7 +161,7 @@ var ReplayInsts = []struct {
 		TurnCount:      40,
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(1),
 		BlackID:        new(2),
 		Result:         "BLACK_WINS",
@@ -176,7 +176,7 @@ var ReplayInsts = []struct {
 	},
 	// elo history tests
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -190,7 +190,7 @@ var ReplayInsts = []struct {
 		TurnCount:      25,
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -203,7 +203,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 1, 1, 0, 0, 0, time.UTC),
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -216,7 +216,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 1, 2, 0, 0, 0, time.UTC),
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -229,7 +229,7 @@ var ReplayInsts = []struct {
 		PlayedOn:       time.Date(2020, 1, 3, 1, 0, 0, 0, time.UTC),
 	},
 	{
-		GameID:         uuid.New().String(),
+		GameID:         uuid.NewV7().String(),
 		WhiteID:        new(6),
 		BlackID:        new(7),
 		Result:         "WHITE_WINS",
@@ -270,8 +270,8 @@ var ReplayInsts = []struct {
 	},
 }
 
-var GameIDFinishedTournamentMatch1 = uuid.New().String()
-var GameIDFinishedTournamentMatch2 = uuid.New().String()
+var GameIDFinishedTournamentMatch1 = uuid.NewV7().String()
+var GameIDFinishedTournamentMatch2 = uuid.NewV7().String()
 
 var ChallengeInsts = []struct {
 	ChallengerID int64
@@ -290,16 +290,16 @@ var ChallengeInsts = []struct {
 }
 
 var (
-	Tournament0LobbyKey                 = uuid.New()
-	Tournament1LobbyFilledKey           = uuid.New()
-	Tournament2ScheduledKnockoutKey     = uuid.New()
-	Tournament3ScheduledRoundRobinKey   = uuid.New()
-	Tournament4ScheduledSwissKey        = uuid.New()
-	Tournament5InProgressKnockoutKey    = uuid.New()
-	Tournament6InProgressRoundRobinKey  = uuid.New()
-	Tournament7InProgressSwissKey       = uuid.New()
-	Tournament8FinishedKey              = uuid.New()
-	Tournament9InProgressUncompletedKey = uuid.New()
+	Tournament0LobbyKey                 = uuid.NewV7()
+	Tournament1LobbyFilledKey           = uuid.NewV7()
+	Tournament2ScheduledKnockoutKey     = uuid.NewV7()
+	Tournament3ScheduledRoundRobinKey   = uuid.NewV7()
+	Tournament4ScheduledSwissKey        = uuid.NewV7()
+	Tournament5InProgressKnockoutKey    = uuid.NewV7()
+	Tournament6InProgressRoundRobinKey  = uuid.NewV7()
+	Tournament7InProgressSwissKey       = uuid.NewV7()
+	Tournament8FinishedKey              = uuid.NewV7()
+	Tournament9InProgressUncompletedKey = uuid.NewV7()
 )
 
 var TournamentInsts = []struct {
@@ -663,7 +663,7 @@ var ReplayMoveHistories = []struct {
 	},
 }
 
-var TestEventID_TournamentCreation = uuid.New()
+var TestEventID_TournamentCreation = uuid.NewV7()
 var TestEventID_TournamentCreation_GameID = gameid.NewGameID()
 
 type fullMatch = struct {

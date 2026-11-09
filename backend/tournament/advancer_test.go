@@ -239,7 +239,7 @@ func TestAdvanceTournament_StoresMatches(t *testing.T) {
 
 			eventID := tt.eventID
 			if eventID == uuid.Nil() {
-				eventID = uuid.New()
+				eventID = uuid.NewV7()
 			}
 			_, err := service.AdvanceTournament(ctx, tt.tournamentKey, eventID)
 
@@ -264,7 +264,7 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	ctx := t.Context()
 
 	// since the eventID is stored in the idempotency keys table, we expect it to short circuit
-	gameIDs, err := service.AdvanceTournament(ctx, uuid.New(), itest.TestEventID_TournamentCreation)
+	gameIDs, err := service.AdvanceTournament(ctx, uuid.NewV7(), itest.TestEventID_TournamentCreation)
 	require.NoError(t, err)
 
 	wantGameIDs := []gameid.Identifier{itest.TestEventID_TournamentCreation_GameID}
@@ -292,7 +292,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 	ctx := t.Context()
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey
-	eventID := uuid.New()
+	eventID := uuid.NewV7()
 
 	wantTournaments := []FullMatch{
 		{

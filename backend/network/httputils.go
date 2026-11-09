@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"encoding/json/v2"
 	"fmt"
 	"io"
@@ -41,12 +42,15 @@ func init() {
 func decodeJson[Body any](r *http.Request, body *Body) error {
 	defer r.Body.Close()
 
-	// note: json.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
-
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return err
 	}
+
+	// note: it's safe to log a JSON request body, since we are assuming it is small enough to hold in memory - this is intentionally kept from the other loggers to avoid logging files
+	slog.InfoContext(r.Context(), "received JSON request body", "request", string(bodyBytes))
+
+	// note: json.Unmarshal fine relative to Decoder for small JSON body objects, and it provides much better error handling and UX
 	return json.Unmarshal(bodyBytes, body)
 }
 
@@ -77,23 +81,26 @@ type OneError struct {
 	Error   string `json:"error"`
 }
 
-func writeJSON[V any](w http.ResponseWriter, status int, data V) {
-	v, err := json.Marshal(data)
+func writeJSON[V any](ctx context.Context, w http.ResponseWriter, status int, data V) {
+	bytes, err := json.Marshal(data)
 	if err != nil {
 		slog.Error("failed to marshal json response", "error", err)
 		http.Error(w, "internal server error: failed to marshal response", http.StatusInternalServerError)
 		return
 	}
+
+	slog.InfoContext(ctx, "writing JSON response body", "response", string(bytes), "status", status)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	if _, err := w.Write(v); err != nil {
+	if _, err := w.Write(bytes); err != nil {
 		slog.Error("failed to write json response", "error", err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	}
 }
 
-func writeServiceResp(w http.ResponseWriter, view ServiceResp) {
-	writeJSON(w, view.Status, view)
+func writeServiceResp(ctx context.Context, w http.ResponseWriter, view ServiceResp) {
+	writeJSON(ctx, w, view.Status, view)
 }
 
 func writeBytes(w http.ResponseWriter, status int, b []byte) {

@@ -31,7 +31,7 @@ func (server *HttpServer) HandleUploadProfilePic(w http.ResponseWriter, r *http.
 	}
 	slog.InfoContext(ctx, "uploaded profile pic", "uploadResp", uploadResp)
 
-	writeJSON(w, http.StatusOK, uploadResp)
+	writeJSON(ctx, w, http.StatusOK, uploadResp)
 	return nil
 }
 

@@ -39,7 +39,7 @@ func TestTryExpireTimers(t *testing.T) {
 
 	gameTimersZSet := fmt.Sprintf("%s/game:{%s}", cache.Constants.GameTimersZSet, testPartitionKey)
 	finishGamesStream := fmt.Sprintf("%s:{%s}", cache.Constants.FinishGameStreamKey, testPartitionKey)
-	consumerGroup := uuid.New().String()
+	consumerGroup := uuid.NewV7().String()
 
 	// preconditions: there exists game timers with the following timer values
 	for _, z := range []redis.Z{
