@@ -40,15 +40,14 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 	sendCountEvent(client, subscribers.GlobalActiveEvent, activeCount)
 	sendCountEvent(client, subscribers.GlobalGamesEvent, gamesCount)
 
-	countsChan := make(chan subscribers.GlobalCastEvent, SSEChanBufCap)
-	server.broadcasters.Counts.Subscribe(countsChan)
+	subscriber := server.broadcasters.Counts.Subscribe(subscribers.GlobalCountsKey, SSEChanBufCap)
 
 	streamServerSentEvents(client, ListenConfig[subscribers.GlobalCastEvent]{
-		Stream: countsChan,
 		OnClose: func() {
-			server.broadcasters.Counts.Unsubscribe(countsChan)
-			slog.InfoContext(ctx, "finished handle user events stream")
+			server.broadcasters.Counts.Unsubscribe(subscribers.GlobalCountsKey, subscriber)
+			slog.InfoContext(ctx, "SSE handler: finished handle user events stream")
 		},
+		Mailbox:    subscriber.Mailbox(),
 		MapMessage: mapGlobalEvent,
 	})
 
@@ -96,7 +95,7 @@ func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) e
 
 	stopScheduledEvent := timeutil.Schedule(RetainActiveUserPeriod, func() {
 		if err := server.service.RetainActiveUser(ctx, strUserID); err != nil {
-			slog.ErrorContext(ctx, "failed to retain active user", "userID", strUserID, "error", err)
+			slog.ErrorContext(ctx, "SSE handler: failed to retain active user", "userID", strUserID, "error", err)
 		}
 	})
 	defer stopScheduledEvent()
@@ -116,20 +115,19 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: strUserID})
 
-	usersChan := make(chan []byte, SSEChanBufCap)
-	server.broadcasters.Users.Subscribe(strUserID, usersChan)
+	subscriber := server.broadcasters.Users.Subscribe(strUserID, SSEChanBufCap)
 
 	streamServerSentEvents(client, ListenConfig[[]byte]{
-		Stream: usersChan,
 		OnClose: func() {
-			server.broadcasters.Users.Unsubscribe(strUserID, usersChan)
-			slog.InfoContext(ctx, "finishing handle user events stream")
+			server.broadcasters.Users.Unsubscribe(strUserID, subscriber)
+			slog.InfoContext(ctx, "SSE handler: finishing handle user events stream")
 
 			detachedCtx := context.WithoutCancel(ctx)
 			if _, err = server.service.RemoveActiveUser(detachedCtx, strUserID); err != nil {
-				slog.ErrorContext(detachedCtx, "failed to remove active user", "sseID", strUserID, "error", err)
+				slog.ErrorContext(detachedCtx, "SSE handler: failed to remove active user", "sseID", strUserID, "error", err)
 			}
 		},
+		Mailbox: subscriber.Mailbox(),
 		MapMessage: func(message []byte) SseEvent {
 			return SseEvent{EventName: UserChallengeEvent, EventData: string(message)}
 		},
@@ -143,17 +141,16 @@ func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Requ
 
 	tournamentKey := r.URL.Query().Get("tournamentKey")
 
-	tournamentChan := make(chan []byte, SSEChanBufCap)
-	server.broadcasters.Tournament.Subscribe(tournamentKey, tournamentChan)
+	subscriber := server.broadcasters.Tournament.Subscribe(tournamentKey, SSEChanBufCap)
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: tournamentKey})
 
 	streamServerSentEvents(client, ListenConfig[[]byte]{
-		Stream: tournamentChan,
 		OnClose: func() {
-			server.broadcasters.Tournament.Unsubscribe(tournamentKey, tournamentChan)
-			slog.InfoContext(ctx, "finishing handle tournament events stream")
+			server.broadcasters.Tournament.Unsubscribe(tournamentKey, subscriber)
+			slog.InfoContext(ctx, "SSE handler: finishing handle tournament events stream")
 		},
+		Mailbox: subscriber.Mailbox(),
 		MapMessage: func(message []byte) SseEvent {
 			return SseEvent{EventName: TournamentEvent, EventData: string(message)}
 		},

@@ -98,6 +98,7 @@ func (redis *Redis) Close() {
 	if redis.PubSubClient != nil {
 		redis.PubSubClient.Close()
 	}
+	slog.Info("closed redis clients")
 }
 
 type RedisConfig struct {

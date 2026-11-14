@@ -44,6 +44,7 @@ func (db *PostgreSQL) Close() {
 	if db.pools.Read != nil {
 		db.pools.Read.Close()
 	}
+	slog.Info("closed postgreSQL database clients")
 }
 
 type TxArgs struct {

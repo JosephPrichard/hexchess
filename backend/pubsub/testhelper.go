@@ -10,11 +10,15 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+type SubscriberAPI interface {
+	Mailbox() chan []byte
+}
+
 func ExpectBroadcast[Message any](
 	t *testing.T,
 	rdb cache.Redis,
 	want []Message,
-	subscribe func(lb *subscribers.LocalBroadcasters, ch chan []byte),
+	subscribe func(lb *subscribers.LocalBroadcasters, capacity int) SubscriberAPI,
 	unmarshal func(bytes []byte) Message,
 	cmpOpts ...cmp.Option,
 ) func() {
@@ -27,8 +31,7 @@ func ExpectBroadcast[Message any](
 	lb := subscribers.NewLocalBroadcasters()
 	lb.Listen(t.Context(), rdb)
 
-	subChan := make(chan []byte, len(want))
-	subscribe(lb, subChan)
+	subscriber := subscribe(lb, len(want))
 
 	return func() {
 		t.Helper()
@@ -36,7 +39,7 @@ func ExpectBroadcast[Message any](
 		for i := range want {
 			var raw []byte
 			select {
-			case raw = <-subChan:
+			case raw = <-subscriber.Mailbox():
 			case <-time.After(5 * time.Second):
 				t.Fatalf("timed out waiting for broadcaster message %d/%d", i+1, len(want))
 			}

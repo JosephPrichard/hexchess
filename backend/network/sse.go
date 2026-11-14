@@ -23,29 +23,33 @@ func NewSSEClient(ctx context.Context, w http.ResponseWriter, f http.Flusher) *S
 
 type ListenConfig[Message any] struct {
 	OnClose    func()
-	Stream     chan Message
+	Mailbox    chan Message
 	MapMessage func(Message) SseEvent
 }
 
 func streamServerSentEvents[Message any](client *SSEClient, cfg ListenConfig[Message]) {
 	go func() {
 		<-client.ctx.Done()
+
 		if cfg.OnClose == nil {
-			close(cfg.Stream)
+			close(cfg.Mailbox)
 		} else {
 			cfg.OnClose()
 		}
 	}()
 
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
+	defer keepAliveTicker.Stop()
+
+StreamLoop:
 	for {
 		select {
-		case message, ok := <-cfg.Stream:
+		case message, ok := <-cfg.Mailbox:
 			if !ok {
-				return
+				break StreamLoop
 			}
 			if cfg.MapMessage == nil {
-				slog.WarnContext(client.ctx, "while streaming messages: mapMessage fn is not provided, dropping message")
+				slog.WarnContext(client.ctx, "SSE: while streaming messages: mapMessage fn is not provided, dropping message")
 				continue
 			}
 			event := cfg.MapMessage(message)
@@ -57,6 +61,8 @@ func streamServerSentEvents[Message any](client *SSEClient, cfg ListenConfig[Mes
 			client.SendEvent(SseEvent{EventName: MetaEvent, EventData: "KeepAlive"})
 		}
 	}
+
+	slog.InfoContext(client.ctx, "SSE: finished streaming server sent events")
 }
 
 func blockSSEClient(client *SSEClient) {
@@ -83,12 +89,12 @@ func (client *SSEClient) SendEvent(event SseEvent) {
 	defer client.lock.Unlock()
 
 	if _, err := fmt.Fprintf(client.w, "event: %s\ndata: %s\n\n", event.EventName, event.EventData); err != nil {
-		slog.ErrorContext(client.ctx, "failed to write to sse", "error", err)
+		slog.ErrorContext(client.ctx, "SSE: failed to write to sse", "error", err)
 	}
 
 	client.f.Flush()
 
 	if event.EventName != "KeepAlive" {
-		slog.InfoContext(client.ctx, "writing server sent event", "event", event.EventName, "data", event.EventData)
+		slog.InfoContext(client.ctx, "SSE: writing server sent event", "event", event.EventName, "data", event.EventData)
 	}
 }

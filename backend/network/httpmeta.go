@@ -70,7 +70,7 @@ func SetHealthCheck(mux *chi.Mux, config HealthConfig) {
 
 func SetAdminEndpoints[TTx any](mux *chi.Mux, riverClient *river.Client[TTx]) {
 	if riverClient == nil {
-		slog.Warn("river client is not providing, skipping set admin endpoint")
+		slog.Warn("river client is not provided, skipping set admin endpoint")
 		return
 	}
 

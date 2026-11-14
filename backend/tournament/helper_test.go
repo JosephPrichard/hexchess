@@ -39,7 +39,9 @@ func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKe
 
 	return pubsub.ExpectBroadcast(
 		t, rdb, wantOutputs,
-		func(lb *subscribers.LocalBroadcasters, ch chan []byte) { lb.Tournament.Subscribe(tournamentKey, ch) },
+		func(lb *subscribers.LocalBroadcasters, capacity int) pubsub.SubscriberAPI {
+			return lb.Tournament.Subscribe(tournamentKey, capacity)
+		},
 		func(bytes []byte) TournamentOutput {
 			var o TournamentOutput
 			require.NoError(t, json.Unmarshal(bytes, &o))

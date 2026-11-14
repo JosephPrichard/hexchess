@@ -22,36 +22,33 @@ func collectMessages(messages [][]byte) []string {
 	return strMessages
 }
 
-func TestMultiCasterActor(t *testing.T) {
-	broker := NewBroadcastBroker[string]("testing-multicasters")
+func TestBroadcastBroker(t *testing.T) {
+	broker := NewBroadcastBroker[[]byte]("test-broadcast")
+	defer broker.Shutdown()
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}
 	wantSub2Msgs := []string{"test2", "test3"}
 	wantSub3Msgs := []string{"test2"}
 	wantSub4Msgs := []string{"test4"}
 
-	sub1 := make(chan []byte, len(wantSub1Msgs))
-	sub2 := make(chan []byte, len(wantSub2Msgs))
-	sub3 := make(chan []byte, len(wantSub3Msgs))
-	sub4 := make(chan []byte, len(wantSub4Msgs))
-
 	mChan1 := make(chan [][]byte)
 	mChan2 := make(chan [][]byte)
 	mChan3 := make(chan [][]byte)
 	mChan4 := make(chan [][]byte)
 
-	go testSubscriber(sub1, mChan1)
-	go testSubscriber(sub2, mChan2)
-	go testSubscriber(sub3, mChan3)
-	go testSubscriber(sub4, mChan4)
+	sub1 := broker.Subscribe("1", len(wantSub1Msgs))
+	sub4 := broker.Subscribe("2", len(wantSub4Msgs))
 
-	broker.Subscribe("1", sub1)
-	broker.Subscribe("2", sub4)
+	go testSubscriber(sub1.Mailbox(), mChan1)
+	go testSubscriber(sub4.Mailbox(), mChan4)
 
 	broker.Broadcast("1", []byte("test1"))
 
-	broker.Subscribe("1", sub2)
-	broker.Subscribe("1", sub3)
+	sub2 := broker.Subscribe("1", len(wantSub2Msgs))
+	sub3 := broker.Subscribe("1", len(wantSub3Msgs))
+
+	go testSubscriber(sub2.Mailbox(), mChan2)
+	go testSubscriber(sub3.Mailbox(), mChan3)
 
 	broker.Broadcast("1", []byte("test2"))
 
@@ -70,31 +67,32 @@ func TestMultiCasterActor(t *testing.T) {
 	assert.Equal(t, wantSub4Msgs, collectMessages(<-mChan4))
 }
 
-func TestGlobalCasterActor(t *testing.T) {
-	broker := NewGlobalCasterBroker("testing-globalcaster")
+func TestBroadcastBroker_GlobalKey(t *testing.T) {
+	broker := NewBroadcastBroker[GlobalCastEvent]("testing-broadcast-global")
+	defer broker.Shutdown()
 
 	e1 := GlobalCastEvent{Kind: 0, Data: "test1"}
 	e2 := GlobalCastEvent{Kind: 1, Data: "test2"}
 	wantSub1Events := []GlobalCastEvent{e1, e2}
 	wantSub2Events := []GlobalCastEvent{e2}
 
-	sub1 := make(chan GlobalCastEvent, len(wantSub1Events))
-	sub2 := make(chan GlobalCastEvent, len(wantSub2Events))
-
 	mChan1 := make(chan []GlobalCastEvent)
 	mChan2 := make(chan []GlobalCastEvent)
 
-	go testSubscriber(sub1, mChan1)
-	go testSubscriber(sub2, mChan2)
+	sub1 := broker.Subscribe(GlobalCountsKey, len(wantSub1Events))
 
-	broker.Subscribe(sub1)
-	broker.Broadcast(e1)
+	go testSubscriber(sub1.Mailbox(), mChan1)
 
-	broker.Subscribe(sub2)
-	broker.Broadcast(e2)
+	broker.Broadcast(GlobalCountsKey, e1)
 
-	broker.Unsubscribe(sub1)
-	broker.Unsubscribe(sub2)
+	sub2 := broker.Subscribe(GlobalCountsKey, len(wantSub2Events))
+
+	go testSubscriber(sub2.Mailbox(), mChan2)
+
+	broker.Broadcast(GlobalCountsKey, e2)
+
+	broker.Unsubscribe(GlobalCountsKey, sub1)
+	broker.Unsubscribe(GlobalCountsKey, sub2)
 
 	assert.Equal(t, wantSub1Events, <-mChan1)
 	assert.Equal(t, wantSub2Events, <-mChan2)

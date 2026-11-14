@@ -160,8 +160,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			websocketTest := setupWebsocketTest(t)
 			defer websocketTest.Shutdown()
 
-			subChan := make(chan []byte, len(wantBrdcasts))
-			websocketTest.broadcasters.Games.Subscribe(gameID, subChan)
+			subscriber := websocketTest.broadcasters.Games.Subscribe(gameID.String(), len(wantBrdcasts))
 
 			params := url.Values{}
 			params.Set("gameId", gameID.String())
@@ -179,8 +178,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			err = conn.WriteMessage(websocket.BinaryMessage, inputBytes)
 			require.NoError(t, err)
 
-			msgs := readGameOutputMsgs(t, conn)
-			brdcasts := readGameOutputBroadcasts(ctx, subChan)
+			msgs := readGameOutputMsgs(t, conn, len(wantMsgs))
+			brdcasts := readGameOutputBroadcasts(ctx, subscriber.Mailbox(), len(wantBrdcasts))
 
 			testutil.Equal(t, wantMsgs, msgs, gameOutputAssertionCmpOpts...)
 			testutil.Equal(t, wantBrdcasts, brdcasts, gameOutputAssertionCmpOpts...)
@@ -198,8 +197,8 @@ var gameOutputAssertionCmpOpts = []cmp.Option{
 	protocmp.IgnoreFields(&pb.HistMove{}, "white_timer_ms", "black_timer_ms"),
 }
 
-func readGameOutputMsgs(t *testing.T, conn *websocket.Conn) []*pb.GameOutput {
-	conn.SetReadDeadline(time.Now().Add(time.Millisecond * 250)) // ctx does not auto-propagate from dialer
+func readGameOutputMsgs(t *testing.T, conn *websocket.Conn, wantMessages int) []*pb.GameOutput {
+	conn.SetReadDeadline(time.Now().Add(time.Second)) // ctx does not auto-propagate from dialer
 
 	msgs := make([]*pb.GameOutput, 0)
 	for {
@@ -212,6 +211,9 @@ func readGameOutputMsgs(t *testing.T, conn *websocket.Conn) []*pb.GameOutput {
 		require.NoError(t, proto.Unmarshal(outputBytes, output))
 
 		msgs = append(msgs, output)
+		if len(msgs) == wantMessages {
+			break
+		}
 	}
 
 	slices.SortFunc(msgs, func(a *pb.GameOutput, b *pb.GameOutput) int {
@@ -220,18 +222,17 @@ func readGameOutputMsgs(t *testing.T, conn *websocket.Conn) []*pb.GameOutput {
 	return msgs
 }
 
-func readGameOutputBroadcasts(ctx context.Context, subChan chan []byte) []any {
-	ctx, cancel := context.WithTimeout(ctx, time.Millisecond*250)
+func readGameOutputBroadcasts(ctx context.Context, subChan chan []byte, wantBrdcasts int) []any {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 
 	var broadcasts []any
+
+ReadLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			slices.SortFunc(broadcasts, func(a any, b any) int {
-				return stlcmp.Compare(getBroadcastSortOrd(b), getBroadcastSortOrd(a))
-			})
-			return broadcasts
+			break ReadLoop
 		case bytes := <-subChan:
 			var pbGame pb.GameOutput
 			if err := proto.Unmarshal(bytes, &pbGame); err != nil {
@@ -239,8 +240,16 @@ func readGameOutputBroadcasts(ctx context.Context, subChan chan []byte) []any {
 			} else {
 				broadcasts = append(broadcasts, &pbGame)
 			}
+			if len(broadcasts) == wantBrdcasts {
+				break ReadLoop
+			}
 		}
 	}
+
+	slices.SortFunc(broadcasts, func(a any, b any) int {
+		return stlcmp.Compare(getBroadcastSortOrd(b), getBroadcastSortOrd(a))
+	})
+	return broadcasts
 }
 
 func getBroadcastSortOrd(b any) int {

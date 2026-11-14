@@ -6,7 +6,6 @@ import (
 	"errors"
 	"hexchess-svc/cache"
 	"hexchess-svc/challenges"
-	"hexchess-svc/gameid"
 	"hexchess-svc/pb"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
@@ -16,65 +15,75 @@ import (
 )
 
 type LocalBroadcasters struct {
-	Counts     *GlobalCasterBroker
-	Games      *BroadcastBroker[gameid.Identifier]
-	Users      *BroadcastBroker[string]
-	Tournament *BroadcastBroker[string]
+	Counts     *BroadcastBroker[GlobalCastEvent]
+	Games      *BroadcastBroker[[]byte]
+	Users      *BroadcastBroker[[]byte]
+	Tournament *BroadcastBroker[[]byte]
 }
+
+type CountEventKind int
+
+const (
+	GlobalActiveEvent CountEventKind = iota
+	GlobalGamesEvent
+)
+
+type GlobalCastEvent struct {
+	Kind CountEventKind
+	Data string
+}
+
+const GlobalCountsKey = "counts-caster-key"
 
 func NewLocalBroadcasters() *LocalBroadcasters {
 	return &LocalBroadcasters{
-		Counts:     NewGlobalCasterBroker("counts-caster"),
-		Games:      NewBroadcastBroker[gameid.Identifier]("games-caster"),
-		Users:      NewBroadcastBroker[string]("users-caster"),
-		Tournament: NewBroadcastBroker[string]("users-caster"),
+		Counts:     NewBroadcastBroker[GlobalCastEvent]("counts-caster"),
+		Games:      NewBroadcastBroker[[]byte]("games-caster"),
+		Users:      NewBroadcastBroker[[]byte]("users-caster"),
+		Tournament: NewBroadcastBroker[[]byte]("tournament-caster"),
 	}
 }
 
 func (b *LocalBroadcasters) Listen(ctx context.Context, rdb cache.Redis) {
-	slog.Info("starting local broadcasters")
+	slog.Info("PubSub: starting local broadcasters")
 
 	var errs []error
 	for _, listener := range []func(context.Context, cache.Redis) error{
-		b.ListenGameMessages,
-		b.ListenUsersMessages,
-		b.ListenTournamentMessages,
-		b.ListenCountEvents,
+		b.listenGameMessages,
+		b.listenUsersMessages,
+		b.listenTournamentMessages,
+		b.listenCountEvents,
 	} {
 		errs = append(errs, listener(ctx, rdb))
 	}
 
 	if e := errors.Join(errs...); e != nil {
-		slogutil.Fatal("failed to listen to local broadcasters", e)
+		slogutil.Fatal("PubSub: failed to listen to local broadcasters", e)
 	}
 }
 
-//func (b *LocalBroadcasters) Shutdown() {
-//	slog.Info("shutting down local broadcasters")
-//	b.Counts.Shutdown()
-//	b.Games.Shutdown()
-//	b.Users.Shutdown()
-//	b.Tournament.Shutdown()
-//}
+func (b *LocalBroadcasters) listenGameMessages(ctx context.Context, rdb cache.Redis) error {
+	return listenRedisChannels(listenConfig{
+		ctx:         ctx,
+		redisClient: rdb.PubSubClient,
+		channels:    []string{cache.Constants.GamesChannel},
+		onMessage: func(redisMessage *redis.Message) {
+			bytesPayload := []byte(redisMessage.Payload)
 
-func (b *LocalBroadcasters) ListenGameMessages(ctx context.Context, rdb cache.Redis) error {
-	return listenRedisChannels(ctx, rdb.PubSubClient, []string{cache.Constants.GamesChannel}, func(redisMessage *redis.Message) {
-		bytesPayload := []byte(redisMessage.Payload)
+			var outputID pb.GameOutputID
+			if err := outputID.UnmarshalVT(bytesPayload); err != nil {
+				slog.Error("PubSub: unmarshal game message", "error", err)
+				return
+			}
 
-		var outputID pb.GameOutputID
-		if err := outputID.UnmarshalVT(bytesPayload); err != nil {
-			slog.Error("unmarshal game message", "error", err)
-			return
-		}
+			type payload = struct {
+				Id string `json:"gameId"`
+			}
+			slog.Info("PubSub: received message on channel", "channel", redisMessage.Channel, "payload", payload{outputID.GameId})
 
-		type payload = struct {
-			Id string `json:"gameId"`
-		}
-		slog.Info("received message on channel", "channel", redisMessage.Channel, "payload", payload{outputID.GameId})
-
-		gameID := gameid.Identifier(outputID.GameId)
-
-		b.Games.Broadcast(gameID, bytesPayload)
+			b.Games.Broadcast(outputID.GameId, bytesPayload)
+		},
+		onClose: b.Games.Shutdown,
 	})
 }
 
@@ -82,42 +91,54 @@ type TournamentOutputKey struct {
 	TournamentKey string `json:"tournamentKey"`
 }
 
-func (b *LocalBroadcasters) ListenTournamentMessages(ctx context.Context, rdb cache.Redis) error {
-	return listenRedisChannels(ctx, rdb.PubSubClient, []string{cache.Constants.TournamentsChannel}, func(redisMessage *redis.Message) {
-		bytesPayload := []byte(redisMessage.Payload)
+func (b *LocalBroadcasters) listenTournamentMessages(ctx context.Context, rdb cache.Redis) error {
+	return listenRedisChannels(listenConfig{
+		ctx:         ctx,
+		redisClient: rdb.PubSubClient,
+		channels:    []string{cache.Constants.TournamentsChannel},
+		onMessage: func(redisMessage *redis.Message) {
+			bytesPayload := []byte(redisMessage.Payload)
 
-		var output TournamentOutputKey
-		if err := json.Unmarshal(bytesPayload, &output); err != nil {
-			slog.Error("unmarshal tournament message", "error", err)
-			return
-		}
-		slog.Info("received message on channel", "channel", redisMessage.Channel, "payload", &output)
+			var output TournamentOutputKey
+			if err := json.Unmarshal(bytesPayload, &output); err != nil {
+				slog.Error("PubSub: unmarshal tournament message", "error", err)
+				return
+			}
+			slog.Info("PubSub: received message on channel", "channel", redisMessage.Channel, "payload", &output)
 
-		b.Tournament.Broadcast(output.TournamentKey, bytesPayload)
+			b.Tournament.Broadcast(output.TournamentKey, bytesPayload)
+		},
+		onClose: b.Tournament.Shutdown,
 	})
 }
 
-func (b *LocalBroadcasters) ListenUsersMessages(ctx context.Context, rdb cache.Redis) error {
-	return listenRedisChannels(ctx, rdb.PubSubClient, []string{cache.Constants.UsersChannel}, func(redisMessage *redis.Message) {
-		bytesPayload := []byte(redisMessage.Payload)
+func (b *LocalBroadcasters) listenUsersMessages(ctx context.Context, rdb cache.Redis) error {
+	return listenRedisChannels(listenConfig{
+		ctx:         ctx,
+		redisClient: rdb.PubSubClient,
+		channels:    []string{cache.Constants.UsersChannel},
+		onMessage: func(redisMessage *redis.Message) {
+			bytesPayload := []byte(redisMessage.Payload)
 
-		var userMessage challenges.UserMessage
-		if err := json.Unmarshal(bytesPayload, &userMessage); err != nil {
-			slog.Error("unmarshal user message", "error", err)
-			return
-		}
-		slog.Info("received message on channel", "channel", redisMessage.Channel, "payload", &redisMessage)
+			var userMessage challenges.UserMessage
+			if err := json.Unmarshal(bytesPayload, &userMessage); err != nil {
+				slog.Error("PubSub: unmarshal user message", "error", err)
+				return
+			}
+			slog.Info("PubSub: received message on channel", "channel", redisMessage.Channel, "payload", &redisMessage)
 
-		switch userMessage.Kind {
-		case challenges.ChallengeKind:
-			b.Users.Broadcast(strconv.Itoa(int(userMessage.Challenge.ChallengeeID)), bytesPayload)
-		default:
-			slog.Warn("received unknown message kind on users channel", "kind", userMessage.Kind)
-		}
+			switch userMessage.Kind {
+			case challenges.ChallengeKind:
+				b.Users.Broadcast(strconv.Itoa(int(userMessage.Challenge.ChallengeeID)), bytesPayload)
+			default:
+				slog.Warn("received unknown message kind on users channel", "kind", userMessage.Kind)
+			}
+		},
+		onClose: b.Users.Shutdown,
 	})
 }
 
-func (b *LocalBroadcasters) ListenCountEvents(ctx context.Context, rdb cache.Redis) error {
+func (b *LocalBroadcasters) listenCountEvents(ctx context.Context, rdb cache.Redis) error {
 	var eventMap = map[string]CountEventKind{
 		cache.Constants.ActiveCountChannel: GlobalActiveEvent,
 		cache.Constants.GamesCountChannel:  GlobalGamesEvent,
@@ -128,21 +149,41 @@ func (b *LocalBroadcasters) ListenCountEvents(ctx context.Context, rdb cache.Red
 		channels = append(channels, ch)
 	}
 
-	return listenRedisChannels(ctx, rdb.PubSubClient, channels, func(redisMessage *redis.Message) {
-		strData := redisMessage.Payload
-		// unicast broadcasting is only being used to game counts (small payload), so it is safe to log
-		slog.Info("received message on channel", "event", strData, "channel", redisMessage.Channel)
+	return listenRedisChannels(listenConfig{
+		ctx:         ctx,
+		redisClient: rdb.PubSubClient,
+		channels:    channels,
+		onMessage: func(redisMessage *redis.Message) {
+			strData := redisMessage.Payload
+			// unicast broadcasting is only being used to game counts (small payload), so it is safe to log
+			slog.Info("PubSub: received message on channel", "event", strData, "channel", redisMessage.Channel)
 
-		eKind, ok := eventMap[redisMessage.Channel]
-		if !ok {
-			slog.Error("received message on unmapped channel", "channel", redisMessage.Channel, "eventMap", eventMap)
-			return
-		}
-		b.Counts.Broadcast(GlobalCastEvent{Kind: eKind, Data: strData})
+			eKind, ok := eventMap[redisMessage.Channel]
+			if !ok {
+				slog.Error("PubSub: received message on unmapped channel", "channel", redisMessage.Channel, "eventMap", eventMap)
+				return
+			}
+			b.Counts.Broadcast(GlobalCountsKey, GlobalCastEvent{Kind: eKind, Data: strData})
+		},
+		onClose: b.Counts.Shutdown,
 	})
 }
 
-func listenRedisChannels(ctx context.Context, redisClient *redis.Client, channels []string, onMessage func(*redis.Message)) error {
+type listenConfig struct {
+	ctx         context.Context
+	redisClient *redis.Client
+	channels    []string
+	onMessage   func(*redis.Message)
+	onClose     func()
+}
+
+func listenRedisChannels(cfg listenConfig) error {
+	ctx := cfg.ctx
+	redisClient := cfg.redisClient
+	channels := cfg.channels
+	onMessage := cfg.onMessage
+	onClose := cfg.onClose
+
 	// subscribe to all channels
 	pubsub := redisClient.Subscribe(ctx, channels...)
 
@@ -154,18 +195,20 @@ func listenRedisChannels(ctx context.Context, redisClient *redis.Client, channel
 		}
 		switch msg := anyMsg.(type) {
 		case *redis.Subscription:
-			slog.Info("received redis pubsub subscription acknowledgement", "msg", msg, "connURL", redisClient.String())
+			slog.Info("PubSub: received redis pubsub subscription acknowledgement", "msg", msg, "connURL", redisClient.String())
 		case *redis.Message:
 			onMessage(msg)
 		}
 	}
 
-	// start the listening event loop in the background - channel will be closed if pubsub is canceled
 	go func() {
+		defer onClose()
+
+		// start the listening event loop - channel will be closed if pubsub is closed, which is closed if redis is closed
 		for message := range pubsub.Channel() {
 			onMessage(message)
 		}
-		slog.Info("redis subscriber listener shutdown", "channels", channels)
+		slog.Info("PubSub: redis subscriber listener shutdown", "channels", channels)
 	}()
 
 	return nil

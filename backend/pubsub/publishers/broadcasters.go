@@ -35,9 +35,9 @@ func (b *Broadcaster) broadcastMessage(ctx context.Context, channel string, byte
 		// TODO(Joseph): consider using unsafe rather than casting to a string here for performance reasons
 		recvCount, err := b.redis.Publish(ctx, channel, string(bytes)).Result()
 		if err != nil {
-			slog.ErrorContext(ctx, "failed to publish message to channel", "channel", channel, "error", err)
+			slog.ErrorContext(ctx, "PubSub: failed to publish message to channel", "channel", channel, "error", err)
 		} else {
-			slog.InfoContext(ctx, "broadcasted message to channel", "channel", channel, "recvCount", recvCount, "connURL", b.redis.String())
+			slog.InfoContext(ctx, "PubSub: broadcasted message to channel", "channel", channel, "recvCount", recvCount, "connURL", b.redis.String())
 		}
 	})
 }
@@ -47,11 +47,11 @@ type CountEvent struct {
 }
 
 func (b *Broadcaster) broadcastCountEvent(ctx context.Context, channel string, count int64) {
-	slog.InfoContext(ctx, "broadcasting count event", "channel", channel, "count", count)
+	slog.InfoContext(ctx, "PubSub: broadcasting count event", "channel", channel, "count", count)
 
 	bytes, err := json.Marshal(CountEvent{Count: count})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal count event", "error", err)
+		slog.ErrorContext(ctx, "PubSub: failed to marshal count event", "error", err)
 		return
 	}
 	b.broadcastMessage(context.WithoutCancel(ctx), channel, bytes)
@@ -66,33 +66,33 @@ func (b *Broadcaster) BroadcastGameCount(ctx context.Context, count int64) {
 }
 
 func (b *Broadcaster) BroadcastGamesEvent(ctx context.Context, output *pb.GameOutput) {
-	slog.InfoContext(ctx, "broadcasting game event", "gameId", output.GameId)
+	slog.InfoContext(ctx, "PubSub: broadcasting game event", "gameId", output.GameId)
 
 	bytes, err := output.MarshalVT()
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal game message", "error", err)
+		slog.ErrorContext(ctx, "PubSub: failed to marshal game message", "error", err)
 		return
 	}
 	b.broadcastMessage(context.WithoutCancel(ctx), cache.Constants.GamesChannel, bytes)
 }
 
 func (b *Broadcaster) BroadcastTournament(ctx context.Context, tournament any) {
-	slog.InfoContext(ctx, "broadcasting tournament", "tournamentOutput", tournament)
+	slog.InfoContext(ctx, "PubSub: broadcasting tournament", "tournamentOutput", tournament)
 
 	bytes, err := json.Marshal(tournament)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal tournament message", "error", err)
+		slog.ErrorContext(ctx, "PubSub: failed to marshal tournament message", "error", err)
 		return
 	}
 	b.broadcastMessage(context.WithoutCancel(ctx), cache.Constants.TournamentsChannel, bytes)
 }
 
 func (b *Broadcaster) BroadcastUserMessage(ctx context.Context, message any) {
-	slog.InfoContext(ctx, "broadcasting user message", "message", message)
+	slog.InfoContext(ctx, "PubSub: broadcasting user message", "message", message)
 
 	bytes, err := json.Marshal(message)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal user message", "error", err)
+		slog.ErrorContext(ctx, "PubSub: failed to marshal user message", "error", err)
 		return
 	}
 	b.broadcastMessage(context.WithoutCancel(ctx), cache.Constants.UsersChannel, bytes)

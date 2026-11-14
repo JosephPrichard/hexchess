@@ -74,7 +74,9 @@ func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID gameid.Identifie
 
 	return pubsub.ExpectBroadcast(
 		t, rdb, wantOutputs,
-		func(lb *subscribers.LocalBroadcasters, ch chan []byte) { lb.Games.Subscribe(gameID, ch) },
+		func(lb *subscribers.LocalBroadcasters, capacity int) pubsub.SubscriberAPI {
+			return lb.Games.Subscribe(gameID.String(), capacity)
+		},
 		func(bytes []byte) *pb.GameOutput {
 			o := &pb.GameOutput{}
 			require.NoError(t, proto.Unmarshal(bytes, o))

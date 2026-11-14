@@ -1,7 +1,6 @@
 package publishers
 
 import (
-	"hexchess-svc/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub/subscribers"
@@ -14,7 +13,6 @@ import (
 )
 
 func TestBroadcastMessage(t *testing.T) {
-
 	ctx := t.Context()
 
 	testInfra := itest.SetupIntegrationTest(t)
@@ -24,15 +22,12 @@ func TestBroadcastMessage(t *testing.T) {
 
 	globalBroadcaster := NewSyncBroadcaster(rdb)
 
-	localBroadcasters := subscribers.LocalBroadcasters{Games: subscribers.NewBroadcastBroker[gameid.Identifier]("testing-multicast")}
-	err := localBroadcasters.ListenGameMessages(ctx, rdb)
-
-	require.NoError(t, err)
+	localBroadcasters := subscribers.NewLocalBroadcasters()
+	localBroadcasters.Listen(ctx, rdb)
 
 	wantMsgCount := 2
 
-	subChan := make(chan []byte, wantMsgCount)
-	localBroadcasters.Games.Subscribe("1", subChan)
+	subscriber := localBroadcasters.Games.Subscribe("1", wantMsgCount)
 
 	// note: there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
 	// this is true even though psc.Subscribe is called before "PUBLISH" so the race condition is redis-side and unavoidable
@@ -54,7 +49,7 @@ func TestBroadcastMessage(t *testing.T) {
 
 	var messages []string
 	for range wantMsgCount {
-		messages = append(messages, mustUnmarshalChatMessage(t, <-subChan))
+		messages = append(messages, mustUnmarshalChatMessage(t, <-subscriber.Mailbox()))
 	}
 	assert.Equal(t, []string{"test1", "test2"}, messages)
 }

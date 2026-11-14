@@ -45,7 +45,6 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 	gameID := gameid.Identifier(query.Get("gameId"))
 	sessionID := query.Get("sessionId")
 
-	subChan := make(chan wsMessage, GameplayChanBufCap)
 	errChan := make(chan websocketError)
 
 	// initialize websocket connection
@@ -55,13 +54,13 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	cleanup := sync.OnceFunc(func() {
-		server.broadcasters.Games.Unsubscribe(gameID, subChan) // send close signal to writer
-		conn.Close()                                           // send close signal to reader
-	})
-
 	// initialize connection state (begin listening, get session data, sent initial responses etc.)
-	server.broadcasters.Games.Subscribe(gameID, subChan)
+	subscriber := server.broadcasters.Games.Subscribe(gameID.String(), GameplayChanBufCap)
+
+	cleanup := sync.OnceFunc(func() {
+		server.broadcasters.Games.Unsubscribe(gameID.String(), subscriber) // send close signal to writer
+		conn.Close()                                                       // send close signal to reader
+	})
 
 	playerState, messages := server.handleGameInit(ctx, gameID, sessionID)
 	for _, message := range messages {
@@ -90,7 +89,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 			select {
 			case wsErr := <-errChan:
 				writeMessage(ctx, conn, marshalGameError(ctx, GameError{GameID: gameID, MessageID: wsErr.messageID, Error: wsErr.value}))
-			case message, ok := <-subChan:
+			case message, ok := <-subscriber.Mailbox():
 				if !ok {
 					// receive close signal from writer
 					slog.InfoContext(ctx, "websocket writer closed", "gameID", gameID)
@@ -153,10 +152,7 @@ func marshalGameError(ctx context.Context, output GameError) []byte {
 
 func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Identifier, sessionID string) (player.PlayerState, []wsMessage) {
 	errorResponse := func(err error) (player.PlayerState, []wsMessage) {
-		messages := []wsMessage{
-			marshalGameError(ctx, GameError{GameID: gameID, Error: err}),
-		}
-		return player.PlayerState{}, messages
+		return player.PlayerState{}, []wsMessage{marshalGameError(ctx, GameError{GameID: gameID, Error: err})}
 	}
 
 	playerState, err := server.service.GetSession(ctx, sessionID)
@@ -180,8 +176,7 @@ func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Iden
 	})
 	server.broadcaster.BroadcastGamesEvent(ctx, output)
 
-	messages := []wsMessage{initBytes}
-	return playerState, messages
+	return playerState, []wsMessage{initBytes}
 }
 
 type WsMessageTypeError struct {

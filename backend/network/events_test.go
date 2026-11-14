@@ -54,7 +54,7 @@ func TestHandleCountEvents(t *testing.T) {
 		"",
 	}
 
-	gotEvents := scanLines(t, resp)
+	gotEvents := scanLines(t, resp, len(wantLines))
 	assert.Equal(t, wantLines, gotEvents)
 }
 
@@ -66,8 +66,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	wantBroadcast := subscribers.GlobalCastEvent{Kind: subscribers.GlobalActiveEvent, Data: `{"count":1}`}
 
-	broadcastSubscriber := make(chan subscribers.GlobalCastEvent, 1)
-	sseTest.localBroadcasters.Counts.Subscribe(broadcastSubscriber)
+	broadcastSubscriber := sseTest.localBroadcasters.Counts.Subscribe(subscribers.GlobalCountsKey, 1)
 
 	go func() {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/active", nil)
@@ -81,7 +80,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	var actualBroadcast subscribers.GlobalCastEvent
 	select {
-	case e := <-broadcastSubscriber:
+	case e := <-broadcastSubscriber.Mailbox():
 		actualBroadcast = e
 	case <-ctx.Done():
 		t.Errorf("test timed out: %v", ctx.Err())
@@ -129,7 +128,7 @@ func TestHandleUserEvents(t *testing.T) {
 			"")
 	}
 
-	gotEvents := scanLines(t, resp)
+	gotEvents := scanLines(t, resp, len(wantLines))
 	assert.Equal(t, wantLines, gotEvents)
 }
 
@@ -197,8 +196,8 @@ func TestHandleTournamentEvents(t *testing.T) {
 		fmt.Sprintf("data: %s", keyString),
 		"",
 	}
-	for _, tournament := range inputTournaments[1:] {
-		jsonData, err := json.Marshal(tournament)
+	for _, tournamentData := range inputTournaments[1:] {
+		jsonData, err := json.Marshal(tournamentData)
 		require.NoError(t, err)
 		wantLines = append(wantLines,
 			fmt.Sprintf("event: %s", network.TournamentEvent),
@@ -206,12 +205,12 @@ func TestHandleTournamentEvents(t *testing.T) {
 			"")
 	}
 
-	gotEvents := scanLines(t, resp)
+	gotEvents := scanLines(t, resp, len(wantLines))
 	assert.Equal(t, wantLines, gotEvents)
 }
 
-func scanLines(t *testing.T, resp *http.Response) []string {
-	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*250)
+func scanLines(t *testing.T, resp *http.Response, wantLinesCount int) []string {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 
 	defer resp.Body.Close()
@@ -232,6 +231,7 @@ func scanLines(t *testing.T, resp *http.Response) []string {
 
 	var lines []string
 
+ScanLoop:
 	for {
 		var line string
 		var ok bool
@@ -239,7 +239,7 @@ func scanLines(t *testing.T, resp *http.Response) []string {
 		// drain lines from scanner and propagate cancellation
 		select {
 		case <-ctx.Done():
-			return lines
+			break ScanLoop
 		case line, ok = <-linesChan:
 			if ok {
 				// for each event: we expect the following
@@ -247,9 +247,15 @@ func scanLines(t *testing.T, resp *http.Response) []string {
 				// data:\n
 				// \n
 				lines = append(lines, line)
+				if len(lines) == wantLinesCount {
+					break ScanLoop
+				}
 			} else {
-				return lines
+				break ScanLoop
 			}
 		}
 	}
+
+	t.Logf("finished scanLines loop: %v", lines)
+	return lines
 }
