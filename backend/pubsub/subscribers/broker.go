@@ -123,12 +123,13 @@ func (broker *BroadcastBroker[Payload]) cleanIdleShards() {
 			broker.shardsMap.Range(func(shardID, anyShard any) bool {
 				shard := anyShard.(*brokerShard[Payload])
 
-				isMarkedForRemoval := shard.removeIfIdle()
-				if isMarkedForRemoval {
-					// removing the `idle` shard from the broker must be done outside the shard's lock
+				isRemoved := shard.doWhenEmpty(func() {
 					broker.shardsMap.Delete(shardID)
-					slog.Info("PubSub: removed idle shard", "brokerID", broker.id, "shardID", shardID)
+				})
+				if isRemoved {
+					slog.Info("PubSub: removed empty shard", "brokerID", broker.id, "shardID", shardID)
 				}
+
 				return true
 			})
 		case <-broker.cleanerDone:

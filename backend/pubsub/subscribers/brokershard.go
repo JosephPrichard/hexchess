@@ -15,7 +15,6 @@ type brokerShard[Payload any] struct {
 	brokerID       string
 	shardID        string
 	subscribersMap subscribersMap[Payload]
-	pendingRemoval bool
 
 	slowSubscriberTimeout time.Duration
 }
@@ -31,15 +30,10 @@ func (shard *brokerShard[Payload]) subscribe(record *brokerRecord[Payload]) {
 	// `Lock` is done per shard, so broker subscribe operations on different shards can run in parallel
 	shard.lock.Lock()
 
-	if !shard.pendingRemoval {
-		if shard.subscribersMap == nil {
-			shard.subscribersMap = make(subscribersMap[Payload])
-		}
-		shard.subscribersMap[subscriberID] = record
-	} else {
-		// edge case: we have a shard that is pending removal (rare), immediately close the subscriber so the client will retry after removal is complete
-		close(record.mailbox)
+	if shard.subscribersMap == nil {
+		shard.subscribersMap = make(subscribersMap[Payload])
 	}
+	shard.subscribersMap[subscriberID] = record
 
 	shard.lock.Unlock()
 
@@ -95,16 +89,18 @@ func (shard *brokerShard[Payload]) broadcast(payload Payload) {
 		"brokerID", shard.brokerID, "shardID", shard.shardID, "recvCount", recvCount, "dropCount", dropCount)
 }
 
-func (shard *brokerShard[Payload]) removeIfIdle() bool {
+func (shard *brokerShard[Payload]) doWhenEmpty(removeFn func()) bool {
 	shard.lock.Lock()
 
-	// a shard is `idle` if it doesn't have any subscribers and should be marked for removal
-	isMarkedForRemoval := len(shard.subscribersMap) == 0
-	if isMarkedForRemoval {
+	// a shard is `empty` if it doesn't have any subscribers and should be removed (to save memory)
+	isRemoved := len(shard.subscribersMap) == 0
+	if isRemoved {
 		shard.subscribersMap = nil
-		shard.pendingRemoval = true // marks a shard as pending `removal` so a concurrent subscribe operation will know to reject the next subscriber
+		// callback to remove the shard from its owning data-structure (this function *CANNOT* acquire another lock on this shard)
+		// executing callback in lock ensures that checking subscribers is atomic with regard to removal - subscribersMap is guaranteed to stay empty
+		removeFn()
 	}
 
 	shard.lock.Unlock()
-	return isMarkedForRemoval
+	return isRemoved
 }
