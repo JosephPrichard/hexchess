@@ -15,7 +15,7 @@ import (
 )
 
 type LocalBroadcasters struct {
-	Counts     *BroadcastBroker[GlobalCastEvent]
+	Counts     *GlobalBroadcastBroker[GlobalCastEvent]
 	Games      *BroadcastBroker[[]byte]
 	Users      *BroadcastBroker[[]byte]
 	Tournament *BroadcastBroker[[]byte]
@@ -35,13 +35,20 @@ type GlobalCastEvent struct {
 
 const GlobalCountsKey = "counts-caster-key"
 
-func NewLocalBroadcasters() *LocalBroadcasters {
+func NewLocalBroadcasters(config BrokerConfig) *LocalBroadcasters {
 	return &LocalBroadcasters{
-		Counts:     NewBroadcastBroker[GlobalCastEvent]("counts-caster"),
-		Games:      NewBroadcastBroker[[]byte]("games-caster"),
-		Users:      NewBroadcastBroker[[]byte]("users-caster"),
-		Tournament: NewBroadcastBroker[[]byte]("tournament-caster"),
+		Counts:     NewGlobalBroadcastBroker[GlobalCastEvent]("counts-caster", config),
+		Games:      NewBroadcastBroker[[]byte]("games-caster", config),
+		Users:      NewBroadcastBroker[[]byte]("users-caster", config),
+		Tournament: NewBroadcastBroker[[]byte]("tournament-caster", config),
 	}
+}
+
+func (b *LocalBroadcasters) Shutdown() {
+	b.Counts.Shutdown()
+	b.Games.Shutdown()
+	b.Users.Shutdown()
+	b.Tournament.Shutdown()
 }
 
 func (b *LocalBroadcasters) Listen(ctx context.Context, rdb cache.Redis) {
@@ -83,7 +90,6 @@ func (b *LocalBroadcasters) listenGameMessages(ctx context.Context, rdb cache.Re
 
 			b.Games.Broadcast(outputID.GameId, bytesPayload)
 		},
-		onClose: b.Games.Shutdown,
 	})
 }
 
@@ -108,7 +114,6 @@ func (b *LocalBroadcasters) listenTournamentMessages(ctx context.Context, rdb ca
 
 			b.Tournament.Broadcast(output.TournamentKey, bytesPayload)
 		},
-		onClose: b.Tournament.Shutdown,
 	})
 }
 
@@ -134,7 +139,6 @@ func (b *LocalBroadcasters) listenUsersMessages(ctx context.Context, rdb cache.R
 				slog.Warn("received unknown message kind on users channel", "kind", userMessage.Kind)
 			}
 		},
-		onClose: b.Users.Shutdown,
 	})
 }
 
@@ -163,9 +167,8 @@ func (b *LocalBroadcasters) listenCountEvents(ctx context.Context, rdb cache.Red
 				slog.Error("PubSub: received message on unmapped channel", "channel", redisMessage.Channel, "eventMap", eventMap)
 				return
 			}
-			b.Counts.Broadcast(GlobalCountsKey, GlobalCastEvent{Kind: eKind, Data: strData})
+			b.Counts.Broadcast(GlobalCastEvent{Kind: eKind, Data: strData})
 		},
-		onClose: b.Counts.Shutdown,
 	})
 }
 
@@ -174,7 +177,6 @@ type listenConfig struct {
 	redisClient *redis.Client
 	channels    []string
 	onMessage   func(*redis.Message)
-	onClose     func()
 }
 
 func listenRedisChannels(cfg listenConfig) error {
@@ -182,7 +184,6 @@ func listenRedisChannels(cfg listenConfig) error {
 	redisClient := cfg.redisClient
 	channels := cfg.channels
 	onMessage := cfg.onMessage
-	onClose := cfg.onClose
 
 	// subscribe to all channels
 	pubsub := redisClient.Subscribe(ctx, channels...)
@@ -202,8 +203,6 @@ func listenRedisChannels(cfg listenConfig) error {
 	}
 
 	go func() {
-		defer onClose()
-
 		// start the listening event loop - channel will be closed if pubsub is closed, which is closed if redis is closed
 		for message := range pubsub.Channel() {
 			onMessage(message)

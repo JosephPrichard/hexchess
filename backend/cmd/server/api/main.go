@@ -78,7 +78,7 @@ func main() {
 
 	broadcaster := publishers.NewAsyncBroadcaster(redisClient)
 
-	broadcasters := subscribers.NewLocalBroadcasters()
+	broadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
 	broadcasters.Listen(context.Background(), redisClient)
 
 	// start API server and PPROF "sidecar" background task

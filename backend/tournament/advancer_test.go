@@ -320,7 +320,8 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 		},
 	}
 
-	assertBroadcasts := ExpectBroadcastTournamentOutput(t, testinfra.Redis, tournamentKey.String(), wantTournamentOutputs)
+	broadcastTest := ExpectBroadcastTournamentOutput(t, testinfra.Redis, tournamentKey.String(), wantTournamentOutputs)
+	defer broadcastTest.Shutdown()
 
 	_, err := service.AdvanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)
@@ -334,5 +335,5 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 	cmpOptsFullMatch := cmpopts.IgnoreFields(FullMatch{}, "GameID", "CreatedOn")
 	testutil.Equal(t, wantTournaments, edata.Creations, cmpOptsFullMatch)
 
-	assertBroadcasts()
+	broadcastTest.Assert()
 }

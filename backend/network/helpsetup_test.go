@@ -60,14 +60,15 @@ func (s *websocketTestContext) getWsURL() string {
 }
 
 func (s *websocketTestContext) Shutdown() {
+	s.testServer.Close() // *MUST* be shutdown before infrastructure/worker pools are shutdown
 	s.testinfra.Close()
-	s.testServer.Close()
+	s.broadcasters.Shutdown()
 }
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
 	testinfra := itest.SetupIntegrationTest(t)
 
-	localBroadcasters := subscribers.NewLocalBroadcasters()
+	localBroadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
 	localBroadcasters.Listen(t.Context(), testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
@@ -85,21 +86,22 @@ func setupWebsocketTest(t *testing.T) websocketTestContext {
 }
 
 type sseTestContext struct {
-	testinfra         itest.TestInfra
-	localBroadcasters *subscribers.LocalBroadcasters
-	broadcaster       publishers.Broadcaster
-	testServer        *httptest.Server
+	testinfra    itest.TestInfra
+	broadcasters *subscribers.LocalBroadcasters
+	broadcaster  publishers.Broadcaster
+	testServer   *httptest.Server
 }
 
 func (s *sseTestContext) Shutdown() {
+	s.testServer.Close() // *MUST* be shutdown before infrastructure/worker pools are shutdown
 	s.testinfra.Close()
-	s.testServer.Close()
+	s.broadcasters.Shutdown()
 }
 
 func setupSSETest(t *testing.T) sseTestContext {
 	testinfra := itest.SetupIntegrationTest(t)
 
-	localBroadcasters := subscribers.NewLocalBroadcasters()
+	localBroadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
 	localBroadcasters.Listen(t.Context(), testinfra.Redis)
 
 	createTestSessions(t, testinfra.Redis)
@@ -113,10 +115,10 @@ func setupSSETest(t *testing.T) sseTestContext {
 		Broadcasters: localBroadcasters,
 	}))
 	return sseTestContext{
-		testinfra:         testinfra,
-		broadcaster:       publishers.NewSyncBroadcaster(testinfra.Redis),
-		localBroadcasters: localBroadcasters,
-		testServer:        testServer,
+		testinfra:    testinfra,
+		broadcaster:  publishers.NewSyncBroadcaster(testinfra.Redis),
+		broadcasters: localBroadcasters,
+		testServer:   testServer,
 	}
 }
 

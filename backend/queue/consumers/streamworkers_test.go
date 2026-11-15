@@ -113,7 +113,9 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 			}},
 		},
 	}
-	assertBroadcasts := game.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
+
+	broadcastTest := game.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
+	defer broadcastTest.Shutdown()
 
 	err := producers.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, inputJob)
 	require.NoError(t, err)
@@ -132,7 +134,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 	}
 	assert.Equal(t, wantUserElos, userElos)
 
-	assertBroadcasts()
+	broadcastTest.Assert()
 }
 
 func TestHandleUpdtGameEvent(t *testing.T) {

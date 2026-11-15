@@ -66,7 +66,7 @@ func setChessStates(t *testing.T, rdb cache.Redis, states ...*ChessState) {
 	}
 }
 
-func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID gameid.Identifier, wantOutputs []*pb.GameOutput) func() {
+func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID gameid.Identifier, wantOutputs []*pb.GameOutput) pubsub.ExpectBroadcastResult {
 	cmpOptsGameOutputs := []cmp.Option{
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),

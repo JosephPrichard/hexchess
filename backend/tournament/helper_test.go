@@ -34,7 +34,7 @@ func assertRedisChess(t *testing.T, redis cache.Redis, wantState *game.ChessStat
 	testutil.Equal(t, wantState, actualState, options...)
 }
 
-func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKey string, wantOutputs []TournamentOutput) func() {
+func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKey string, wantOutputs []TournamentOutput) pubsub.ExpectBroadcastResult {
 	cmpOptsFullMatch := cmpopts.IgnoreFields(FullMatch{}, "GameID", "CreatedOn")
 
 	return pubsub.ExpectBroadcast(

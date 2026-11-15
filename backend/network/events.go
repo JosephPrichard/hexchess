@@ -40,11 +40,11 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 	sendCountEvent(client, subscribers.GlobalActiveEvent, activeCount)
 	sendCountEvent(client, subscribers.GlobalGamesEvent, gamesCount)
 
-	subscriber := server.broadcasters.Counts.Subscribe(subscribers.GlobalCountsKey, SSEChanBufCap)
+	subscriber := server.broadcasters.Counts.Subscribe(SSEChanBufCap)
 
 	streamServerSentEvents(client, ListenConfig[subscribers.GlobalCastEvent]{
 		OnClose: func() {
-			server.broadcasters.Counts.Unsubscribe(subscribers.GlobalCountsKey, subscriber)
+			server.broadcasters.Counts.Unsubscribe(subscriber)
 			slog.InfoContext(ctx, "SSE handler: finished handle user events stream")
 		},
 		Mailbox:    subscriber.Mailbox(),

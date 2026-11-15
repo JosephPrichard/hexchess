@@ -66,7 +66,7 @@ func TestHandleActiveConn(t *testing.T) {
 
 	wantBroadcast := subscribers.GlobalCastEvent{Kind: subscribers.GlobalActiveEvent, Data: `{"count":1}`}
 
-	broadcastSubscriber := sseTest.localBroadcasters.Counts.Subscribe(subscribers.GlobalCountsKey, 1)
+	broadcastSubscriber := sseTest.broadcasters.Counts.Subscribe(1)
 
 	go func() {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/active", nil)

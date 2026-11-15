@@ -14,6 +14,11 @@ type SubscriberAPI interface {
 	Mailbox() chan []byte
 }
 
+type ExpectBroadcastResult struct {
+	Assert   func()
+	Shutdown func()
+}
+
 func ExpectBroadcast[Message any](
 	t *testing.T,
 	rdb cache.Redis,
@@ -21,19 +26,20 @@ func ExpectBroadcast[Message any](
 	subscribe func(lb *subscribers.LocalBroadcasters, capacity int) SubscriberAPI,
 	unmarshal func(bytes []byte) Message,
 	cmpOpts ...cmp.Option,
-) func() {
+) ExpectBroadcastResult {
 	t.Helper()
 
 	if want == nil {
-		return func() {}
+		return ExpectBroadcastResult{Assert: func() {}, Shutdown: func() {}}
 	}
 
-	lb := subscribers.NewLocalBroadcasters()
-	lb.Listen(t.Context(), rdb)
+	lb := subscribers.NewLocalBroadcasters(subscribers.MinimalBrokerConfig)
+	lb.Listen(t.Context(), rdb) // start listening before this function returns
 
 	subscriber := subscribe(lb, len(want))
 
-	return func() {
+	// closure should be executed after the operation that will trigger notifications
+	assert := func() {
 		t.Helper()
 
 		for i := range want {
@@ -49,4 +55,10 @@ func ExpectBroadcast[Message any](
 			testutil.Equal(t, want[i], got, cmpOpts...)
 		}
 	}
+
+	shutdown := func() {
+		lb.Shutdown() // close the broadcasters only after running assertions (ideally at the end with a `defer` call
+	}
+
+	return ExpectBroadcastResult{Assert: assert, Shutdown: shutdown}
 }
