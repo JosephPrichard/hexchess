@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
-	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"testing"
 	"time"
@@ -21,7 +21,7 @@ import (
 func setupProfileTest(t slogutil.TestLogger) (*ProfileService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewProfileService(infra.AWS, async.AsyncDispatcher{}, entropy.RealSource{})
+	service := NewProfileService(infra.AWS, goutil.AsyncDispatcher{}, entropy.RealSource{})
 
 	return service, infra
 }

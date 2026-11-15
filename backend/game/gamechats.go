@@ -6,8 +6,8 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/database/query"
 	"hexchess-svc/gameid"
-	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -27,11 +27,11 @@ type ChatService struct {
 	esClient *elasticsearch.TypedClient
 
 	entropy    entropy.Generator
-	dispatcher async.Dispatcher
+	dispatcher goutil.Dispatcher
 }
 
 func NewChatService(
-	redis cache.Redis, querier query.Querier, esClient *elasticsearch.TypedClient, entropy entropy.Generator, dispatcher async.Dispatcher,
+	redis cache.Redis, querier query.Querier, esClient *elasticsearch.TypedClient, entropy entropy.Generator, dispatcher goutil.Dispatcher,
 ) *ChatService {
 	return &ChatService{redis: redis, querier: querier, entropy: entropy, esClient: esClient, dispatcher: dispatcher}
 }

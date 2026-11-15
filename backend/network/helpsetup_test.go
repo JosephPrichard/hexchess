@@ -3,14 +3,15 @@ package network_test
 import (
 	"context"
 	"hexchess-svc/cloud"
+	"hexchess-svc/database"
 	"hexchess-svc/itest"
 	"hexchess-svc/matchmaker"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/pubsub/subscribers"
 	"hexchess-svc/rpc"
-	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net"
@@ -27,7 +28,7 @@ import (
 type serviceMocks struct {
 	Entropy    entropy.Generator
 	Remote     cloud.SDKs
-	Dispatcher async.Dispatcher
+	Dispatcher goutil.Dispatcher
 }
 
 func setupMuxTest(t slogutil.TestLogger, mocks *serviceMocks) (http.Handler, itest.TestInfra) {
@@ -38,13 +39,18 @@ func setupMuxTest(t slogutil.TestLogger, mocks *serviceMocks) (http.Handler, ite
 	infra := itest.SetupIntegrationTest(t)
 
 	mux := network.NewServeMux(network.HttpServerConfig{
-		Database:    infra.Database,
-		Redis:       infra.Redis,
-		AWS:         infra.AWS,
-		SDKs:        mocks.Remote,
-		Entropy:     mocks.Entropy,
-		Dispatcher:  mocks.Dispatcher,
-		Broadcaster: publishers.NewSyncBroadcaster(infra.Redis),
+		// INFRASTRUCTURE
+		Database: infra.Database,
+		Redis:    infra.Redis,
+		AWS:      infra.AWS,
+		EsClient: infra.Es,
+		// INFRA CLIENTS
+		RiverClient: database.NewRiverClient(infra.Pool),
+		Broadcaster: publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+		// API MOCKS/STUBS
+		SDKs:       mocks.Remote,
+		Entropy:    mocks.Entropy,
+		Dispatcher: mocks.Dispatcher,
 	})
 	return mux, infra
 }
@@ -66,30 +72,37 @@ func (s *websocketTestContext) Shutdown() {
 }
 
 func setupWebsocketTest(t *testing.T) websocketTestContext {
-	testinfra := itest.SetupIntegrationTest(t)
+	infra := itest.SetupIntegrationTest(t)
 
 	localBroadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
-	localBroadcasters.Listen(t.Context(), testinfra.Redis)
+	localBroadcasters.Listen(t.Context(), infra.Redis)
 
-	createTestSessions(t, testinfra.Redis)
-	createTestChessStates(t, testinfra.Redis)
+	createTestSessions(t, infra.Redis)
+	createTestChessStates(t, infra.Redis)
 
 	testServer := httptest.NewServer(network.NewServeMux(network.HttpServerConfig{
-		Database:     testinfra.Database,
-		Redis:        testinfra.Redis,
+		// INFRASTRUCTURE
+		Database: infra.Database,
+		Redis:    infra.Redis,
+		AWS:      infra.AWS,
+		EsClient: infra.Es,
+		// INFRA CLIENTS
+		RiverClient: database.NewRiverClient(infra.Pool),
+		Broadcaster: publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+		// PUB/SUB routing (in memory-impl) required for websockets
 		Broadcasters: localBroadcasters,
-		Broadcaster:  publishers.NewSyncBroadcaster(testinfra.Redis),
-		EsClient:     testinfra.Es,
-		Dispatcher:   async.SyncDispatcher{},
+		// API MOCKS/STUBS
+		Entropy:    &entropy.StableSource{},
+		Dispatcher: goutil.SyncDispatcher{},
 	}))
-	return websocketTestContext{testinfra: testinfra, broadcasters: localBroadcasters, testServer: testServer}
+	return websocketTestContext{testinfra: infra, broadcasters: localBroadcasters, testServer: testServer}
 }
 
 type sseTestContext struct {
-	testinfra    itest.TestInfra
-	broadcasters *subscribers.LocalBroadcasters
-	broadcaster  publishers.Broadcaster
-	testServer   *httptest.Server
+	testinfra       itest.TestInfra
+	broadcasters    *subscribers.LocalBroadcasters
+	testBroadcaster publishers.Broadcaster
+	testServer      *httptest.Server
 }
 
 func (s *sseTestContext) Shutdown() {
@@ -99,26 +112,33 @@ func (s *sseTestContext) Shutdown() {
 }
 
 func setupSSETest(t *testing.T) sseTestContext {
-	testinfra := itest.SetupIntegrationTest(t)
+	infra := itest.SetupIntegrationTest(t)
 
 	localBroadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
-	localBroadcasters.Listen(t.Context(), testinfra.Redis)
+	localBroadcasters.Listen(t.Context(), infra.Redis)
 
-	createTestSessions(t, testinfra.Redis)
+	createTestSessions(t, infra.Redis)
 
 	testServer := httptest.NewServer(network.NewServeMux(network.HttpServerConfig{
-		Database:     testinfra.Database,
-		Redis:        testinfra.Redis,
-		Entropy:      &entropy.StableSource{},
-		Dispatcher:   async.SyncDispatcher{},
-		Broadcaster:  publishers.NewSyncBroadcaster(testinfra.Redis),
+		// INFRASTRUCTURE
+		Database: infra.Database,
+		Redis:    infra.Redis,
+		AWS:      infra.AWS,
+		EsClient: infra.Es,
+		// INFRA CLIENTS
+		RiverClient: database.NewRiverClient(infra.Pool),
+		Broadcaster: publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+		// PUB/SUB routing (in memory-impl) required for SSE
 		Broadcasters: localBroadcasters,
+		// API MOCKS/STUBS
+		Entropy:    &entropy.StableSource{},
+		Dispatcher: goutil.SyncDispatcher{},
 	}))
 	return sseTestContext{
-		testinfra:    testinfra,
-		broadcaster:  publishers.NewSyncBroadcaster(testinfra.Redis),
-		broadcasters: localBroadcasters,
-		testServer:   testServer,
+		testinfra:       infra,
+		testBroadcaster: publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+		broadcasters:    localBroadcasters,
+		testServer:      testServer,
 	}
 }
 

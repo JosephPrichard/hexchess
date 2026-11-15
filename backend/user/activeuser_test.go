@@ -3,6 +3,7 @@ package user
 import (
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 func setupActiveTest(t slogutil.TestLogger) (*ActiveUserService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewActiveUserService(infra.Redis, publishers.NewSyncBroadcaster(infra.Redis))
+	service := NewActiveUserService(infra.Redis, publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}))
 
 	return service, infra
 }

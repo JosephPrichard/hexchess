@@ -17,8 +17,8 @@ import (
 	"hexchess-svc/session"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
-	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"log/slog"
 	"net/http"
 
@@ -33,7 +33,7 @@ type HttpServer struct {
 	service       HttpServices
 	broadcasters  *subscribers.LocalBroadcasters
 	broadcaster   publishers.Broadcaster
-	dispatcher    async.Dispatcher
+	dispatcher    goutil.Dispatcher
 	entropy       entropy.Generator
 	authenticator HttpAuthenticator
 	staticData    StaticData
@@ -72,7 +72,7 @@ type HttpServerConfig struct {
 	SDKs            cloud.SDKs
 	EsClient        *elasticsearch.TypedClient
 	Entropy         entropy.Generator
-	Dispatcher      async.Dispatcher
+	Dispatcher      goutil.Dispatcher
 	Broadcasters    *subscribers.LocalBroadcasters
 	AllowedOrigins  string
 }
@@ -87,7 +87,7 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 		config.Entropy = entropy.RealSource{}
 	}
 	if config.Dispatcher == nil {
-		config.Dispatcher = async.AsyncDispatcher{}
+		config.Dispatcher = goutil.AsyncDispatcher{}
 	}
 
 	server := NewHttpServer(config)
@@ -179,7 +179,7 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 		config.Entropy = entropy.RealSource{}
 	}
 	if config.Dispatcher == nil {
-		config.Dispatcher = async.AsyncDispatcher{}
+		config.Dispatcher = goutil.AsyncDispatcher{}
 	}
 
 	// initialize services

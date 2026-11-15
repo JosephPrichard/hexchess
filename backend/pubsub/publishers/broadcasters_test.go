@@ -4,6 +4,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/utils/goutil"
 	"testing"
 	"time"
 
@@ -20,7 +21,7 @@ func TestBroadcastMessage(t *testing.T) {
 
 	defer rdb.Close()
 
-	globalBroadcaster := NewSyncBroadcaster(rdb)
+	globalBroadcaster := NewBroadcaster(rdb, goutil.SyncDispatcher{})
 
 	broadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
 	defer broadcasters.Shutdown()

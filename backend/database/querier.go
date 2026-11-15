@@ -8,8 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-//go:generate mockgen -source=./querier.go -destination=./querier_mock.go -package=database
-
 type QuerierMutator interface {
 	query.Querier
 	mutate.Querier

@@ -13,6 +13,7 @@ import (
 	"hexchess-svc/queue"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/opt"
 	"time"
 
@@ -36,14 +37,17 @@ func setupConsumersTest(t *testing.T) (itest.TestInfra, func(int), func()) {
 	consumerCtx, cancelConsumer := context.WithTimeout(t.Context(), time.Second*1)
 
 	waitStopConsumer := StartRedisConsumers(RedisConsumerConfig{
-		Context:     consumerCtx,
-		Database:    testinfra.Database,
-		Redis:       testinfra.Redis,
+		// CTX PROPAGATION: enables consumer to be stopped
+		Context: consumerCtx,
+		// INFRA
+		Database: testinfra.Database,
+		Redis:    testinfra.Redis,
+		// INFRA CLIENTS
 		RiverClient: database.NewRiverClient(testinfra.Pool),
-		Broadcaster: publishers.NewSyncBroadcaster(testinfra.Redis),
-
+		Broadcaster: publishers.NewBroadcaster(testinfra.Redis, goutil.SyncDispatcher{}),
+		// TEST SUBSTITUTES to enable deterministic asserts on consumption finishing
 		AckChan:       ackChan,
-		BlockDuration: time.Millisecond * 100,
+		BlockDuration: time.Millisecond * 100, // providing block-duration to redis enables
 	})
 
 	// wait until `count` messages have been consumed, then stop the consumer and wait for the consumers to stop
@@ -63,7 +67,6 @@ func setupConsumersTest(t *testing.T) (itest.TestInfra, func(int), func()) {
 	customCancel := func() {
 		cancelConsumer()
 		waitStopConsumer()
-
 		testinfra.Close()
 	}
 

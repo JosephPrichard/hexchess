@@ -5,6 +5,7 @@ import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/queue"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -25,7 +26,7 @@ func TestHandleAdvanceTournamentEvent(t *testing.T) {
 	worker := NewAdvanceTournamentWorker(
 		testinfra.Database,
 		testinfra.Redis,
-		publishers.NewSyncBroadcaster(testinfra.Redis),
+		publishers.NewBroadcaster(testinfra.Redis, goutil.SyncDispatcher{}),
 	)
 
 	tournamentKey := itest.Tournament2ScheduledKnockoutKey

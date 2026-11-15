@@ -8,8 +8,8 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/itest"
 	"hexchess-svc/network"
-	"hexchess-svc/utils/async"
 	svc "hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -79,7 +79,7 @@ func TestHandleUploadProfilePic(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h, testinfra := setupMuxTest(t, &serviceMocks{Entropy: &svc.StableSource{}, Dispatcher: async.SyncDispatcher{}})
+			h, testinfra := setupMuxTest(t, &serviceMocks{Entropy: &svc.StableSource{}, Dispatcher: goutil.SyncDispatcher{}})
 			defer testinfra.Close()
 
 			cloud.SetupS3Test(t, testinfra.AWS, nil)

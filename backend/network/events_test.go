@@ -34,8 +34,8 @@ func TestHandleCountEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	sseTest.broadcaster.BroadcastActiveCount(ctx, 2)
-	sseTest.broadcaster.BroadcastGameCount(ctx, 4)
+	sseTest.testBroadcaster.BroadcastActiveCount(ctx, 2)
+	sseTest.testBroadcaster.BroadcastGameCount(ctx, 4)
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
@@ -108,7 +108,7 @@ func TestHandleUserEvents(t *testing.T) {
 	}
 
 	for _, input := range inputMessages {
-		sseTest.broadcaster.BroadcastUserMessage(ctx, input)
+		sseTest.testBroadcaster.BroadcastUserMessage(ctx, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
@@ -185,7 +185,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	}
 
 	for _, input := range inputTournaments {
-		sseTest.broadcaster.BroadcastTournament(ctx, input)
+		sseTest.testBroadcaster.BroadcastTournament(ctx, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))

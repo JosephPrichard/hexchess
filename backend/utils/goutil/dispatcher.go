@@ -1,4 +1,4 @@
-package async
+package goutil
 
 import (
 	"log/slog"

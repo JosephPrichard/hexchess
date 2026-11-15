@@ -5,7 +5,7 @@ import (
 	"encoding/json/v2"
 	"hexchess-svc/cache"
 	"hexchess-svc/pb"
-	"hexchess-svc/utils/async"
+	"hexchess-svc/utils/goutil"
 	"log/slog"
 
 	"github.com/redis/go-redis/v9"
@@ -13,20 +13,13 @@ import (
 
 type Broadcaster struct {
 	redis      *redis.Client
-	dispatcher async.Dispatcher
+	dispatcher goutil.Dispatcher
 }
 
-func NewSyncBroadcaster(redis cache.Redis) Broadcaster {
+func NewBroadcaster(redis cache.Redis, dispatcher goutil.Dispatcher) Broadcaster {
 	return Broadcaster{
 		redis:      redis.PubSubClient,
-		dispatcher: async.SyncDispatcher{},
-	}
-}
-
-func NewAsyncBroadcaster(redis cache.Redis) Broadcaster {
-	return Broadcaster{
-		redis:      redis.PubSubClient,
-		dispatcher: async.AsyncDispatcher{},
+		dispatcher: goutil.SyncDispatcher{},
 	}
 }
 

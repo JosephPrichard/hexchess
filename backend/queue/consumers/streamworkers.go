@@ -3,6 +3,7 @@ package consumers
 import (
 	"context"
 	"encoding/json/v2"
+	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
 	"hexchess-svc/game"
@@ -11,8 +12,8 @@ import (
 	"hexchess-svc/replay"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/serrors"
+	"hexchess-svc/utils/slogutil"
 	"log/slog"
-	"os"
 	"sync"
 	"time"
 
@@ -77,15 +78,14 @@ func StartRedisConsumers(config RedisConsumerConfig) func() {
 	// if consumer count exceeds consumer connection pool size certain events get dropped randomly because each stream takes a persistent TCP connection
 	allowedPartitionCount := config.Redis.TotalPartitionCount
 	if totalPartitionsCount > allowedPartitionCount {
-		slog.Error("consumer partition count exceeds redis client allowed partition count - failing fast", "consumerTotalPartitionsCount", totalPartitionsCount, "allowedPartitionCount", allowedPartitionCount)
-		os.Exit(1)
+		err := fmt.Errorf("consumer partition count %d exceeds redis client allowed partition count %d", totalPartitionsCount, allowedPartitionCount)
+		slogutil.Fatal("complete consumer asserts", err)
 	}
 
 	var wg sync.WaitGroup
 
 	for _, cfg := range streamConfigs {
-		consumer := NewStreamConsumer(cfg)
-		wg.Go(consumer.Consume)
+		wg.Go(NewStreamConsumer(cfg).Consume)
 	}
 
 	return func() {

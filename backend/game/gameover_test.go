@@ -12,6 +12,7 @@ import (
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"math"
@@ -33,7 +34,7 @@ func setupGameoverTest(t slogutil.TestLogger) (*GameOverService, itest.TestInfra
 		infra.Database,
 		infra.Redis,
 		producers.NewRiverProducer(database.NewRiverClient(infra.Pool)),
-		publishers.NewSyncBroadcaster(infra.Redis),
+		publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
 		NewChessRepoService(infra.Redis),
 	)
 

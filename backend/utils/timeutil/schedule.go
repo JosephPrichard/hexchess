@@ -26,8 +26,8 @@ func Schedule(duration time.Duration, work func()) func() {
 	return func() { stop <- true }
 }
 
-func BackoffSleep(retry int, multiplier float64, base time.Duration) {
+func Backoff(retry int, multiplier float64, base time.Duration) time.Duration {
 	backoff := float64(base) * math.Pow(multiplier, float64(retry))
 	jitter := rand.Float64() * float64(base)
-	time.Sleep(time.Duration(backoff + jitter))
+	return time.Duration(backoff + jitter)
 }

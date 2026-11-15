@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"hexchess-svc/cloud"
 	"hexchess-svc/player"
-	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/ioutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
@@ -27,11 +27,11 @@ const ProfilePicPrefix = "users/profile-pics"
 
 type ProfileService struct {
 	aws        cloud.AWSClient
-	dispatcher async.Dispatcher
+	dispatcher goutil.Dispatcher
 	entropy    entropy.Generator
 }
 
-func NewProfileService(aws cloud.AWSClient, dispatcher async.Dispatcher, entropy entropy.Generator) *ProfileService {
+func NewProfileService(aws cloud.AWSClient, dispatcher goutil.Dispatcher, entropy entropy.Generator) *ProfileService {
 	return &ProfileService{aws: aws, dispatcher: dispatcher, entropy: entropy}
 }
 

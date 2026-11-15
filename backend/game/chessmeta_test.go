@@ -8,6 +8,7 @@ import (
 	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/user"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
@@ -21,7 +22,11 @@ import (
 func setupGameMetadataTest(t slogutil.TestLogger) (*ChessMetadataService, itest.TestInfra) {
 	infra := itest.SetupIntegrationTest(t)
 
-	service := NewChessMetadataService(infra.Database, &entropy.StableSource{CurrTime: itest.TimeNow}, publishers.NewSyncBroadcaster(infra.Redis))
+	service := NewChessMetadataService(
+		infra.Database,
+		&entropy.StableSource{CurrTime: itest.TimeNow},
+		publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+	)
 
 	return service, infra
 }

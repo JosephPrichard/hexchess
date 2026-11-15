@@ -12,6 +12,7 @@ import (
 	"hexchess-svc/pubsub/subscribers"
 	"hexchess-svc/queue/consumers"
 	"hexchess-svc/trigger"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
@@ -76,7 +77,7 @@ func main() {
 		defer esClient.Close(ctx)
 	}
 
-	broadcaster := publishers.NewAsyncBroadcaster(redisClient)
+	broadcaster := publishers.NewBroadcaster(redisClient, goutil.AsyncDispatcher{})
 
 	broadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
 	broadcasters.Listen(context.Background(), redisClient)

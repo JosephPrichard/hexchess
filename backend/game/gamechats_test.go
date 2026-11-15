@@ -4,8 +4,8 @@ import (
 	"hexchess-svc/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
-	"hexchess-svc/utils/async"
 	"hexchess-svc/utils/entropy"
+	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"hexchess-svc/utils/testutil"
 	"testing"
@@ -21,7 +21,7 @@ func setupChatsServicesTest(t slogutil.TestLogger) (*ChatService, itest.TestInfr
 
 	itest.SetupElasticSearchPrecondition(t, infra.Es)
 
-	service := NewChatService(infra.Redis, infra.Database.Querier, infra.Es, entropy.RealSource{}, async.SyncDispatcher{})
+	service := NewChatService(infra.Redis, infra.Database.Querier, infra.Es, entropy.RealSource{}, goutil.SyncDispatcher{})
 
 	return service, infra
 }

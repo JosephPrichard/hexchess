@@ -59,26 +59,35 @@ func (db *PostgreSQL) ExecTx(ctx context.Context, args TxArgs) error {
 }
 
 func execTx(ctx context.Context, db *PostgreSQL, args TxArgs) error {
+	if args.Isolation == "" {
+		args.Isolation = pgx.Serializable
+	}
 	if args.RetryCount == 0 {
 		args.RetryCount = 1
 	}
 
-	var err error
+	var execErr error
+
 	for i := range args.RetryCount {
-		err = execTxnOnce(ctx, db.pools.Write, args)
-
-		if IsSerializationFailure(err) {
-			slog.WarnContext(ctx, "retrying transaction", "error", err, "retry", i)
-			timeutil.BackoffSleep(i, 2, 50*time.Millisecond)
-			continue
+		execErr = execTxnOnce(ctx, db.pools.Write, args)
+		if !IsSerializationFailure(execErr) {
+			break
 		}
-		break
+
+		slog.WarnContext(ctx, "retrying transaction", "error", execErr, "retry", i)
+
+		select {
+		case <-ctx.Done():
+			execErr = ctx.Err()
+			break
+		case <-time.After(timeutil.Backoff(i, 2, 50*time.Millisecond)):
+		}
 	}
-	if IsSerializationFailure(err) {
-		slog.ErrorContext(ctx, "exhausted transaction retries", "error", err, "retryCount", args.RetryCount)
+	if IsSerializationFailure(execErr) {
+		slog.ErrorContext(ctx, "exhausted transaction retries", "error", execErr, "retryCount", args.RetryCount)
 	}
 
-	return err
+	return execErr
 }
 
 func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, args TxArgs) (txnErr error) {
@@ -98,22 +107,27 @@ func execTxnOnce(ctx context.Context, pool *pgxpool.Pool, args TxArgs) (txnErr e
 			panic(panicErr)
 		}
 
-		if txnErr != nil && !isAllowlisted(txnErr, args.ErrAllowlist) {
-			if err := txn.Rollback(ctx); err != nil {
-				slog.ErrorContext(ctx, "failed to rollback txn", "error", err)
+		doCommit := txnErr == nil || isAllowlisted(txnErr, args.ErrAllowlist)
+
+		// END: after every transaction, we MUST EITHER commit OR rollback
+		if doCommit {
+			slog.InfoContext(ctx, "DB: commiting txn", "error", txnErr)
+
+			if err := txn.Commit(ctx); err != nil {
+				slog.ErrorContext(ctx, "DB: failed to commit txn", "error", err)
 				txnErr = err
 			}
-			return
-		}
+		} else {
+			slog.InfoContext(ctx, "DB: rolling back txn", "error", txnErr)
 
-		if err := txn.Commit(ctx); err != nil {
-			slog.ErrorContext(ctx, "failed to commit txn", "error", err)
-			txnErr = err
+			if err := txn.Rollback(context.Background()); err != nil {
+				slog.ErrorContext(ctx, "DB: failed to rollback txn", "error", err)
+				txnErr = err
+			}
 		}
 	}()
 
-	txnErr = args.QueryFn(ctx, txn, NewTxnQuerier(txn))
-	return txnErr
+	return args.QueryFn(ctx, txn, NewTxnQuerier(txn))
 }
 
 func isAllowlisted(err error, allowlist []error) bool {
@@ -126,6 +140,8 @@ func isAllowlisted(err error, allowlist []error) bool {
 }
 
 func IsSerializationFailure(err error) bool {
-	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && (pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock)
+	if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok {
+		return pgErr.Code == ErrPgSerializationFailure || pgErr.Code == ErrPgDeadlock
+	}
+	return false
 }
