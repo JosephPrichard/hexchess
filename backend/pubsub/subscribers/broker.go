@@ -2,32 +2,9 @@ package subscribers
 
 import (
 	"log/slog"
-	"runtime"
 	"sync"
 	"time"
 )
-
-type BrokerConfig struct {
-	BrokerWorkerCount      int
-	GlobalBrokerShardCount int
-	SlowSubscriberTimeout  time.Duration
-	StaleCheckPeriod       time.Duration
-	outputChan             chan struct{}
-}
-
-var DefaultBrokerConfig = BrokerConfig{
-	BrokerWorkerCount:      runtime.GOMAXPROCS(0),
-	GlobalBrokerShardCount: runtime.GOMAXPROCS(0),
-	SlowSubscriberTimeout:  15 * time.Second,
-	StaleCheckPeriod:       time.Minute,
-}
-
-var MinimalBrokerConfig = BrokerConfig{
-	BrokerWorkerCount:      1,
-	GlobalBrokerShardCount: 1,
-	SlowSubscriberTimeout:  -1,
-	StaleCheckPeriod:       -1,
-}
 
 type BroadcastBroker[Payload any] struct {
 	BrokerConfig
@@ -35,7 +12,7 @@ type BroadcastBroker[Payload any] struct {
 	shardsMap   sync.Map
 	closeFunc   func()
 	cleanerDone chan struct{}
-	workerChan  chan workerJob[Payload]
+	inputChan   chan workerTask[Payload]
 }
 
 func NewBroadcastBroker[Payload any](brokerID string, config BrokerConfig) *BroadcastBroker[Payload] {
@@ -44,16 +21,21 @@ func NewBroadcastBroker[Payload any](brokerID string, config BrokerConfig) *Broa
 		id:           brokerID,
 		shardsMap:    sync.Map{},
 		cleanerDone:  make(chan struct{}),
-		workerChan:   make(chan workerJob[Payload]),
+		inputChan:    make(chan workerTask[Payload]),
 	}
+
+	broker.closeFunc = sync.OnceFunc(func() {
+		close(broker.cleanerDone)
+		close(broker.inputChan)
+	})
 
 	for range broker.BrokerWorkerCount {
-		go runBrokerWorker(broker.workerChan, broker.outputChan)
+		go runBrokerWorker(broker.inputChan, broker.outputChan)
 	}
-
 	if broker.StaleCheckPeriod >= 0 {
 		go broker.cleanIdleShards()
 	}
+
 	return broker
 }
 
@@ -70,7 +52,7 @@ func (broker *BroadcastBroker[Payload]) Subscribe(shardID string, capacity int) 
 	anyShard, _ := broker.shardsMap.LoadOrStore(shardID, newShard)
 	shard := anyShard.(*brokerShard[Payload])
 
-	broker.sendJob(workerJob[Payload]{kind: subscribeKind, shard: shard, subscribeRecord: record})
+	broker.sendTask(newSubscribeTask(record, shard))
 
 	return subscriber
 }
@@ -82,7 +64,7 @@ func (broker *BroadcastBroker[Payload]) Unsubscribe(shardID string, subscriber S
 
 	if shardExists {
 		shard := anyShard.(*brokerShard[Payload])
-		broker.sendJob(workerJob[Payload]{kind: unsubscribeKind, shard: shard, unsubscribeID: subscriberID})
+		broker.sendTask(newUnsubscribeTask(subscriberID, shard))
 	}
 
 	if !shardExists {
@@ -95,7 +77,7 @@ func (broker *BroadcastBroker[Payload]) Broadcast(shardID string, payload Payloa
 
 	if shardExists {
 		shard := anyShard.(*brokerShard[Payload])
-		broker.sendJob(workerJob[Payload]{kind: broadcastKind, shard: shard, broadcastPayload: payload})
+		broker.sendTask(newBroadcastTask(payload, shard))
 	}
 
 	if !shardExists {
@@ -103,13 +85,12 @@ func (broker *BroadcastBroker[Payload]) Broadcast(shardID string, payload Payloa
 	}
 }
 
-func (broker *BroadcastBroker[Payload]) sendJob(job workerJob[Payload]) {
-	broker.workerChan <- job
+func (broker *BroadcastBroker[Payload]) sendTask(task workerTask[Payload]) {
+	broker.inputChan <- task
 }
 
 func (broker *BroadcastBroker[Payload]) Shutdown() {
-	close(broker.cleanerDone)
-	close(broker.workerChan)
+	broker.closeFunc()
 	slog.Info("PubSub: shutdown broker", "brokerID", broker.id)
 }
 

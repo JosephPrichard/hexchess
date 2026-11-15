@@ -33,8 +33,6 @@ type GlobalCastEvent struct {
 	Data string
 }
 
-const GlobalCountsKey = "counts-caster-key"
-
 func NewLocalBroadcasters(config BrokerConfig) *LocalBroadcasters {
 	return &LocalBroadcasters{
 		Counts:     NewGlobalBroadcastBroker[GlobalCastEvent]("counts-caster", config),

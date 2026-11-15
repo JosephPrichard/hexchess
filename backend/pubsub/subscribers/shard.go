@@ -7,7 +7,7 @@ import (
 	"uuid"
 )
 
-type subscribersMap[Payload any] map[uuid.UUID]*brokerRecord[Payload]
+type subscribersMap[Payload any] map[SubscriberID]*subscriberRecord[Payload]
 
 type brokerShard[Payload any] struct {
 	lock sync.Mutex
@@ -19,12 +19,7 @@ type brokerShard[Payload any] struct {
 	slowSubscriberTimeout time.Duration
 }
 
-func (shard *brokerShard[Payload]) remove(record *brokerRecord[Payload]) {
-	delete(shard.subscribersMap, record.id)
-	close(record.mailbox)
-}
-
-func (shard *brokerShard[Payload]) subscribe(record *brokerRecord[Payload]) {
+func (shard *brokerShard[Payload]) subscribe(record *subscriberRecord[Payload]) {
 	subscriberID := record.id
 
 	// `Lock` is done per shard, so broker subscribe operations on different shards can run in parallel
@@ -102,5 +97,11 @@ func (shard *brokerShard[Payload]) doWhenEmpty(removeFn func()) bool {
 	}
 
 	shard.lock.Unlock()
+
 	return isRemoved
+}
+
+func (shard *brokerShard[Payload]) remove(record *subscriberRecord[Payload]) {
+	delete(shard.subscribersMap, record.id)
+	close(record.mailbox)
 }
