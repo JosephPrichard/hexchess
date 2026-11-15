@@ -7,7 +7,12 @@ import (
 )
 
 func TestGlobalBroadcastBroker(t *testing.T) {
-	broker := NewGlobalBroadcastBroker[GlobalCastEvent]("testing-broadcast-global", DefaultBrokerConfig)
+	c := make(chan struct{}, 1)
+	config := DefaultBrokerConfig
+	config.outputChan = c
+	config.GlobalBrokerShardCount = 6
+
+	broker := NewGlobalBroadcastBroker[GlobalCastEvent]("testing-broadcast-global", config)
 	defer broker.Shutdown()
 
 	e1 := GlobalCastEvent{Kind: 0, Data: "test1"}
@@ -19,19 +24,25 @@ func TestGlobalBroadcastBroker(t *testing.T) {
 	mChan2 := make(chan []GlobalCastEvent)
 
 	sub1 := broker.Subscribe(len(wantSub1Events))
+	recv(t, c, 1)
 
 	go testSubscriber(sub1.Mailbox(), mChan1)
 
 	broker.Broadcast(e1)
+	recv(t, c, config.GlobalBrokerShardCount)
 
 	sub2 := broker.Subscribe(len(wantSub2Events))
+	recv(t, c, 1)
 
 	go testSubscriber(sub2.Mailbox(), mChan2)
 
 	broker.Broadcast(e2)
+	recv(t, c, config.GlobalBrokerShardCount)
 
 	broker.Unsubscribe(sub1)
+	recv(t, c, 1)
 	broker.Unsubscribe(sub2)
+	recv(t, c, 1)
 
 	assert.Equal(t, wantSub1Events, <-mChan1)
 	assert.Equal(t, wantSub2Events, <-mChan2)

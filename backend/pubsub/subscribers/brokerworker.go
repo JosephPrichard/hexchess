@@ -22,12 +22,10 @@ type workerJob[Payload any] struct {
 	subscribeRecord  *brokerRecord[Payload] // subscribe requests
 	unsubscribeID    uuid.UUID              // unsubscribe requests
 	broadcastPayload Payload                // broadcast requests
-
-	responseChan chan struct{}
 }
 
-func runBrokerWorker[Payload any](workerChan chan workerJob[Payload]) {
-	for request := range workerChan {
+func runBrokerWorker[Payload any](inputChan chan workerJob[Payload], outputChan chan struct{}) {
+	for request := range inputChan {
 		shard := request.shard
 
 		switch request.kind {
@@ -41,6 +39,8 @@ func runBrokerWorker[Payload any](workerChan chan workerJob[Payload]) {
 			slog.Warn("PubSub: worker received unknown request kind", "brokerID", shard.brokerID, "shardID", shard.shardID, "kind", request.kind)
 		}
 
-		request.responseChan <- struct{}{}
+		if outputChan != nil {
+			outputChan <- struct{}{}
+		}
 	}
 }

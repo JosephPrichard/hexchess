@@ -7,6 +7,7 @@ import (
 )
 
 type GlobalBroadcastBroker[Payload any] struct {
+	BrokerConfig
 	id           string
 	brokerShards []*globalBrokerShard[Payload]
 }
@@ -23,10 +24,10 @@ func NewGlobalBroadcastBroker[Payload any](brokerID string, config BrokerConfig)
 			workerChan:            make(chan workerJob[Payload]),
 		}
 		brokerShards = append(brokerShards, shard)
-		go runBrokerWorker(shard.workerChan)
+		go runBrokerWorker(shard.workerChan, config.outputChan)
 	}
 
-	return &GlobalBroadcastBroker[Payload]{id: brokerID, brokerShards: brokerShards}
+	return &GlobalBroadcastBroker[Payload]{BrokerConfig: config, id: brokerID, brokerShards: brokerShards}
 }
 
 func slotSubscriberID(subscriberID uuid.UUID, len int) int {
@@ -37,15 +38,14 @@ func slotSubscriberID(subscriberID uuid.UUID, len int) int {
 }
 
 func (broker *GlobalBroadcastBroker[Payload]) Subscribe(capacity int) Subscriber[Payload] {
-	record := newBrokerShardRecord[Payload](capacity)
+	record := newBrokerRecord[Payload](capacity)
 	subscriber := record.subscriber()
 
 	// `slotSubscriberID`: bucket the subscribe call to different shards deterministically
 	slot := slotSubscriberID(subscriber.id, len(broker.brokerShards))
 	shard := broker.brokerShards[slot]
 
-	<-shard.sendJob(workerJob[Payload]{kind: subscribeKind, subscribeRecord: record})
-
+	shard.sendJob(workerJob[Payload]{kind: subscribeKind, subscribeRecord: record})
 	return subscriber
 }
 
@@ -56,15 +56,13 @@ func (broker *GlobalBroadcastBroker[Payload]) Unsubscribe(subscriber Subscriber[
 	slot := slotSubscriberID(subscriberID, len(broker.brokerShards))
 	shard := broker.brokerShards[slot]
 
-	<-shard.sendJob(workerJob[Payload]{kind: unsubscribeKind, unsubscribeID: subscriberID})
-
-	shard.unsubscribe(subscriberID)
+	shard.sendJob(workerJob[Payload]{kind: unsubscribeKind, unsubscribeID: subscriberID})
 }
 
 func (broker *GlobalBroadcastBroker[Payload]) Broadcast(payload Payload) {
 	// fan out: every broadcaster needs to get the
 	for _, shard := range broker.brokerShards {
-		<-shard.sendJob(workerJob[Payload]{kind: broadcastKind, broadcastPayload: payload})
+		shard.sendJob(workerJob[Payload]{kind: broadcastKind, broadcastPayload: payload})
 	}
 }
 
@@ -74,24 +72,12 @@ func (broker *GlobalBroadcastBroker[Payload]) Shutdown() {
 	}
 }
 
-func (broker *GlobalBroadcastBroker[Payload]) sendJob(job workerJob[Payload]) chan struct{} {
-	responseChan := make(chan struct{}, 1)
-	job.responseChan = responseChan
-	return responseChan
-}
-
 type globalBrokerShard[Payload any] struct {
 	brokerShard[Payload]
 	workerChan chan workerJob[Payload]
 }
 
-func (broker *globalBrokerShard[Payload]) sendJob(job workerJob[Payload]) chan struct{} {
+func (broker *globalBrokerShard[Payload]) sendJob(job workerJob[Payload]) {
 	job.shard = &broker.brokerShard
-
-	responseChan := make(chan struct{}, 1)
-
-	job.responseChan = responseChan
 	broker.workerChan <- job
-
-	return responseChan
 }

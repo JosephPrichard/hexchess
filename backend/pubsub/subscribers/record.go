@@ -11,7 +11,7 @@ type brokerRecord[Payload any] struct {
 	lastUpdated time.Time
 }
 
-func newBrokerShardRecord[Payload any](capacity int) *brokerRecord[Payload] {
+func newBrokerRecord[Payload any](capacity int) *brokerRecord[Payload] {
 	mailbox := make(chan Payload, capacity)
 	return &brokerRecord[Payload]{mailbox: mailbox, id: uuid.NewV7(), lastUpdated: time.Now()}
 }
