@@ -97,22 +97,22 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 }
 
 func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Identifier, sessionID string) (player.PlayerState, []wsMessage) {
-	errorResponse := func(err error) (player.PlayerState, []wsMessage) {
+	errResp := func(err error) (player.PlayerState, []wsMessage) {
 		return player.PlayerState{}, []wsMessage{marshalGameError(ctx, GameError{GameID: gameID, Error: err})}
 	}
 
 	playerState, err := server.service.GetSession(ctx, sessionID)
 	if err != nil {
-		return errorResponse(serrors.New("get session in game init phase", err))
+		return errResp(serrors.New("get session in game init phase", err))
 	}
 	chessState, err := server.service.JoinGame(ctx, gameID, playerState)
 	if err != nil {
-		return errorResponse(serrors.New("join game in init game phase", err))
+		return errResp(serrors.New("join game in init game phase", err))
 	}
 
 	initBytes, err := game.MarshalGameOutputInit(game.InitGameOutput{GameID: gameID, State: chessState, Self: playerState})
 	if err != nil {
-		return errorResponse(serrors.New("marshal init output", err))
+		return errResp(serrors.New("marshal init output", err))
 	}
 
 	output := game.SerializeGameOutputPlayers(game.PlayersGameOutput{

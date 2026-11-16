@@ -113,7 +113,6 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 	}
 
 	slog.InfoContext(ctx, "SSE handler: finishing handle user events stream")
-
 	return nil
 }
 

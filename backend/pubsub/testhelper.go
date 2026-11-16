@@ -57,8 +57,7 @@ func ExpectBroadcast[Message any](
 	}
 
 	shutdown := func() {
-		lb.Shutdown() // close the broadcasters only after running assertions (ideally at the end with a `defer` call
+		lb.Shutdown() // close the broadcasters only after running assertions (ideally at the end with a `defer` call)
 	}
-
 	return ExpectBroadcastResult{Assert: assert, Shutdown: shutdown}
 }

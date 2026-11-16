@@ -18,10 +18,6 @@ func newBrokerRecord[Payload any](capacity int) *subscriberRecord[Payload] {
 	return &subscriberRecord[Payload]{mailbox: mailbox, id: uuid.NewV7(), lastUpdated: time.Now()}
 }
 
-func (s *subscriberRecord[Payload]) touch() {
-	s.lastUpdated = time.Now()
-}
-
 func (s *subscriberRecord[Payload]) toSubscriber() Subscriber[Payload] {
 	return Subscriber[Payload]{id: s.id, mailbox: s.mailbox}
 }
