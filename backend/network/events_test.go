@@ -64,9 +64,8 @@ func TestHandleActiveConn(t *testing.T) {
 	sseTest := setupSSETest(t)
 	defer sseTest.Shutdown()
 
-	wantBroadcast := subscribers.GlobalCastEvent{Kind: subscribers.GlobalActiveEvent, Data: `{"count":1}`}
-
-	broadcastSubscriber := sseTest.broadcasters.Counts.Subscribe(1)
+	broadcastSubscriber, unsubscribe := sseTest.broadcasters.Counts.Subscribe(1)
+	defer unsubscribe()
 
 	go func() {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/active", nil)
@@ -75,17 +74,17 @@ func TestHandleActiveConn(t *testing.T) {
 
 		resp, err := http.DefaultClient.Do(req)
 		require.NoError(t, err)
-		defer resp.Body.Close() // this must execute before we assert "wantBroadcasts" since one message is sent when the SSE drops
+		defer resp.Body.Close() // this must execute before we assert on broadcasts since one message is sent when the SSE drops
 	}()
 
-	var actualBroadcast subscribers.GlobalCastEvent
+	wantMessage := subscribers.GlobalCastEvent{Kind: subscribers.GlobalActiveEvent, Data: `{"count":1}`}
+
 	select {
-	case e := <-broadcastSubscriber.Mailbox():
-		actualBroadcast = e
+	case message := <-broadcastSubscriber.Mailbox():
+		assert.Equal(t, wantMessage, message)
 	case <-ctx.Done():
 		t.Errorf("test timed out: %v", ctx.Err())
 	}
-	assert.Equal(t, wantBroadcast, actualBroadcast)
 }
 
 func TestHandleUserEvents(t *testing.T) {
@@ -125,7 +124,8 @@ func TestHandleUserEvents(t *testing.T) {
 		wantLines = append(wantLines,
 			fmt.Sprintf("event: %s", network.UserChallengeEvent),
 			fmt.Sprintf("data: %s", challengeJson),
-			"")
+			"",
+		)
 	}
 
 	gotEvents := scanLines(t, resp, len(wantLines))

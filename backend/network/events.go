@@ -2,8 +2,6 @@ package network
 
 import (
 	"context"
-	"encoding/json/v2"
-	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/pubsub/subscribers"
 	svc "hexchess-svc/user"
 	"hexchess-svc/utils/serrors"
@@ -22,7 +20,7 @@ const (
 	ActiveCountEvent   = "activeCountEvents"
 	TournamentEvent    = "tournamentEvent"
 	// SSEChanBufCap start dropping messages after an SSE connection is lagging behind by this many messages
-	SSEChanBufCap = 10
+	SSEChanBufCap = 100
 )
 
 func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) error {
@@ -40,17 +38,12 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 	sendCountEvent(client, subscribers.GlobalActiveEvent, activeCount)
 	sendCountEvent(client, subscribers.GlobalGamesEvent, gamesCount)
 
-	subscriber := server.broadcasters.Counts.Subscribe(SSEChanBufCap)
+	subscriber, unsubscribe := server.broadcasters.Counts.Subscribe(SSEChanBufCap)
+	defer unsubscribe()
 
-	streamServerSentEvents(client, ListenConfig[subscribers.GlobalCastEvent]{
-		OnClose: func() {
-			server.broadcasters.Counts.Unsubscribe(subscriber)
-			slog.InfoContext(ctx, "SSE handler: finished handle user events stream")
-		},
-		Mailbox:    subscriber.Mailbox(),
-		MapMessage: mapGlobalEvent,
-	})
+	channelToSSE(client, subscriber.Mailbox(), mapGlobalEvent)
 
+	slog.InfoContext(ctx, "SSE handler: finished handle user events stream")
 	return nil
 }
 
@@ -65,14 +58,6 @@ func mapGlobalEvent(message subscribers.GlobalCastEvent) SseEvent {
 		return SseEvent{}
 	}
 	return SseEvent{EventName: eventName, EventData: message.Data}
-}
-
-func sendCountEvent(client *SSEClient, kind subscribers.CountEventKind, count int64) {
-	bytes, err := json.Marshal(publishers.CountEvent{Count: count})
-	if err != nil {
-		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)
-	}
-	client.SendEvent(mapGlobalEvent(subscribers.GlobalCastEvent{Kind: kind, Data: string(bytes)}))
 }
 
 const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
@@ -100,7 +85,7 @@ func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) e
 	})
 	defer stopScheduledEvent()
 
-	blockSSEClient(client)
+	blockSSE(client)
 	return nil
 }
 
@@ -115,23 +100,19 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: strUserID})
 
-	subscriber := server.broadcasters.Users.Subscribe(strUserID, SSEChanBufCap)
+	subscriber, unsubscribe := server.broadcasters.Users.Subscribe(strUserID, SSEChanBufCap)
+	defer unsubscribe()
 
-	streamServerSentEvents(client, ListenConfig[[]byte]{
-		OnClose: func() {
-			server.broadcasters.Users.Unsubscribe(strUserID, subscriber)
-			slog.InfoContext(ctx, "SSE handler: finishing handle user events stream")
-
-			detachedCtx := context.WithoutCancel(ctx)
-			if _, err = server.service.RemoveActiveUser(detachedCtx, strUserID); err != nil {
-				slog.ErrorContext(detachedCtx, "SSE handler: failed to remove active user", "sseID", strUserID, "error", err)
-			}
-		},
-		Mailbox: subscriber.Mailbox(),
-		MapMessage: func(message []byte) SseEvent {
-			return SseEvent{EventName: UserChallengeEvent, EventData: string(message)}
-		},
+	channelToSSE(client, subscriber.Mailbox(), func(message []byte) SseEvent {
+		return SseEvent{EventName: UserChallengeEvent, EventData: string(message)}
 	})
+
+	detachedCtx := context.WithoutCancel(ctx)
+	if _, err = server.service.RemoveActiveUser(detachedCtx, strUserID); err != nil {
+		slog.ErrorContext(detachedCtx, "SSE handler: failed to remove active user", "sseID", strUserID, "error", err)
+	}
+
+	slog.InfoContext(ctx, "SSE handler: finishing handle user events stream")
 
 	return nil
 }
@@ -141,20 +122,15 @@ func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Requ
 
 	tournamentKey := r.URL.Query().Get("tournamentKey")
 
-	subscriber := server.broadcasters.Tournament.Subscribe(tournamentKey, SSEChanBufCap)
+	subscriber, unsubscribe := server.broadcasters.Tournament.Subscribe(tournamentKey, SSEChanBufCap)
+	defer unsubscribe()
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: tournamentKey})
 
-	streamServerSentEvents(client, ListenConfig[[]byte]{
-		OnClose: func() {
-			server.broadcasters.Tournament.Unsubscribe(tournamentKey, subscriber)
-			slog.InfoContext(ctx, "SSE handler: finishing handle tournament events stream")
-		},
-		Mailbox: subscriber.Mailbox(),
-		MapMessage: func(message []byte) SseEvent {
-			return SseEvent{EventName: TournamentEvent, EventData: string(message)}
-		},
+	channelToSSE(client, subscriber.Mailbox(), func(message []byte) SseEvent {
+		return SseEvent{EventName: TournamentEvent, EventData: string(message)}
 	})
 
+	slog.InfoContext(ctx, "SSE handler: finishing handle tournament events stream")
 	return nil
 }

@@ -2,7 +2,10 @@ package network
 
 import (
 	"context"
+	"encoding/json/v2"
 	"fmt"
+	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/subscribers"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -22,50 +25,42 @@ func NewSSEClient(ctx context.Context, w http.ResponseWriter, f http.Flusher) *S
 }
 
 type ListenConfig[Message any] struct {
-	OnClose    func()
 	Mailbox    chan Message
 	MapMessage func(Message) SseEvent
 }
 
-func streamServerSentEvents[Message any](client *SSEClient, cfg ListenConfig[Message]) {
-	go func() {
-		<-client.ctx.Done()
-
-		if cfg.OnClose == nil {
-			close(cfg.Mailbox)
-		} else {
-			cfg.OnClose()
-		}
-	}()
-
+func channelToSSE[Message any](client *SSEClient, mailbox chan Message, mapMessage func(Message) SseEvent) {
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 	defer keepAliveTicker.Stop()
 
-StreamLoop:
 	for {
 		select {
-		case message, ok := <-cfg.Mailbox:
+		case <-client.ctx.Done():
+			slog.InfoContext(client.ctx, "SSE: close from client")
+			return
+		case message, ok := <-mailbox:
 			if !ok {
-				break StreamLoop
+				slog.InfoContext(client.ctx, "SSE: close from server")
+				return
 			}
-			if cfg.MapMessage == nil {
+
+			if mapMessage == nil {
 				slog.WarnContext(client.ctx, "SSE: while streaming messages: mapMessage fn is not provided, dropping message")
 				continue
 			}
-			event := cfg.MapMessage(message)
+			event := mapMessage(message)
 			if event == (SseEvent{}) {
 				continue
 			}
+
 			client.SendEvent(event)
 		case <-keepAliveTicker.C:
 			client.SendEvent(SseEvent{EventName: MetaEvent, EventData: "KeepAlive"})
 		}
 	}
-
-	slog.InfoContext(client.ctx, "SSE: finished streaming server sent events")
 }
 
-func blockSSEClient(client *SSEClient) {
+func blockSSE(client *SSEClient) {
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 	for {
 		select {
@@ -97,4 +92,12 @@ func (client *SSEClient) SendEvent(event SseEvent) {
 	if event.EventName != "KeepAlive" {
 		slog.InfoContext(client.ctx, "SSE: writing server sent event", "event", event.EventName, "data", event.EventData)
 	}
+}
+
+func sendCountEvent(client *SSEClient, kind subscribers.CountEventKind, count int64) {
+	bytes, err := json.Marshal(publishers.CountEvent{Count: count})
+	if err != nil {
+		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)
+	}
+	client.SendEvent(mapGlobalEvent(subscribers.GlobalCastEvent{Kind: kind, Data: string(bytes)}))
 }

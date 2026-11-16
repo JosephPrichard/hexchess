@@ -23,7 +23,7 @@ func NewGlobalBroadcastBroker[Payload any](brokerID string, config BrokerConfig)
 			brokerID:              brokerID,
 			shardID:               strconv.Itoa(i),
 			subscribersMap:        make(subscribersMap[Payload]),
-			slowSubscriberTimeout: config.SlowSubscriberTimeout,
+			idleSubscriberTimeout: config.IdleSubscriberTimeout,
 			inputChan:             make(chan workerTask[Payload]),
 		}
 		brokerShards = append(brokerShards, shard)
@@ -42,24 +42,28 @@ func NewGlobalBroadcastBroker[Payload any](brokerID string, config BrokerConfig)
 	}
 }
 
-func (broker *GlobalBroadcastBroker[Payload]) Subscribe(capacity int) Subscriber[Payload] {
+func (broker *GlobalBroadcastBroker[Payload]) Subscribe(capacity int) (Subscriber[Payload], func()) {
 	record := newBrokerRecord[Payload](capacity)
-	subscriber := record.subscriber()
+	subscriber := record.toSubscriber()
 
 	// `slotSubscriberID`: bucket the subscribe call to different shards deterministically
-	bucket := getSubscriberIDBucket(subscriber.id, len(broker.brokerShards))
-	shard := broker.brokerShards[bucket]
+	shardIndex := getSubscriberIDShard(subscriber.id, len(broker.brokerShards))
+	shard := broker.brokerShards[shardIndex]
 
 	shard.sendTask(newSubscribeTask(record, nil))
-	return subscriber
+
+	unsubscribe := func() {
+		broker.Unsubscribe(subscriber)
+	}
+	return subscriber, unsubscribe
 }
 
 func (broker *GlobalBroadcastBroker[Payload]) Unsubscribe(subscriber Subscriber[Payload]) {
 	subscriberID := subscriber.id
 
 	// `slotSubscriberID`: bucket unsubscribe call to the same shard as the subscribe call
-	bucket := getSubscriberIDBucket(subscriberID, len(broker.brokerShards))
-	shard := broker.brokerShards[bucket]
+	shardIndex := getSubscriberIDShard(subscriberID, len(broker.brokerShards))
+	shard := broker.brokerShards[shardIndex]
 
 	shard.sendTask(newUnsubscribeTask[Payload](subscriberID, nil))
 }
@@ -86,7 +90,7 @@ func (shard *globalBrokerShard[Payload]) sendTask(task workerTask[Payload]) {
 	shard.inputChan <- task
 }
 
-func getSubscriberIDBucket(subscriberID uuid.UUID, len int) int {
+func getSubscriberIDShard(subscriberID uuid.UUID, len int) int {
 	h := fnv.New64a()
 	h.Write(subscriberID[:])
 	hash := h.Sum64()

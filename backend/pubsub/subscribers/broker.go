@@ -3,7 +3,6 @@ package subscribers
 import (
 	"log/slog"
 	"sync"
-	"time"
 )
 
 type BroadcastBroker[Payload any] struct {
@@ -32,29 +31,28 @@ func NewBroadcastBroker[Payload any](brokerID string, config BrokerConfig) *Broa
 	for range broker.BrokerWorkerCount {
 		go runBrokerWorker(broker.inputChan, broker.outputChan)
 	}
-	if broker.StaleCheckPeriod >= 0 {
-		go broker.cleanIdleShards()
-	}
-
 	return broker
 }
 
-func (broker *BroadcastBroker[Payload]) Subscribe(shardID string, capacity int) Subscriber[Payload] {
+func (broker *BroadcastBroker[Payload]) Subscribe(shardID string, capacity int) (Subscriber[Payload], func()) {
 	record := newBrokerRecord[Payload](capacity)
-	subscriber := record.subscriber()
+	subscriber := record.toSubscriber()
 
 	// `LoadOrStore` guarantees that two concurrent subscribe operations get the same shard
 	newShard := &brokerShard[Payload]{
 		brokerID:              broker.id,
 		shardID:               shardID,
-		slowSubscriberTimeout: broker.SlowSubscriberTimeout,
+		idleSubscriberTimeout: broker.IdleSubscriberTimeout,
 	}
 	anyShard, _ := broker.shardsMap.LoadOrStore(shardID, newShard)
 	shard := anyShard.(*brokerShard[Payload])
 
 	broker.sendTask(newSubscribeTask(record, shard))
 
-	return subscriber
+	unsubscribe := func() {
+		broker.Unsubscribe(shardID, subscriber)
+	}
+	return subscriber, unsubscribe
 }
 
 func (broker *BroadcastBroker[Payload]) Unsubscribe(shardID string, subscriber Subscriber[Payload]) {
@@ -92,30 +90,4 @@ func (broker *BroadcastBroker[Payload]) sendTask(task workerTask[Payload]) {
 func (broker *BroadcastBroker[Payload]) Shutdown() {
 	broker.closeFunc()
 	slog.Info("PubSub: shutdown broker", "brokerID", broker.id)
-}
-
-func (broker *BroadcastBroker[Payload]) cleanIdleShards() {
-	ticker := time.NewTicker(broker.StaleCheckPeriod)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			broker.shardsMap.Range(func(shardID, anyShard any) bool {
-				shard := anyShard.(*brokerShard[Payload])
-
-				isRemoved := shard.doWhenEmpty(func() {
-					broker.shardsMap.Delete(shardID)
-				})
-				if isRemoved {
-					slog.Info("PubSub: removed empty shard", "brokerID", broker.id, "shardID", shardID)
-				}
-
-				return true
-			})
-		case <-broker.cleanerDone:
-			slog.Info("PubSub: shutdown broker cleaner", "brokerID", broker.id)
-			return
-		}
-	}
 }

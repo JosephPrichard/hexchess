@@ -22,7 +22,7 @@ func (s *subscriberRecord[Payload]) touch() {
 	s.lastUpdated = time.Now()
 }
 
-func (s *subscriberRecord[Payload]) subscriber() Subscriber[Payload] {
+func (s *subscriberRecord[Payload]) toSubscriber() Subscriber[Payload] {
 	return Subscriber[Payload]{id: s.id, mailbox: s.mailbox}
 }
 

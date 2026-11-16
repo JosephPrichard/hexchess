@@ -160,7 +160,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			websocketTest := setupWebsocketTest(t)
 			defer websocketTest.Shutdown()
 
-			subscriber := websocketTest.broadcasters.Games.Subscribe(gameID.String(), len(wantBrdcasts))
+			subscriber, unsubscribe := websocketTest.broadcasters.Games.Subscribe(gameID.String(), len(wantBrdcasts))
+			defer unsubscribe()
 
 			params := url.Values{}
 			params.Set("gameId", gameID.String())

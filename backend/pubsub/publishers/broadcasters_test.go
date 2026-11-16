@@ -29,7 +29,8 @@ func TestBroadcastMessage(t *testing.T) {
 
 	wantMsgCount := 2
 
-	subscriber := broadcasters.Games.Subscribe("1", wantMsgCount)
+	subscriber, unsubscribe := broadcasters.Games.Subscribe("1", wantMsgCount)
+	defer unsubscribe()
 
 	// note: there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
 	// this is true even though psc.Subscribe is called before "PUBLISH" so the race condition is redis-side and unavoidable

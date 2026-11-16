@@ -40,7 +40,8 @@ func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKe
 	return pubsub.ExpectBroadcast(
 		t, rdb, wantOutputs,
 		func(lb *subscribers.LocalBroadcasters, capacity int) pubsub.SubscriberAPI {
-			return lb.Tournament.Subscribe(tournamentKey, capacity)
+			s, _ := lb.Tournament.Subscribe(tournamentKey, capacity)
+			return s
 		},
 		func(bytes []byte) TournamentOutput {
 			var o TournamentOutput

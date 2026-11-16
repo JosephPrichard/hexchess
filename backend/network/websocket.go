@@ -21,33 +21,25 @@ import (
 
 type GameSocketContext struct {
 	context.Context
-	GameID  gameid.Identifier
-	Player  player.PlayerState
-	ErrChan chan websocketError
-}
-
-type websocketError struct {
-	// messageID allows a client to pair which input wsMessage led to which output error
-	// it is left blank if the output cannot be traced or is a system-originated error
-	messageID string
-	value     error
+	GameID      gameid.Identifier
+	Player      player.PlayerState
+	MessageChan chan wsMessage
 }
 
 // GameplayChanBufCap start dropping messages when a WebSocket is behind by this many messages
 // must be higher than the number of messages broadcasted in initialization for tests to be deterministic
-const GameplayChanBufCap = 10
+const GameplayChanBufCap = 100
 
 func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Request) {
-	// initialize static data
 	ctx := r.Context()
 
 	query := r.URL.Query()
 	gameID := gameid.Identifier(query.Get("gameId"))
 	sessionID := query.Get("sessionId")
 
-	errChan := make(chan websocketError)
+	writerDone := make(chan struct{}, 1)
+	messageChan := make(chan wsMessage)
 
-	// initialize websocket connection
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.WarnContext(ctx, "failed to upgrade ws connection", "error", err)
@@ -55,11 +47,12 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 	}
 
 	// initialize connection state (begin listening, get session data, sent initial responses etc.)
-	subscriber := server.broadcasters.Games.Subscribe(gameID.String(), GameplayChanBufCap)
+	subscriber, unsubscribe := server.broadcasters.Games.Subscribe(gameID.String(), GameplayChanBufCap)
 
 	cleanup := sync.OnceFunc(func() {
-		server.broadcasters.Games.Unsubscribe(gameID.String(), subscriber) // send close signal to writer
-		conn.Close()                                                       // send close signal to reader
+		writerDone <- struct{}{} // send close signal to writer
+		conn.Close()             // send close signal to reader
+		unsubscribe()            // send close signal to pub/sub broker
 	})
 
 	playerState, messages := server.handleGameInit(ctx, gameID, sessionID)
@@ -69,85 +62,38 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 
 	// start input reader (close signal received from client)
 	go func() {
-		ctx := GameSocketContext{Context: context.WithoutCancel(ctx), GameID: gameID, Player: playerState, ErrChan: errChan}
+		ctx := GameSocketContext{Context: context.WithoutCancel(ctx), GameID: gameID, Player: playerState, MessageChan: messageChan}
 		defer cleanup()
 		for {
 			_, input, err := conn.ReadMessage()
 			if err != nil {
 				// received close signal from reader
-				slog.InfoContext(ctx, "websocket read error", "gameID", gameID, "error", err)
+				slog.InfoContext(ctx, "websocket reader closed", "gameID", gameID, "error", err)
 				break
 			}
 			go server.handleGameMessage(ctx, input)
 		}
 	}()
 
-	// start output writer (close signal received from server)
+	// start output writer (close signal received from server or client)
 	go func() {
 		defer cleanup()
 		for {
 			select {
-			case wsErr := <-errChan:
-				writeMessage(ctx, conn, marshalGameError(ctx, GameError{GameID: gameID, MessageID: wsErr.messageID, Error: wsErr.value}))
+			case <-writerDone:
+				slog.InfoContext(ctx, "websocket writer closed from client", "gameID", gameID)
+				return
+			case message := <-messageChan:
+				writeMessage(ctx, conn, message)
 			case message, ok := <-subscriber.Mailbox():
 				if !ok {
-					// receive close signal from writer
-					slog.InfoContext(ctx, "websocket writer closed", "gameID", gameID)
+					slog.InfoContext(ctx, "websocket writer closed from server", "gameID", gameID)
 					return
 				}
 				writeMessage(ctx, conn, message)
 			}
 		}
 	}()
-}
-
-type GameError = game.ErrorGameOutput
-
-func marshalGameError(ctx context.Context, output GameError) []byte {
-	err := output.Error
-
-	var wsErr error
-	switch {
-	case errutil.IsType[WsMessageTypeError](err):
-		wsErr = ErrWsMessageType
-	case errors.Is(err, game.ErrNoChessState):
-		wsErr = ErrWsInvalidGame
-	case errutil.IsType[game.ErrFinishedGame](err):
-		wsErr = ErrWsFinishedGame
-	case errors.Is(err, game.ErrForfeitPlayer):
-		wsErr = ErrWsForfeitPlayer
-	case errutil.IsType[game.ErrStartedGame](err):
-		wsErr = ErrWsStartedGame
-	case errutil.IsType[game.ErrTurn](err):
-		wsErr = ErrWsTurn
-	case errutil.IsType[game.ErrInvalidMove](err):
-		wsErr = ErrWsInvalidMove
-	case errors.Is(err, game.ErrNoChessState):
-		// if the state cannot be found, it has expired while an inactive connection has been open
-		wsErr = ErrWsExpiration
-	case errors.Is(err, game.ErrUndoCurrPlayer):
-		wsErr = ErrWsUndoCurrPlayer
-	case
-		errors.Is(err, game.ErrNoMoveUndo),
-		errors.Is(err, game.ErrUndoNoop),
-		errors.Is(err, game.ErrNoUndo):
-		wsErr = ErrWsUndoAction
-	default:
-		wsErr = ErrWsFatal
-	}
-
-	level := slog.LevelWarn
-	if errors.Is(wsErr, ErrWsFatal) {
-		level = slog.LevelError
-	}
-	slog.Log(ctx, level, "failed to handle ws message", "error", err, "wsErr", wsErr, "messageID", output.MessageID)
-
-	bytes, err := game.MarshalGameOutputError(game.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
-	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal err output", "error", err)
-		bytes = nil
-	}
-	return bytes
 }
 
 func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Identifier, sessionID string) (player.PlayerState, []wsMessage) {
@@ -190,7 +136,7 @@ func (err WsMessageTypeError) Error() string {
 func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input wsMessage) {
 	var pbInput pb.GameInput
 	if err := pbInput.UnmarshalVT(input); err != nil {
-		ctx.ErrChan <- websocketError{value: err}
+		ctx.MessageChan <- marshalGameError(ctx, GameError{GameID: ctx.GameID, Error: err})
 		return
 	}
 
@@ -214,7 +160,7 @@ func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input wsMessa
 		err = WsMessageTypeError{pbInput: &pbInput}
 	}
 	if err != nil {
-		ctx.ErrChan <- websocketError{messageID: pbInput.MessageId, value: err}
+		ctx.MessageChan <- marshalGameError(ctx, GameError{GameID: ctx.GameID, MessageID: pbInput.MessageId, Error: err})
 	}
 }
 
@@ -286,4 +232,49 @@ func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 	})
 	server.broadcaster.BroadcastGamesEvent(ctx, output)
 	return nil
+}
+
+type GameError = game.ErrorGameOutput
+
+func marshalGameError(ctx context.Context, output GameError) []byte {
+	err := output.Error
+
+	var wsErr error
+	switch {
+	case errutil.IsType[WsMessageTypeError](err):
+		wsErr = ErrWsMessageType
+	case errors.Is(err, game.ErrNoChessState):
+		wsErr = ErrWsInvalidGame
+	case errutil.IsType[game.ErrFinishedGame](err):
+		wsErr = ErrWsFinishedGame
+	case errors.Is(err, game.ErrForfeitPlayer):
+		wsErr = ErrWsForfeitPlayer
+	case errutil.IsType[game.ErrStartedGame](err):
+		wsErr = ErrWsStartedGame
+	case errutil.IsType[game.ErrTurn](err):
+		wsErr = ErrWsTurn
+	case errutil.IsType[game.ErrInvalidMove](err):
+		wsErr = ErrWsInvalidMove
+	case errors.Is(err, game.ErrNoChessState):
+		// if the state cannot be found, it has expired while an inactive connection has been open
+		wsErr = ErrWsExpiration
+	case errors.Is(err, game.ErrUndoCurrPlayer):
+		wsErr = ErrWsUndoCurrPlayer
+	case
+		errors.Is(err, game.ErrNoMoveUndo),
+		errors.Is(err, game.ErrUndoNoop),
+		errors.Is(err, game.ErrNoUndo):
+		wsErr = ErrWsUndoAction
+	default:
+		wsErr = ErrWsFatal
+	}
+
+	slog.WarnContext(ctx, "failed to handle ws message", "error", err, "wsErr", wsErr, "messageID", output.MessageID)
+
+	bytes, err := game.MarshalGameOutputError(game.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to marshal err output", "error", err)
+		bytes = nil
+	}
+	return bytes
 }
