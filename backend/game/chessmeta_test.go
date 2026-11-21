@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/publishers/redispub"
 	"hexchess-svc/user"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/goutil"
@@ -25,7 +25,7 @@ func setupGameMetadataTest(t slogutil.TestLogger) (*ChessMetadataService, itest.
 	service := NewChessMetadataService(
 		infra.Database,
 		&entropy.StableSource{CurrTime: itest.TimeNow},
-		publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+		redispub.NewRedisPublisher(infra.Redis.PubSubClient, goutil.SyncDispatcher{}),
 	)
 
 	return service, infra

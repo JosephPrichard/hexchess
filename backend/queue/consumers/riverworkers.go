@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
 	"hexchess-svc/game"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
@@ -25,11 +25,11 @@ import (
 )
 
 type RiverConsumerConfig struct {
-	PGXPool     *pgxpool.Pool
-	Database    database.PostgreSQL
-	Redis       cache.Redis
-	EsClient    *elasticsearch.TypedClient
-	Broadcaster publishers.Broadcaster
+	PGXPool   *pgxpool.Pool
+	Database  database.PostgreSQL
+	Redis     cache.Redis
+	EsClient  *elasticsearch.TypedClient
+	Publisher pubsub.Publisher
 }
 
 const RiverQueueMaxWorkers = 100
@@ -38,7 +38,7 @@ func StartRiverConsumers(config RiverConsumerConfig) {
 	slog.Info("start river consumers", "config", config)
 
 	// initialize services
-	advanceTournamentWorker := NewAdvanceTournamentWorker(config.Database, config.Redis, config.Broadcaster)
+	advanceTournamentWorker := NewAdvanceTournamentWorker(config.Database, config.Redis, config.Publisher)
 	updateUserWorker := NewUpdateUserWorker(config.Database, config.EsClient)
 
 	// configure and connect to river queue
@@ -116,12 +116,12 @@ type AdvanceTournamentWorker struct {
 func NewAdvanceTournamentWorker(
 	database database.PostgreSQL,
 	redis cache.Redis,
-	broadcaster publishers.Broadcaster,
+	publisher pubsub.Publisher,
 ) *AdvanceTournamentWorker {
 	return &AdvanceTournamentWorker{
 		service: tournament.NewTournamentAdvancer(
 			database,
-			broadcaster,
+			publisher,
 			game.NewGameCreateService(
 				redis,
 				game.NewChessRepoService(redis),

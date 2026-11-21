@@ -1,4 +1,4 @@
-package subscribers
+package redisub
 
 import (
 	"time"

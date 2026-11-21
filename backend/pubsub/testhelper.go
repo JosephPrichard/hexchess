@@ -2,17 +2,13 @@ package pubsub
 
 import (
 	"hexchess-svc/cache"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub/subscribers/redisub"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
-
-type SubscriberAPI interface {
-	Mailbox() chan []byte
-}
 
 type ExpectBroadcastResult struct {
 	Assert   func()
@@ -23,7 +19,7 @@ func ExpectBroadcast[Message any](
 	t *testing.T,
 	rdb cache.Redis,
 	want []Message,
-	subscribe func(lb *subscribers.LocalBroadcasters, capacity int) SubscriberAPI,
+	subscribe func(lb *redisub.RedisBroadcastBroker, capacity int) <-chan []byte,
 	unmarshal func(bytes []byte) Message,
 	cmpOpts ...cmp.Option,
 ) ExpectBroadcastResult {
@@ -33,8 +29,8 @@ func ExpectBroadcast[Message any](
 		return ExpectBroadcastResult{Assert: func() {}, Shutdown: func() {}}
 	}
 
-	lb := subscribers.NewLocalBroadcasters(subscribers.MinimalBrokerConfig)
-	lb.Listen(t.Context(), rdb) // start listening before this function returns
+	lb := redisub.NewRedisBroadcastBroker(redisub.MinimalBrokerConfig, rdb.PubSubClient)
+	lb.Start(t.Context()) // start listening before this function returns
 
 	subscriber := subscribe(lb, len(want))
 
@@ -45,7 +41,7 @@ func ExpectBroadcast[Message any](
 		for i := range want {
 			var raw []byte
 			select {
-			case raw = <-subscriber.Mailbox():
+			case raw = <-subscriber:
 			case <-time.After(5 * time.Second):
 				t.Fatalf("timed out waiting for broadcaster message %d/%d", i+1, len(want))
 			}
@@ -57,7 +53,7 @@ func ExpectBroadcast[Message any](
 	}
 
 	shutdown := func() {
-		lb.Shutdown() // close the broadcasters only after running assertions (ideally at the end with a `defer` call)
+		lb.Close() // close the broadcasters only after running assertions (ideally at the end with a `defer` call)
 	}
 	return ExpectBroadcastResult{Assert: assert, Shutdown: shutdown}
 }

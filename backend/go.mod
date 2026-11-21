@@ -81,8 +81,12 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/klauspost/compress v1.20.1 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/luci/go-render v0.0.0-20160219211803-9a04cc21af0f // indirect
+	github.com/nats-io/nats.go v1.56.0 // indirect
+	github.com/nats-io/nkeys v0.4.16 // indirect
+	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nikunjy/rules v1.5.0 // indirect
 	github.com/r3labs/diff/v3 v3.0.2 // indirect
 	github.com/riverqueue/apiframe v0.0.0-20251229202423-2b52ce1c482e // indirect

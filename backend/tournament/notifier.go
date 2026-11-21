@@ -3,14 +3,14 @@ package tournament
 import (
 	"context"
 	"hexchess-svc/gamedata"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/user"
 	"log/slog"
 )
 
 type TournamentNotifier struct {
 	// infra
-	broadcaster publishers.Broadcaster
+	publisher pubsub.Publisher
 
 	// service
 	leaderboard TournamentLeaderboardGetter
@@ -20,8 +20,8 @@ type TournamentLeaderboardGetter interface {
 	GetLeaderboardUser(ctx context.Context, userID int64, mode gamedata.GameMode) (user.LbdUser, error)
 }
 
-func NewTournamentNotifier(leaderboard TournamentLeaderboardGetter, broadcaster publishers.Broadcaster) *TournamentNotifier {
-	return &TournamentNotifier{leaderboard: leaderboard, broadcaster: broadcaster}
+func NewTournamentNotifier(leaderboard TournamentLeaderboardGetter, publisher pubsub.Publisher) *TournamentNotifier {
+	return &TournamentNotifier{leaderboard: leaderboard, publisher: publisher}
 }
 
 func (service *TournamentNotifier) NotifyTournamentParticipant(ctx context.Context, playerID int64, event JoinTournamentEvent) {
@@ -30,7 +30,9 @@ func (service *TournamentNotifier) NotifyTournamentParticipant(ctx context.Conte
 		slog.ErrorContext(ctx, "failed to get leaderboard user to broadcast tournament participant", "playerID", playerID, "tournamentJoin", event, "err", err)
 		return
 	}
-	service.broadcaster.BroadcastTournament(ctx, TournamentOutput{
+
+	tkey := event.TournamentKey.String()
+	pubsub.PublishTournamentEvent(ctx, service.publisher, tkey, TournamentOutput{
 		Key:             event.TournamentKey.String(),
 		Kind:            TournamentParticipantKind,
 		LeaderboardUser: leaderboardUser,

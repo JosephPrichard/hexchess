@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/game"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub/subscribers/redisub"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -39,7 +39,7 @@ func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKe
 
 	return pubsub.ExpectBroadcast(
 		t, rdb, wantOutputs,
-		func(lb *subscribers.LocalBroadcasters, capacity int) pubsub.SubscriberAPI {
+		func(lb *redisub.RedisBroadcastBroker, capacity int) <-chan []byte {
 			s, _ := lb.Tournament.Subscribe(tournamentKey, capacity)
 			return s
 		},

@@ -8,7 +8,8 @@ import (
 	"hexchess-svc/challenges"
 	"hexchess-svc/gamedata"
 	"hexchess-svc/network"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub"
+	"hexchess-svc/pubsub/event"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
 	"time"
@@ -34,23 +35,23 @@ func TestHandleCountEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	sseTest.testBroadcaster.BroadcastActiveCount(ctx, 2)
-	sseTest.testBroadcaster.BroadcastGameCount(ctx, 4)
+	pubsub.PublishActiveCountEvent(ctx, sseTest.testPubsub, 2)
+	pubsub.PublishGameCountEvent(ctx, sseTest.testPubsub, 4)
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
 	wantLines := []string{
 		fmt.Sprintf("event: %s", network.ActiveCountEvent),
-		fmt.Sprintf("data: %s", `{"count":0}`),
+		fmt.Sprintf("data: %s", `{"kind":0,"count":0}`),
 		"",
 		fmt.Sprintf("event: %s", network.GamesCountEvent),
-		fmt.Sprintf("data: %s", `{"count":3}`),
+		fmt.Sprintf("data: %s", `{"kind":1,"count":3}`),
 		"",
 		fmt.Sprintf("event: %s", network.ActiveCountEvent),
-		fmt.Sprintf("data: %s", `{"count":2}`),
+		fmt.Sprintf("data: %s", `{"kind":0,"count":2}`),
 		"",
 		fmt.Sprintf("event: %s", network.GamesCountEvent),
-		fmt.Sprintf("data: %s", `{"count":4}`),
+		fmt.Sprintf("data: %s", `{"kind":1,"count":4}`),
 		"",
 	}
 
@@ -64,7 +65,8 @@ func TestHandleActiveConn(t *testing.T) {
 	sseTest := setupSSETest(t)
 	defer sseTest.Shutdown()
 
-	broadcastSubscriber, unsubscribe := sseTest.broadcasters.Counts.Subscribe(1)
+	broadcastSubscriber, unsubscribe, err := sseTest.testPubsub.Subscribe(ctx, event.ActiveCountChannel, "GLOBAL")
+	require.NoError(t, err)
 	defer unsubscribe()
 
 	go func() {
@@ -77,11 +79,13 @@ func TestHandleActiveConn(t *testing.T) {
 		defer resp.Body.Close() // this must execute before we assert on broadcasts since one message is sent when the SSE drops
 	}()
 
-	wantMessage := subscribers.GlobalCastEvent{Kind: subscribers.GlobalActiveEvent, Data: `{"count":1}`}
+	wantCountEvent := event.CountEvent{Kind: event.GlobalActiveEvent, Count: 1}
 
 	select {
-	case message := <-broadcastSubscriber.Mailbox():
-		assert.Equal(t, wantMessage, message)
+	case message := <-broadcastSubscriber:
+		var countEvent event.CountEvent
+		require.NoError(t, json.Unmarshal(message, &countEvent))
+		assert.Equal(t, wantCountEvent, countEvent)
 	case <-ctx.Done():
 		t.Errorf("test timed out: %v", ctx.Err())
 	}
@@ -107,7 +111,7 @@ func TestHandleUserEvents(t *testing.T) {
 	}
 
 	for _, input := range inputMessages {
-		sseTest.testBroadcaster.BroadcastUserMessage(ctx, input)
+		pubsub.PublishUserEvent(ctx, sseTest.testPubsub, input.Challenge.ChallengeeID, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
@@ -139,7 +143,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	defer sseTest.Shutdown()
 
 	keyUUID := uuid.NewV7()
-	keyString := keyUUID.String()
+	keyString := "1"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/tournament?tournamentKey="+keyString, nil)
 	require.NoError(t, err)
@@ -185,7 +189,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	}
 
 	for _, input := range inputTournaments {
-		sseTest.testBroadcaster.BroadcastTournament(ctx, input)
+		pubsub.PublishTournamentEvent(ctx, sseTest.testPubsub, input.Key, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))

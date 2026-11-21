@@ -1,9 +1,10 @@
-package publishers
+package redispub
 
 import (
 	"hexchess-svc/itest"
 	"hexchess-svc/pb"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub/event"
+	"hexchess-svc/pubsub/subscribers/redisub"
 	"hexchess-svc/utils/goutil"
 	"testing"
 	"time"
@@ -18,18 +19,17 @@ func TestBroadcastMessage(t *testing.T) {
 
 	testInfra := itest.SetupIntegrationTest(t)
 	rdb := testInfra.Redis
-
 	defer rdb.Close()
 
-	globalBroadcaster := NewBroadcaster(rdb, goutil.SyncDispatcher{})
+	publisher := NewRedisPublisher(rdb.PubSubClient, goutil.SyncDispatcher{})
 
-	broadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
-	defer broadcasters.Shutdown()
-	broadcasters.Listen(ctx, rdb)
+	broker := redisub.NewRedisBroadcastBroker(redisub.DefaultBrokerConfig, rdb.PubSubClient)
+	defer broker.Close()
+	broker.Start(ctx)
 
 	wantMsgCount := 2
 
-	subscriber, unsubscribe := broadcasters.Games.Subscribe("1", wantMsgCount)
+	subscriber, unsubscribe := broker.Games.Subscribe("1", wantMsgCount)
 	defer unsubscribe()
 
 	// note: there's a small race condition here where psc.Subscribe in ListenGameMessages may not observe broadcasts from "PUBLISH"
@@ -44,15 +44,19 @@ func TestBroadcastMessage(t *testing.T) {
 		{id: "2", msg: "test3"},
 		{id: "1", msg: "test2"},
 	} {
-		globalBroadcaster.BroadcastGamesEvent(ctx, &pb.GameOutput{
+		o := &pb.GameOutput{
 			GameId: input.id,
 			Value:  &pb.GameOutput_Chat{Chat: &pb.ChatMessage{Message: input.msg}},
-		})
+		}
+		payload, err := o.MarshalVT()
+		require.NoError(t, err)
+
+		publisher.Publish(ctx, event.GamesChannel, o.GameId, payload)
 	}
 
 	var messages []string
 	for range wantMsgCount {
-		messages = append(messages, mustUnmarshalChatMessage(t, <-subscriber.Mailbox()))
+		messages = append(messages, mustUnmarshalChatMessage(t, <-subscriber))
 	}
 	assert.Equal(t, []string{"test1", "test2"}, messages)
 }

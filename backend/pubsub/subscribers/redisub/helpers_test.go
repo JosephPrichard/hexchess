@@ -1,4 +1,4 @@
-package subscribers
+package redisub
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func testSubscriber[Event any](sub chan Event, mChan chan []Event) {
+func testSubscriber[Event any](sub <-chan Event, mChan chan []Event) {
 	var messages []Event
 	for msg := range sub {
 		messages = append(messages, msg)

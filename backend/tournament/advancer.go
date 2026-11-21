@@ -12,7 +12,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
 	"hexchess-svc/userdata"
@@ -32,7 +32,7 @@ import (
 type TournamentAdvancer struct {
 	// infra
 	database.PostgreSQL
-	broadcaster publishers.Broadcaster
+	publisher pubsub.Publisher
 
 	// service
 	gameplay GameCreator
@@ -42,8 +42,8 @@ type GameCreator interface {
 	CreateGame(ctx context.Context, setup game.ChessStateArgs) (gameid.Identifier, error)
 }
 
-func NewTournamentAdvancer(database database.PostgreSQL, broadcaster publishers.Broadcaster, gameplay GameCreator) *TournamentAdvancer {
-	return &TournamentAdvancer{PostgreSQL: database, broadcaster: broadcaster, gameplay: gameplay}
+func NewTournamentAdvancer(database database.PostgreSQL, publisher pubsub.Publisher, gameplay GameCreator) *TournamentAdvancer {
+	return &TournamentAdvancer{PostgreSQL: database, publisher: publisher, gameplay: gameplay}
 }
 
 func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tournamentKey uuid.UUID, eventID uuid.UUID) (_ []gameid.Identifier, err error) {
@@ -73,8 +73,9 @@ func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tourna
 	}
 
 	// notify tournament participants that tournament has been progressed with new matches
-	service.broadcaster.BroadcastTournament(ctx, TournamentOutput{
-		Key:     tournamentKey.String(),
+	tkey := tournamentKey.String()
+	pubsub.PublishTournamentEvent(ctx, service.publisher, tkey, TournamentOutput{
+		Key:     tkey,
 		Kind:    TournamentMatchmakingKind,
 		Matches: matches,
 	})

@@ -15,7 +15,6 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/leaderboard"
-	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/replay"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
@@ -146,7 +145,7 @@ func newSeedServices(redisClient cache.Redis, databaseClient database.PostgreSQL
 		leaderboard: leaderboard.NewLeaderboardService(redisClient, databaseClient.Querier),
 		user:        user.NewUserService(databaseClient, nil),
 		challenge:   challenges.NewChallengeService(databaseClient, entropy.RealSource{}),
-		gameover:    game.NewGameoverService(databaseClient, redisClient, nil, publishers.Broadcaster{}, nil),
+		gameover:    game.NewGameoverService(databaseClient, redisClient, nil, nil),
 	}
 }
 

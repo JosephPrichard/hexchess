@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
 	"hexchess-svc/game"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/replay"
 	"hexchess-svc/utils/entropy"
@@ -24,7 +24,7 @@ type RedisConsumerConfig struct {
 	Context     context.Context
 	Database    database.PostgreSQL
 	Redis       cache.Redis
-	Broadcaster publishers.Broadcaster
+	Publisher   pubsub.Publisher
 	RiverClient database.RiverClientAPI
 
 	AckChan       chan redis.XMessage
@@ -38,8 +38,8 @@ func StartRedisConsumers(config RedisConsumerConfig) func() {
 		config.Context = context.Background()
 	}
 
-	finishGameWorker := NewFinishedGameWorker(config.Database, config.Redis, config.RiverClient, config.Broadcaster)
-	updateGameWorker := NewUpdtGameMetadataWorker(config.Database, entropy.RealSource{}, config.Broadcaster)
+	finishGameWorker := NewFinishedGameWorker(config.Database, config.Redis, config.RiverClient, config.Publisher)
+	updateGameWorker := NewUpdtGameMetadataWorker(config.Database, entropy.RealSource{}, config.Publisher)
 
 	redisClient := config.Redis.ConsumerClient
 	ackChan := config.AckChan
@@ -95,27 +95,26 @@ func StartRedisConsumers(config RedisConsumerConfig) func() {
 }
 
 type FinishedGameWorker struct {
-	service     *game.GameOverService
-	replay      *replay.ReplayService
-	broadcaster publishers.Broadcaster
+	service   *game.GameOverService
+	replay    *replay.ReplayService
+	publisher pubsub.Publisher
 }
 
 func NewFinishedGameWorker(
 	database database.PostgreSQL,
 	redis cache.Redis,
 	riverClient database.RiverClientAPI,
-	broadcaster publishers.Broadcaster,
+	publisher pubsub.Publisher,
 ) *FinishedGameWorker {
 	return &FinishedGameWorker{
 		service: game.NewGameoverService(
 			database,
 			redis,
 			producers.NewRiverProducer(riverClient),
-			broadcaster,
 			game.NewChessRepoService(redis),
 		),
-		replay:      replay.NewReplayService(database),
-		broadcaster: broadcaster,
+		replay:    replay.NewReplayService(database),
+		publisher: publisher,
 	}
 }
 
@@ -134,12 +133,14 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	}
 
 	// notify any subscribers of the game that replay has been created (game has ended)
-	// note: replay is selected outside InsertFinishedGame to avoid holding locks. this involves performing more disk IO.
+	// note: replay is selected outside HandleFinishedGame to avoid holding locks. this involves performing more disk IO.
 	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
 	if err != nil {
 		return serrors.New("get replay by id", err, "replayID", result.ReplayID)
 	}
-	w.broadcaster.BroadcastGamesEvent(ctx, game.SerializeReplayOutput(game.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay}))
+
+	output := game.SerializeReplayOutput(game.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay})
+	pubsub.PublishGamesEvent(ctx, w.publisher, output)
 
 	return nil
 }
@@ -148,9 +149,9 @@ type UpdtGameMetadataWorker struct {
 	service *game.ChessMetadataService
 }
 
-func NewUpdtGameMetadataWorker(database database.PostgreSQL, entropy entropy.Generator, broadcaster publishers.Broadcaster) *UpdtGameMetadataWorker {
+func NewUpdtGameMetadataWorker(database database.PostgreSQL, entropy entropy.Generator, publisher pubsub.Publisher) *UpdtGameMetadataWorker {
 	return &UpdtGameMetadataWorker{
-		service: game.NewChessMetadataService(database, entropy, broadcaster),
+		service: game.NewChessMetadataService(database, entropy, publisher),
 	}
 }
 

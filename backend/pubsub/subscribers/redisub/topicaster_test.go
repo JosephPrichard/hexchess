@@ -1,4 +1,4 @@
-package subscribers
+package redisub
 
 import (
 	"testing"
@@ -7,8 +7,8 @@ import (
 )
 
 func TestBroadcastBroker(t *testing.T) {
-	broker := NewBroadcastBroker[[]byte]("test-broadcast", DefaultBrokerConfig)
-	defer broker.Shutdown()
+	broker := NewTopicBroadcaster("test-broadcast", DefaultBrokerConfig)
+	defer broker.Close()
 
 	wantSub1Msgs := []string{"test1", "test2", "test3"}
 	wantSub2Msgs := []string{"test2", "test3"}
@@ -23,24 +23,24 @@ func TestBroadcastBroker(t *testing.T) {
 	sub1, unsub1 := broker.Subscribe("1", len(wantSub1Msgs))
 	sub4, unsub4 := broker.Subscribe("2", len(wantSub4Msgs))
 
-	go testSubscriber(sub1.Mailbox(), mChan1)
-	go testSubscriber(sub4.Mailbox(), mChan4)
+	go testSubscriber(sub1, mChan1)
+	go testSubscriber(sub4, mChan4)
 
-	broker.Broadcast("1", []byte("test1"))
+	broker.Publish("1", []byte("test1"))
 
 	sub2, unsub2 := broker.Subscribe("1", len(wantSub2Msgs))
 	sub3, unsub3 := broker.Subscribe("1", len(wantSub3Msgs))
 
-	go testSubscriber(sub2.Mailbox(), mChan2)
-	go testSubscriber(sub3.Mailbox(), mChan3)
+	go testSubscriber(sub2, mChan2)
+	go testSubscriber(sub3, mChan3)
 
-	broker.Broadcast("1", []byte("test2"))
+	broker.Publish("1", []byte("test2"))
 
 	unsub3()
 
-	broker.Broadcast("1", []byte("test3"))
+	broker.Publish("1", []byte("test3"))
 
-	broker.Broadcast("2", []byte("test4"))
+	broker.Publish("2", []byte("test4"))
 
 	unsub1()
 	unsub2()

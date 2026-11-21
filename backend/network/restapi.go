@@ -10,6 +10,7 @@ import (
 	"hexchess-svc/gameid"
 	"hexchess-svc/persona"
 	"hexchess-svc/player"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/replay"
 	"hexchess-svc/session"
 	"hexchess-svc/tournament"
@@ -456,7 +457,7 @@ func (server *HttpServer) HandleCreateChallenge(w http.ResponseWriter, r *http.R
 		return serrors.New("insert challenge", err)
 	}
 
-	server.broadcaster.BroadcastUserMessage(ctx, challenges.UserMessage{
+	pubsub.PublishUserEvent(ctx, server.pubsub, challenge.ChallengeeID, challenges.UserMessage{
 		Kind:      challenges.ChallengeKind,
 		Challenge: challenge,
 	})
@@ -822,8 +823,9 @@ func (server *HttpServer) HandleBeginCountdownTournament(w http.ResponseWriter, 
 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
 
-	server.broadcaster.BroadcastTournament(ctx, tournament.TournamentOutput{
-		Key:  result.TournamentKey.String(),
+	tkey := result.TournamentKey.String()
+	pubsub.PublishTournamentEvent(ctx, server.pubsub, tkey, tournament.TournamentOutput{
+		Key:  tkey,
 		Kind: tournament.TournamentCountdownKind,
 	})
 

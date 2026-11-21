@@ -8,11 +8,9 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/featureflag"
 	"hexchess-svc/network"
-	"hexchess-svc/pubsub/publishers"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/consumers"
 	"hexchess-svc/trigger"
-	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"net/http"
@@ -77,10 +75,12 @@ func main() {
 		defer esClient.Close(ctx)
 	}
 
-	broadcaster := publishers.NewBroadcaster(redisClient, goutil.AsyncDispatcher{})
-
-	broadcasters := subscribers.NewLocalBroadcasters(subscribers.DefaultBrokerConfig)
-	broadcasters.Listen(context.Background(), redisClient)
+	pubSubBroker := pubsub.NewPubsubBroker(pubsub.PubsubConfig{
+		Strategy:    "REDIS",
+		RedisClient: redisClient.PubSubClient,
+	})
+	defer pubSubBroker.Close()
+	pubSubBroker.Start(context.Background())
 
 	// start API server and PPROF "sidecar" background task
 	mux := network.NewServeMux(network.HttpServerConfig{
@@ -90,8 +90,7 @@ func main() {
 		AWS:            awsClient,
 		EsClient:       esClient,
 		SDKs:           remoteAPIs,
-		Broadcaster:    broadcaster,
-		Broadcasters:   broadcasters,
+		Pubsub:         pubSubBroker,
 		AllowedOrigins: cfg.AllowedOrigins,
 	})
 
@@ -99,15 +98,15 @@ func main() {
 	consumers.StartRedisConsumers(consumers.RedisConsumerConfig{
 		Database:    databaseClient,
 		Redis:       redisClient,
-		Broadcaster: broadcaster,
+		Publisher:   pubSubBroker,
 		RiverClient: riverClient,
 	})
 	consumers.StartRiverConsumers(consumers.RiverConsumerConfig{
-		PGXPool:     databasePools.Write,
-		Database:    databaseClient,
-		Redis:       redisClient,
-		EsClient:    esClient,
-		Broadcaster: broadcaster,
+		PGXPool:   databasePools.Write,
+		Database:  databaseClient,
+		Redis:     redisClient,
+		EsClient:  esClient,
+		Publisher: pubSubBroker,
 	})
 
 	// start background trigger handlers

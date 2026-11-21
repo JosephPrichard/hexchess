@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/pb"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/publishers/redispub"
 	"hexchess-svc/queue"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
@@ -44,7 +44,7 @@ func setupConsumersTest(t *testing.T) (itest.TestInfra, func(int), func()) {
 		Redis:    testinfra.Redis,
 		// INFRA CLIENTS
 		RiverClient: database.NewRiverClient(testinfra.Pool),
-		Broadcaster: publishers.NewBroadcaster(testinfra.Redis, goutil.SyncDispatcher{}),
+		Publisher:   redispub.NewRedisPublisher(testinfra.Redis.PubSubClient, goutil.SyncDispatcher{}),
 		// TEST SUBSTITUTES to enable deterministic asserts on consumption finishing
 		AckChan:       ackChan,
 		BlockDuration: time.Millisecond * 100, // providing block-duration to redis enables

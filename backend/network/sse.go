@@ -4,8 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"fmt"
-	"hexchess-svc/pubsub/publishers"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub/event"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -29,7 +28,7 @@ type ListenConfig[Message any] struct {
 	MapMessage func(Message) SseEvent
 }
 
-func channelToSSE[Message any](client *SSEClient, mailbox chan Message, mapMessage func(Message) SseEvent) {
+func channelToSSE[Message any](client *SSEClient, mailbox <-chan Message, mapMessage func(Message) SseEvent) {
 	keepAliveTicker := time.NewTicker(KeepAliveTimeout)
 	defer keepAliveTicker.Stop()
 
@@ -48,12 +47,12 @@ func channelToSSE[Message any](client *SSEClient, mailbox chan Message, mapMessa
 				slog.WarnContext(client.ctx, "SSE: while streaming messages: mapMessage fn is not provided, dropping message")
 				continue
 			}
-			event := mapMessage(message)
-			if event == (SseEvent{}) {
+			e := mapMessage(message)
+			if e == (SseEvent{}) {
 				continue
 			}
 
-			client.SendEvent(event)
+			client.SendEvent(e)
 		case <-keepAliveTicker.C:
 			client.SendEvent(SseEvent{EventName: MetaEvent, EventData: "KeepAlive"})
 		}
@@ -94,10 +93,10 @@ func (client *SSEClient) SendEvent(event SseEvent) {
 	}
 }
 
-func sendCountEvent(client *SSEClient, kind subscribers.CountEventKind, count int64) {
-	bytes, err := json.Marshal(publishers.CountEvent{Count: count})
+func sendCountEvent(client *SSEClient, kind event.CountEventKind, count int64) {
+	bytes, err := json.Marshal(event.CountEvent{Kind: kind, Count: count})
 	if err != nil {
 		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)
 	}
-	client.SendEvent(mapGlobalEvent(subscribers.GlobalCastEvent{Kind: kind, Data: string(bytes)}))
+	client.SendEvent(mapGlobalEvent(bytes))
 }

@@ -12,7 +12,6 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub/publishers"
 	"hexchess-svc/replay"
 	"hexchess-svc/userdata"
 	"hexchess-svc/utils/perf"
@@ -32,12 +31,11 @@ import (
 type GameOverService struct {
 	// infra
 	database.PostgreSQL
-	redis       cache.Redis
-	broadcaster publishers.Broadcaster
+	redis cache.Redis
 
 	// service
-	producer   AdvanceTournamentProducer
-	chessState ChessStateGetter
+	producer    AdvanceTournamentProducer
+	chessGetter ChessStateGetter
 }
 
 type ChessStateGetter interface {
@@ -49,12 +47,12 @@ type AdvanceTournamentProducer interface {
 }
 
 func NewGameoverService(
-	database database.PostgreSQL, redis cache.Redis, producer AdvanceTournamentProducer, broadcaster publishers.Broadcaster, chessState ChessStateGetter,
+	database database.PostgreSQL, redis cache.Redis, producer AdvanceTournamentProducer, chessGetter ChessStateGetter,
 ) *GameOverService {
 	if producer == nil {
 		producer = producers.NewRiverProducer(&producers.NoopRiverClient{})
 	}
-	return &GameOverService{PostgreSQL: database, redis: redis, producer: producer, broadcaster: broadcaster, chessState: chessState}
+	return &GameOverService{PostgreSQL: database, redis: redis, producer: producer, chessGetter: chessGetter}
 }
 
 type FinishedGameResult struct {
@@ -104,7 +102,7 @@ func (service *GameOverService) HandleFinishedGame(ctx context.Context, event Fi
 func (service *GameOverService) backfillEvent(ctx context.Context, event *FinishGameEvent) error {
 	if event.ReplayCause == replay.Timeout {
 		// event is not fully provided on TIMEOUT cause, since it is published from a trigger
-		state, err := service.chessState.GetChessState(ctx, event.GameID)
+		state, err := service.chessGetter.GetChessState(ctx, event.GameID)
 		if err != nil {
 			return serrors.New("get chess state", err, "gameID", event.GameID)
 		}

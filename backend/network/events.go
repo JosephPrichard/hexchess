@@ -2,7 +2,8 @@ package network
 
 import (
 	"context"
-	"hexchess-svc/pubsub/subscribers"
+	"encoding/json/v2"
+	"hexchess-svc/pubsub/event"
 	svc "hexchess-svc/user"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/timeutil"
@@ -35,29 +36,39 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 		return serrors.New("get chess state count", err)
 	}
 
-	sendCountEvent(client, subscribers.GlobalActiveEvent, activeCount)
-	sendCountEvent(client, subscribers.GlobalGamesEvent, gamesCount)
+	sendCountEvent(client, event.GlobalActiveEvent, activeCount)
+	sendCountEvent(client, event.GlobalGamesEvent, gamesCount)
 
-	subscriber, unsubscribe := server.broadcasters.Counts.Subscribe(SSEChanBufCap)
+	subscriber, unsubscribe, err := server.pubsub.Subscribe(ctx, event.ActiveCountChannel, "GLOBAL")
+	if err != nil {
+		return serrors.New("subscribe to pubsub broker", err)
+	}
 	defer unsubscribe()
 
-	channelToSSE(client, subscriber.Mailbox(), mapGlobalEvent)
+	channelToSSE(client, subscriber, mapGlobalEvent)
 
 	slog.InfoContext(ctx, "SSE handler: finished handle user events stream")
 	return nil
 }
 
-func mapGlobalEvent(message subscribers.GlobalCastEvent) SseEvent {
+func mapGlobalEvent(payload []byte) SseEvent {
+	var message event.CountEvent
+	if err := json.Unmarshal(payload, &message); err != nil {
+		slog.Error("failed to unmarshal global event", "error", err)
+		return SseEvent{}
+	}
+
 	var eventName string
 	switch message.Kind {
-	case subscribers.GlobalActiveEvent:
+	case event.GlobalActiveEvent:
 		eventName = ActiveCountEvent
-	case subscribers.GlobalGamesEvent:
+	case event.GlobalGamesEvent:
 		eventName = GamesCountEvent
 	default:
 		return SseEvent{}
 	}
-	return SseEvent{EventName: eventName, EventData: message.Data}
+
+	return SseEvent{EventName: eventName, EventData: string(payload)}
 }
 
 const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
@@ -100,10 +111,13 @@ func (server *HttpServer) HandleUserEvents(client *SSEClient, r *http.Request) e
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: strUserID})
 
-	subscriber, unsubscribe := server.broadcasters.Users.Subscribe(strUserID, SSEChanBufCap)
+	subscriber, unsubscribe, err := server.pubsub.Subscribe(ctx, event.UsersChannel, strUserID)
+	if err != nil {
+		return serrors.New("subscribe to pubsub broker", err)
+	}
 	defer unsubscribe()
 
-	channelToSSE(client, subscriber.Mailbox(), func(message []byte) SseEvent {
+	channelToSSE(client, subscriber, func(message []byte) SseEvent {
 		return SseEvent{EventName: UserChallengeEvent, EventData: string(message)}
 	})
 
@@ -121,12 +135,15 @@ func (server *HttpServer) HandleTournamentEvents(client *SSEClient, r *http.Requ
 
 	tournamentKey := r.URL.Query().Get("tournamentKey")
 
-	subscriber, unsubscribe := server.broadcasters.Tournament.Subscribe(tournamentKey, SSEChanBufCap)
+	subscriber, unsubscribe, err := server.pubsub.Subscribe(ctx, event.TournamentsChannel, tournamentKey)
+	if err != nil {
+		return serrors.New("subscribe to pubsub broker", err)
+	}
 	defer unsubscribe()
 
 	client.SendEvent(SseEvent{EventName: MetaEvent, EventData: tournamentKey})
 
-	channelToSSE(client, subscriber.Mailbox(), func(message []byte) SseEvent {
+	channelToSSE(client, subscriber, func(message []byte) SseEvent {
 		return SseEvent{EventName: TournamentEvent, EventData: string(message)}
 	})
 

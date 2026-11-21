@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/cache"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
@@ -17,13 +17,13 @@ import (
 const ActiveUserMaxAge = 5 * time.Minute // the caller should manually remove, but this is a stopgap in case the server is stopped before that is the case
 
 type ActiveUserService struct {
-	redis       cache.Redis
-	broadcaster publishers.Broadcaster
-	entropy     entropy.Generator
+	redis     cache.Redis
+	publisher pubsub.Publisher
+	entropy   entropy.Generator
 }
 
-func NewActiveUserService(redis cache.Redis, broadcaster publishers.Broadcaster) *ActiveUserService {
-	return &ActiveUserService{redis: redis, broadcaster: broadcaster, entropy: entropy.RealSource{}}
+func NewActiveUserService(redis cache.Redis, publisher pubsub.Publisher) *ActiveUserService {
+	return &ActiveUserService{redis: redis, publisher: publisher, entropy: entropy.RealSource{}}
 }
 
 func (service *ActiveUserService) IsActiveUser(ctx context.Context, id string) bool {
@@ -84,7 +84,7 @@ func (service *ActiveUserService) AddActiveUser(ctx context.Context, id string) 
 		return 0, serrors.New("get active user count after adding user", err, "id", id)
 	}
 
-	service.broadcaster.BroadcastActiveCount(ctx, count)
+	pubsub.PublishActiveCountEvent(ctx, service.publisher, count)
 	return count, nil
 }
 
@@ -106,6 +106,6 @@ func (service *ActiveUserService) RemoveActiveUser(ctx context.Context, id strin
 		return 0, serrors.New("get active user count after removing user", err, "id", id)
 	}
 
-	service.broadcaster.BroadcastActiveCount(ctx, count)
+	pubsub.PublishActiveCountEvent(ctx, service.publisher, count)
 	return count, nil
 }

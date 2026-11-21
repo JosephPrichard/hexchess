@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/gameid"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/user"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/enum"
@@ -24,12 +24,12 @@ import (
 
 type ChessMetadataService struct {
 	database.PostgreSQL
-	entropy     entropy.Generator
-	broadcaster publishers.Broadcaster
+	entropy   entropy.Generator
+	publisher pubsub.Publisher
 }
 
-func NewChessMetadataService(database database.PostgreSQL, entropy entropy.Generator, broadcaster publishers.Broadcaster) *ChessMetadataService {
-	return &ChessMetadataService{PostgreSQL: database, entropy: entropy, broadcaster: broadcaster}
+func NewChessMetadataService(database database.PostgreSQL, entropy entropy.Generator, publisher pubsub.Publisher) *ChessMetadataService {
+	return &ChessMetadataService{PostgreSQL: database, entropy: entropy, publisher: publisher}
 }
 
 func (service *ChessMetadataService) UpdateGameMetadata(ctx context.Context, updt UpdtGameMetadataEvent) (err error) {
@@ -48,7 +48,7 @@ func (service *ChessMetadataService) UpdateGameMetadata(ctx context.Context, upd
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "result", result)
 
 	if result.IsNewRow {
-		service.broadcaster.BroadcastGameCount(context.WithoutCancel(ctx), result.Count)
+		pubsub.PublishGameCountEvent(ctx, service.publisher, result.Count)
 	}
 	return nil
 }

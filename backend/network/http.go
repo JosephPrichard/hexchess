@@ -10,8 +10,7 @@ import (
 	"hexchess-svc/game"
 	"hexchess-svc/leaderboard"
 	"hexchess-svc/persona"
-	"hexchess-svc/pubsub/publishers"
-	"hexchess-svc/pubsub/subscribers"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/replay"
 	"hexchess-svc/session"
@@ -31,8 +30,7 @@ import (
 
 type HttpServer struct {
 	service       HttpServices
-	broadcasters  *subscribers.LocalBroadcasters
-	broadcaster   publishers.Broadcaster
+	pubsub        pubsub.PubsubBroker
 	dispatcher    goutil.Dispatcher
 	entropy       entropy.Generator
 	authenticator HttpAuthenticator
@@ -67,13 +65,12 @@ type HttpServerConfig struct {
 	RiverClient     database.RiverClientAPI
 	RealRiverClient *river.Client[pgx.Tx]
 	Redis           cache.Redis
-	Broadcaster     publishers.Broadcaster
+	Pubsub          pubsub.PubsubBroker
 	AWS             cloud.AWSClient
 	SDKs            cloud.SDKs
 	EsClient        *elasticsearch.TypedClient
 	Entropy         entropy.Generator
 	Dispatcher      goutil.Dispatcher
-	Broadcasters    *subscribers.LocalBroadcasters
 	AllowedOrigins  string
 }
 
@@ -164,8 +161,7 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 func NewHttpServer(config HttpServerConfig) HttpServer {
 	return HttpServer{
 		service:       NewHttpServices(config),
-		broadcaster:   config.Broadcaster,
-		broadcasters:  config.Broadcasters,
+		pubsub:        config.Pubsub,
 		dispatcher:    config.Dispatcher,
 		entropy:       config.Entropy,
 		authenticator: HttpAuthenticator{service: session.NewSessionService(config.Redis)},
@@ -190,7 +186,7 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 	replaySearchService := replay.NewReplaySearchService(config.Database)
 	challengeService := challenges.NewChallengeService(config.Database, config.Entropy)
 	leaderboardService := leaderboard.NewLeaderboardService(config.Redis, config.Database.Querier)
-	chessMetaService := game.NewChessMetadataService(config.Database, config.Entropy, config.Broadcaster)
+	chessMetaService := game.NewChessMetadataService(config.Database, config.Entropy, config.Pubsub)
 	chessRepoService := game.NewChessRepoService(config.Redis)
 	gameplayService := game.NewGameplayService(config.Redis, chessRepoService)
 	gameCreateService := game.NewGameCreateService(config.Redis, chessRepoService)
@@ -199,8 +195,8 @@ func NewHttpServices(config HttpServerConfig) HttpServices {
 	sessionService := session.NewSessionService(config.Redis)
 	tournamentUpdater := tournament.NewTournamentUpdater(config.Database, config.Redis, riverProducer)
 	tournamentRetriever := tournament.NewRetrieveTournamentService(config.Database.Querier, config.Redis)
-	tournamentNotifier := tournament.NewTournamentNotifier(leaderboardService, config.Broadcaster)
-	activeUserService := user.NewActiveUserService(config.Redis, config.Broadcaster)
+	tournamentNotifier := tournament.NewTournamentNotifier(leaderboardService, config.Pubsub)
+	activeUserService := user.NewActiveUserService(config.Redis, config.Pubsub)
 	chatService := game.NewChatService(config.Redis, config.Database.Querier, config.EsClient, config.Entropy, config.Dispatcher)
 	personaService := persona.NewPersonaService(config.Database, config.Redis)
 	authTokenService := session.NewAuthTokenService(config.SDKs)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/network"
+	"hexchess-svc/pubsub/event"
 
 	"net/http"
 	"net/url"
@@ -160,7 +161,8 @@ func TestHandleGameplayWs(t *testing.T) {
 			websocketTest := setupWebsocketTest(t)
 			defer websocketTest.Shutdown()
 
-			subscriber, unsubscribe := websocketTest.broadcasters.Games.Subscribe(gameID.String(), len(wantBrdcasts))
+			subscriber, unsubscribe, err := websocketTest.testPubsub.Subscribe(ctx, event.GamesChannel, gameID.String())
+			require.NoError(t, err)
 			defer unsubscribe()
 
 			params := url.Values{}
@@ -180,7 +182,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			require.NoError(t, err)
 
 			msgs := readGameOutputMsgs(t, conn, len(wantMsgs))
-			brdcasts := readGameOutputBroadcasts(ctx, subscriber.Mailbox(), len(wantBrdcasts))
+			brdcasts := readGameOutputBroadcasts(ctx, subscriber, len(wantBrdcasts))
 
 			testutil.Equal(t, wantMsgs, msgs, gameOutputAssertionCmpOpts...)
 			testutil.Equal(t, wantBrdcasts, brdcasts, gameOutputAssertionCmpOpts...)
@@ -223,7 +225,7 @@ func readGameOutputMsgs(t *testing.T, conn *websocket.Conn, wantMessages int) []
 	return msgs
 }
 
-func readGameOutputBroadcasts(ctx context.Context, subChan chan []byte, wantBrdcasts int) []any {
+func readGameOutputBroadcasts(ctx context.Context, subChan <-chan []byte, wantBrdcasts int) []any {
 	ctx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
 

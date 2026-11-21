@@ -8,6 +8,8 @@ import (
 	"hexchess-svc/game"
 	"hexchess-svc/gameid"
 	"hexchess-svc/player"
+	"hexchess-svc/pubsub"
+	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/slogutil"
@@ -42,12 +44,16 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		slog.WarnContext(ctx, "failed to upgrade ws connection", "error", err)
+		slog.WarnContext(ctx, "WS: failed to upgrade ws connection", "error", err)
 		return
 	}
 
 	// initialize connection state (begin listening, get session data, sent initial responses etc.)
-	subscriber, unsubscribe := server.broadcasters.Games.Subscribe(gameID.String(), GameplayChanBufCap)
+	subscriber, unsubscribe, err := server.pubsub.Subscribe(ctx, event.GamesChannel, gameID.String())
+	if err != nil {
+		slog.WarnContext(ctx, "WS: failed to connect to pubsub broker", "error", err)
+		return
+	}
 
 	cleanup := sync.OnceFunc(func() {
 		writerDone <- struct{}{} // send close signal to writer
@@ -68,7 +74,7 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 			_, input, err := conn.ReadMessage()
 			if err != nil {
 				// received close signal from reader
-				slog.InfoContext(ctx, "websocket reader closed", "gameID", gameID, "error", err)
+				slog.InfoContext(ctx, "WS: websocket reader closed", "gameID", gameID, "error", err)
 				break
 			}
 			go server.handleGameMessage(ctx, input)
@@ -81,13 +87,13 @@ func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Req
 		for {
 			select {
 			case <-writerDone:
-				slog.InfoContext(ctx, "websocket writer closed from client", "gameID", gameID)
+				slog.InfoContext(ctx, "WS: websocket writer closed from client", "gameID", gameID)
 				return
 			case message := <-messageChan:
 				writeMessage(ctx, conn, message)
-			case message, ok := <-subscriber.Mailbox():
+			case message, ok := <-subscriber:
 				if !ok {
-					slog.InfoContext(ctx, "websocket writer closed from server", "gameID", gameID)
+					slog.InfoContext(ctx, "WS: websocket writer closed from server", "gameID", gameID)
 					return
 				}
 				writeMessage(ctx, conn, message)
@@ -120,7 +126,7 @@ func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Iden
 		WhitePlayer: chessState.WhitePlayer,
 		BlackPlayer: chessState.BlackPlayer,
 	})
-	server.broadcaster.BroadcastGamesEvent(ctx, output)
+	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
 
 	return playerState, []wsMessage{initBytes}
 }
@@ -142,7 +148,7 @@ func (server *HttpServer) handleGameMessage(ctx GameSocketContext, input wsMessa
 
 	ctx.Context = slogutil.SetCtxMapKey(ctx.Context, slogutil.MessageID, pbInput.MessageId)
 
-	slog.InfoContext(ctx, "received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
+	slog.InfoContext(ctx, "WS: received game input", "pbInputType", fmt.Sprintf("%T", &pbInput), "pbInput", &pbInput)
 
 	var err error
 	switch p := pbInput.GetValue().(type) {
@@ -175,7 +181,7 @@ func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID str
 		MessageID: messageID,
 		EndState:  endState,
 	})
-	server.broadcaster.BroadcastGamesEvent(ctx, output)
+	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -192,7 +198,7 @@ func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.Move
 		State:     moveResult.State,
 		UpdatedAt: time.Now(),
 	})
-	server.broadcaster.BroadcastGamesEvent(ctx, output)
+	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -207,8 +213,8 @@ func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.Chat
 		return serrors.New("insert chat on game", err, "gameID", ctx.GameID)
 	}
 
-	outputChat := game.SerializeGameOutputChat(game.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
-	server.broadcaster.BroadcastGamesEvent(ctx, outputChat)
+	output := game.SerializeGameOutputChat(game.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
+	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -220,7 +226,7 @@ func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 
 	chessState, err := server.service.AttemptGameUndo(ctx, ctx.GameID, ctx.Player, undoKind)
 	if err != nil {
-		return serrors.New("attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
+		return serrors.New("WS: attempting undo on game", err, "player", ctx.Player, "gameID", ctx.GameID)
 	}
 
 	output := game.SerializeGameOutputUndo(game.UndoGameOutput{
@@ -230,7 +236,7 @@ func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 		UndoID:    ctx.Player.ID,
 		State:     chessState,
 	})
-	server.broadcaster.BroadcastGamesEvent(ctx, output)
+	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -269,11 +275,11 @@ func marshalGameError(ctx context.Context, output GameError) []byte {
 		wsErr = ErrWsFatal
 	}
 
-	slog.WarnContext(ctx, "failed to handle ws message", "error", err, "wsErr", wsErr, "messageID", output.MessageID)
+	slog.WarnContext(ctx, "WS: failed to handle ws message", "error", err, "wsErr", wsErr, "messageID", output.MessageID)
 
 	bytes, err := game.MarshalGameOutputError(game.ErrorGameOutput{GameID: output.GameID, MessageID: output.MessageID, Error: wsErr})
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to marshal err output", "error", err)
+		slog.ErrorContext(ctx, "WS: failed to marshal err output", "error", err)
 		bytes = nil
 	}
 	return bytes

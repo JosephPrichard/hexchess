@@ -8,7 +8,7 @@ import (
 	"hexchess-svc/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub/publishers"
+	"hexchess-svc/pubsub/publishers/redispub"
 	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/slogutil"
@@ -28,7 +28,7 @@ func setupAdvanceTest(t slogutil.TestLogger) (*TournamentAdvancer, itest.TestInf
 
 	service := NewTournamentAdvancer(
 		infra.Database,
-		publishers.NewBroadcaster(infra.Redis, goutil.SyncDispatcher{}),
+		redispub.NewRedisPublisher(infra.Redis.PubSubClient, goutil.SyncDispatcher{}),
 		game.NewGameCreateService(infra.Redis, game.NewChessRepoService(infra.Redis)),
 	)
 

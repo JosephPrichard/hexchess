@@ -24,37 +24,29 @@ func init() {
 }
 
 type RedisNames struct {
-	LeaderboardZSet           string `json:"leaderboardZSet"`
-	GamesZSet                 string `json:"gamesZSet"`
-	ActiveUsersZSet           string `json:"activeUsersZSet"`
-	GameChatsZSet             string `json:"gameChatsZSet"`
-	GameTimersZSet            string `json:"gameTimersZSet"`
-	GamesChannel              string `json:"gamesChannel"`
-	TournamentsChannel        string `json:"tournamentsChannel"`
-	UsersChannel              string `json:"usersChannel"`
-	GamesCountChannel         string `json:"gamesCountChannel"`
-	ActiveCountChannel        string `json:"activeCountChannel"`
-	FinishGameStreamKey       string `json:"finishGameStreamKey"`
-	FinishGameConsumerGroup   string `json:"finishGameConsumerGroup"`
+	LeaderboardZSet string `json:"leaderboardZSet"`
+	GamesZSet       string `json:"gamesZSet"`
+	ActiveUsersZSet string `json:"activeUsersZSet"`
+	GameChatsZSet   string `json:"gameChatsZSet"`
+	GameTimersZSet  string `json:"gameTimersZSet"`
+
 	UpdtGameMetaStreamKey     string `json:"updtGameMetaStreamKey"`
 	UpdtGameMetaConsumerGroup string `json:"updtGameMetaConsumerGroup"`
+	FinishGameStreamKey       string `json:"finishGameStreamKey"`
+	FinishGameConsumerGroup   string `json:"finishGameConsumerGroup"`
 }
 
 var Constants = RedisNames{
-	LeaderboardZSet:           "leaderboard",
-	GamesZSet:                 "games",
-	ActiveUsersZSet:           "active_users",
-	GameChatsZSet:             "chats",
-	GameTimersZSet:            "game_timers",
-	GamesChannel:              "games_channel",
-	UsersChannel:              "users_channel",
-	TournamentsChannel:        "tournaments_channel",
-	GamesCountChannel:         "games_count_channel",
-	ActiveCountChannel:        "active_count_channel",
-	FinishGameStreamKey:       "finish_game_events",
-	FinishGameConsumerGroup:   "finish_game_consumer_group",
+	LeaderboardZSet: "leaderboard",
+	GamesZSet:       "games",
+	ActiveUsersZSet: "active_users",
+	GameChatsZSet:   "chats",
+	GameTimersZSet:  "game_timers",
+
 	UpdtGameMetaStreamKey:     "updt_game_meta_events",
 	UpdtGameMetaConsumerGroup: "updt_game_meta_consumer_group",
+	FinishGameStreamKey:       "finish_game_events",
+	FinishGameConsumerGroup:   "finish_game_consumer_group",
 }
 
 // TotalConsumerPartitionCount is the total number of partitions created by ALL Redis stream consumers

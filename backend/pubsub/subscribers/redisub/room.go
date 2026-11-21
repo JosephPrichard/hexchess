@@ -1,31 +1,31 @@
-package subscribers
+package redisub
 
 import (
 	"time"
 	"uuid"
 )
 
-type subscribersMap[Payload any] map[SubscriberID]*subscriberRecord[Payload]
+type subscribersMap map[SubscriberID]*Subscriber
 
-type brokerRoom[Payload any] struct {
-	subscribersMap        subscribersMap[Payload]
+type brokerRoom struct {
+	subscribersMap        subscribersMap
 	idleSubscriberTimeout time.Duration
 }
 
-func (room *brokerRoom[Payload]) subscribe(capacity int) (Subscriber[Payload], int) {
-	record := newBrokerRecord[Payload](capacity)
+func (room *brokerRoom) subscribe(capacity int) (*Subscriber, int) {
+	s := newSubscriber(capacity)
 
-	subscriberID := record.id
+	subscriberID := s.id
 
 	if room.subscribersMap == nil {
-		room.subscribersMap = make(subscribersMap[Payload])
+		room.subscribersMap = make(subscribersMap)
 	}
-	room.subscribersMap[subscriberID] = record
+	room.subscribersMap[subscriberID] = s
 
-	return record.toSubscriber(), len(room.subscribersMap)
+	return s, len(room.subscribersMap)
 }
 
-func (room *brokerRoom[Payload]) unsubscribe(subscriberID uuid.UUID) int {
+func (room *brokerRoom) unsubscribe(subscriberID uuid.UUID) int {
 	remainingSubscribers := -1
 
 	if room.subscribersMap != nil {
@@ -38,7 +38,7 @@ func (room *brokerRoom[Payload]) unsubscribe(subscriberID uuid.UUID) int {
 	return remainingSubscribers
 }
 
-func (room *brokerRoom[Payload]) broadcast(payload Payload) (int, int) {
+func (room *brokerRoom) broadcast(payload []byte) (int, int) {
 	var recvCount, dropCount int
 
 	timeNow := time.Now()
@@ -64,7 +64,7 @@ func (room *brokerRoom[Payload]) broadcast(payload Payload) (int, int) {
 	return recvCount, dropCount
 }
 
-func (room *brokerRoom[Payload]) remove(record *subscriberRecord[Payload]) {
+func (room *brokerRoom) remove(record *Subscriber) {
 	delete(room.subscribersMap, record.id)
 	close(record.mailbox)
 	if len(room.subscribersMap) == 0 {
