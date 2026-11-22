@@ -1,7 +1,6 @@
 package tournament
 
 import (
-	"context"
 	"encoding/json/v2"
 	"hexchess-svc/cache"
 	"hexchess-svc/game"
@@ -39,13 +38,7 @@ func assertRedisChess(t *testing.T, redis cache.Redis, wantState *game.ChessStat
 func ExpectBroadcastTournamentOutput(t *testing.T, infra itest.TestInfra, tournamentKey string, wantOutputs []TournamentEvent) pubsub.ExpectBroadcastResult {
 	cmpOptsFullMatch := cmpopts.IgnoreFields(FullMatch{}, "GameID", "CreatedOn")
 
-	return pubsub.ExpectBroadcast(
-		t, infra, wantOutputs,
-		func(s pubsub.Subscriber) <-chan []byte {
-			sChan, _, err := s.Subscribe(context.Background(), event.TournamentsChannel, tournamentKey)
-			require.NoError(t, err)
-			return sChan
-		},
+	return pubsub.ExpectBroadcast(t, infra, event.TournamentsChannel, tournamentKey, wantOutputs,
 		func(bytes []byte) TournamentEvent {
 			var o TournamentEvent
 			require.NoError(t, json.Unmarshal(bytes, &o))

@@ -1,7 +1,6 @@
 package game
 
 import (
-	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/gameid"
 	"hexchess-svc/itest"
@@ -73,14 +72,7 @@ func ExpectBroadcastGames(t *testing.T, infra itest.TestInfra, gameID gameid.Ide
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
 	}
-
-	return pubsub.ExpectBroadcast(
-		t, infra, wantOutputs,
-		func(s pubsub.Subscriber) <-chan []byte {
-			sChan, _, err := s.Subscribe(context.Background(), event.GamesChannel, gameID.String())
-			require.NoError(t, err)
-			return sChan
-		},
+	return pubsub.ExpectBroadcast(t, infra, event.GamesChannel, gameID.String(), wantOutputs,
 		func(bytes []byte) *pb.GameOutput {
 			o := &pb.GameOutput{}
 			require.NoError(t, proto.Unmarshal(bytes, o))

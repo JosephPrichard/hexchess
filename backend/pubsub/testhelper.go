@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"context"
 	"hexchess-svc/itest"
 	"hexchess-svc/pubsub/subscribers/redisub"
 	"hexchess-svc/utils/testutil"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
 type ExpectBroadcastResult struct {
@@ -15,26 +17,31 @@ type ExpectBroadcastResult struct {
 	Close  func()
 }
 
+func GetTestSubscriber(ctx context.Context, infra itest.TestInfra) Subscriber {
+	//subscriber := &natsub.NatsSubscriber{}
+	//return subscriber
+
+	subscriber := redisub.NewRedisBroadcastBroker(redisub.DefaultBrokerConfig, infra.Redis.PubSubClient)
+	subscriber.Start(ctx)
+	return subscriber
+}
+
 func ExpectBroadcast[Message any](
 	t *testing.T,
 	infra itest.TestInfra,
+	channel string,
+	topic string,
 	want []Message,
-	subscribe func(s Subscriber) <-chan []byte,
 	unmarshal func(bytes []byte) Message,
 	cmpOpts ...cmp.Option,
 ) ExpectBroadcastResult {
 	t.Helper()
+	ctx := t.Context()
 
-	if want == nil {
-		return ExpectBroadcastResult{Assert: func() {}, Close: func() {}}
-	}
+	subscriber := GetTestSubscriber(ctx, infra)
 
-	subscriber := redisub.NewRedisBroadcastBroker(redisub.MinimalBrokerConfig, infra.Redis.PubSubClient)
-	subscriber.Start(t.Context()) // start listening before this function returns
-
-	//subscriber := &natsub.NatsSubscriber{}
-
-	sChan := subscribe(subscriber)
+	sChan, unsubscribe, err := subscriber.Subscribe(ctx, channel, topic)
+	require.NoError(t, err)
 
 	// closure should be executed after the operation that will trigger notifications
 	assert := func() {
@@ -49,12 +56,12 @@ func ExpectBroadcast[Message any](
 			}
 
 			got := unmarshal(raw)
-
 			testutil.Equal(t, want[i], got, cmpOpts...)
 		}
 	}
 	shutdown := func() {
-		subscriber.Close() // close the broadcasters only after running assertions (ideally at the end with a `defer` call)
+		unsubscribe()
+		subscriber.Close()
 	}
 
 	return ExpectBroadcastResult{Assert: assert, Close: shutdown}
