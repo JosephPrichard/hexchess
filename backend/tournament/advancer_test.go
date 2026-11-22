@@ -313,7 +313,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 			BlackID:       6,
 		},
 	}
-	wantTournamentOutputs := []TournamentOutput{
+	wantTournamentOutputs := []TournamentEvent{
 		{
 			Key:     tournamentKey.String(),
 			Kind:    TournamentMatchmakingKind,
@@ -321,8 +321,8 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 		},
 	}
 
-	broadcastTest := ExpectBroadcastTournamentOutput(t, testinfra.Redis, tournamentKey.String(), wantTournamentOutputs)
-	defer broadcastTest.Shutdown()
+	broadcastTest := ExpectBroadcastTournamentOutput(t, testinfra, tournamentKey.String(), wantTournamentOutputs)
+	defer broadcastTest.Close()
 
 	_, err := service.AdvanceTournament(ctx, tournamentKey, eventID)
 	require.NoError(t, err)

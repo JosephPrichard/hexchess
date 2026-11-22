@@ -1,11 +1,13 @@
 package tournament
 
 import (
+	"context"
 	"encoding/json/v2"
 	"hexchess-svc/cache"
 	"hexchess-svc/game"
+	"hexchess-svc/itest"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/pubsub/subscribers/redisub"
+	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/testutil"
 	"testing"
 
@@ -34,17 +36,18 @@ func assertRedisChess(t *testing.T, redis cache.Redis, wantState *game.ChessStat
 	testutil.Equal(t, wantState, actualState, options...)
 }
 
-func ExpectBroadcastTournamentOutput(t *testing.T, rdb cache.Redis, tournamentKey string, wantOutputs []TournamentOutput) pubsub.ExpectBroadcastResult {
+func ExpectBroadcastTournamentOutput(t *testing.T, infra itest.TestInfra, tournamentKey string, wantOutputs []TournamentEvent) pubsub.ExpectBroadcastResult {
 	cmpOptsFullMatch := cmpopts.IgnoreFields(FullMatch{}, "GameID", "CreatedOn")
 
 	return pubsub.ExpectBroadcast(
-		t, rdb, wantOutputs,
-		func(lb *redisub.RedisBroadcastBroker, capacity int) <-chan []byte {
-			s, _ := lb.Tournament.Subscribe(tournamentKey, capacity)
-			return s
+		t, infra, wantOutputs,
+		func(s pubsub.Subscriber) <-chan []byte {
+			sChan, _, err := s.Subscribe(context.Background(), event.TournamentsChannel, tournamentKey)
+			require.NoError(t, err)
+			return sChan
 		},
-		func(bytes []byte) TournamentOutput {
-			var o TournamentOutput
+		func(bytes []byte) TournamentEvent {
+			var o TournamentEvent
 			require.NoError(t, json.Unmarshal(bytes, &o))
 			return o
 		},

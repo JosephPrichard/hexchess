@@ -133,14 +133,13 @@ func (w FinishedGameWorker) Handle(ctx context.Context, bytes []byte) error {
 	}
 
 	// notify any subscribers of the game that replay has been created (game has ended)
-	// note: replay is selected outside HandleFinishedGame to avoid holding locks. this involves performing more disk IO.
 	gameReplay, err := w.replay.GetReplay(ctx, result.ReplayID)
 	if err != nil {
 		return serrors.New("get replay by id", err, "replayID", result.ReplayID)
 	}
 
 	output := game.SerializeReplayOutput(game.ReplayGameOutput{GameID: result.GameID, Replay: gameReplay})
-	pubsub.PublishGamesEvent(ctx, w.publisher, output)
+	game.PublishGamesEvent(ctx, w.publisher, output)
 
 	return nil
 }

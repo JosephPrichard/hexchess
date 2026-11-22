@@ -41,3 +41,12 @@ services:
         hard: -1
     ports:
       - "50121:9200"
+
+  test-nats:
+    image: nats:alpine
+    container_name: nats
+    ports:
+      - "60121:4222" # Client connections
+      - "8222:8222" # HTTP management & monitoring
+      - "6222:6222" # Cluster routing
+    command: [ "-js", "-sd", "/data", "-m", "8222" ]

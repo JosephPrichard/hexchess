@@ -3,8 +3,8 @@ package event
 type CountEventKind int
 
 const (
-	GlobalActiveEvent CountEventKind = iota
-	GlobalGamesEvent
+	ActiveCountEvent CountEventKind = iota
+	GamesCountEvent
 )
 
 type CountEvent struct {

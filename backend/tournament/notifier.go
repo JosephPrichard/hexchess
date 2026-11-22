@@ -32,8 +32,8 @@ func (service *TournamentNotifier) NotifyTournamentParticipant(ctx context.Conte
 	}
 
 	tkey := event.TournamentKey.String()
-	pubsub.PublishTournamentEvent(ctx, service.publisher, tkey, TournamentOutput{
-		Key:             event.TournamentKey.String(),
+	PublishTournamentEvent(ctx, service.publisher, TournamentEvent{
+		Key:             tkey,
 		Kind:            TournamentParticipantKind,
 		LeaderboardUser: leaderboardUser,
 	})

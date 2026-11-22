@@ -13,7 +13,7 @@ import (
 	"hexchess-svc/gameid"
 	"hexchess-svc/player"
 	"hexchess-svc/replay"
-	"hexchess-svc/userdata"
+	"hexchess-svc/userutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"strconv"
@@ -43,7 +43,7 @@ type ChessStateGetter interface {
 }
 
 type AdvanceTournamentProducer interface {
-	ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
+	ProduceAdvanceTournamentJob(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
 }
 
 func NewGameoverService(
@@ -136,7 +136,7 @@ func (service *GameOverService) publishTournamentEvent(ctx context.Context, even
 	default:
 		slog.InfoContext(ctx, "publishing schedule tournament event", "gameID", event.GameID)
 		// note: if two scheduled tournament events run concurrently, one will advance the tournament and the other will noop
-		if err := service.producer.ProduceAdvanceTournament(ctx, nil, producers.AdvanceTournamentArgs{
+		if err := service.producer.ProduceAdvanceTournamentJob(ctx, nil, producers.AdvanceTournamentArgs{
 			TournamentKey: tournamentKey.Bytes,
 		}); err != nil {
 			return serrors.New("publish scheduled tournament event", err)
@@ -321,7 +321,7 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 
 	mode := mutate.ModeEnum(result.ReplayMode.String())
 
-	whiteElo, blackElo := userdata.StartElo, userdata.StartElo
+	whiteElo, blackElo := userutil.StartElo, userutil.StartElo
 	for _, row := range userModeElos {
 		switch row.UserID {
 		case result.WhiteID:
@@ -336,8 +336,8 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		changeSet.WhiteEloNext, changeSet.BlackEloNext = whiteElo, blackElo
 
 		updts = []mutate.UpsertUserEloParams{
-			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: userdata.StartElo},
-			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: userdata.StartElo},
+			{UserID: result.WhiteID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.WhiteEloNext}, Draws: 1, DefaultElo: userutil.StartElo},
+			{UserID: result.BlackID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: changeSet.BlackEloNext}, Draws: 1, DefaultElo: userutil.StartElo},
 		}
 	} else {
 		var winElo, loseElo float64
@@ -365,8 +365,8 @@ func createInsertGameResultChangeSet(result GameResult, userModeElos []query.Sel
 		changeSet.LoseEloDiff = loseEloNext - loseElo
 
 		updts = []mutate.UpsertUserEloParams{
-			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: userdata.StartElo},
-			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: userdata.StartElo},
+			{UserID: changeSet.WinID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: winEloNext}, Wins: 1, DefaultElo: userutil.StartElo},
+			{UserID: changeSet.LoseID, Mode: mode, Elo: pgtype.Float8{Valid: true, Float64: loseEloNext}, Losses: 1, DefaultElo: userutil.StartElo},
 		}
 	}
 

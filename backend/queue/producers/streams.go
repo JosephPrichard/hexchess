@@ -15,7 +15,7 @@ type RedisXAdder interface {
 	XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd
 }
 
-func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event queue.FinishGameJob) error {
+func ProduceFinishGameJob(ctx context.Context, xadder RedisXAdder, event queue.FinishGameJob) error {
 	bytes, err := json.Marshal(event)
 	if err != nil {
 		return serrors.New("marshal finish game event", err)
@@ -35,7 +35,7 @@ func ProduceFinishGame(ctx context.Context, xadder RedisXAdder, event queue.Fini
 	return nil
 }
 
-func ProduceUpdtGameMetadata(ctx context.Context, xadder RedisXAdder, event queue.UpdtGameMetadataJob) error {
+func ProduceUpdateGameMetadataJob(ctx context.Context, xadder RedisXAdder, event queue.UpdateGameMetadataJob) error {
 	bytes, err := json.Marshal(event)
 	if err != nil {
 		return serrors.New("marshal update game event", err)

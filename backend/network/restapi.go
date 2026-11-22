@@ -10,12 +10,10 @@ import (
 	"hexchess-svc/gameid"
 	"hexchess-svc/persona"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/replay"
 	"hexchess-svc/session"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
-	"hexchess-svc/userdata"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -46,7 +44,7 @@ func (server *HttpServer) HandleRegister(w http.ResponseWriter, r *http.Request)
 	u, err := server.service.InsertUser(ctx, user.UserInst{
 		Username: body.Username,
 		Password: body.Password,
-		Country:  userdata.DefaultCountry,
+		Country:  user.DefaultCountry,
 		JoinedOn: time.Now(),
 	})
 	if errors.Is(err, user.ErrTakenUsername) {
@@ -126,7 +124,7 @@ func (server *HttpServer) HandleGoogleLogin(w http.ResponseWriter, r *http.Reque
 
 	u, err := server.service.SelectOrInsertGoogleUser(ctx, payload.AccountID, user.GoogleUserInst{
 		Username: payload.Username,
-		Country:  userdata.DefaultCountry,
+		Country:  user.DefaultCountry,
 	})
 	if err != nil {
 		return serrors.New("upsert verified google user", err)
@@ -457,8 +455,8 @@ func (server *HttpServer) HandleCreateChallenge(w http.ResponseWriter, r *http.R
 		return serrors.New("insert challenge", err)
 	}
 
-	pubsub.PublishUserEvent(ctx, server.pubsub, challenge.ChallengeeID, challenges.UserMessage{
-		Kind:      challenges.ChallengeKind,
+	user.PublishUserEvent(ctx, server.pubsub, user.UserEvent{
+		Kind:      user.EventChallengeKind,
 		Challenge: challenge,
 	})
 
@@ -824,7 +822,7 @@ func (server *HttpServer) HandleBeginCountdownTournament(w http.ResponseWriter, 
 	slog.InfoContext(ctx, "successfully started countdown for tournament", "countdownResult", result)
 
 	tkey := result.TournamentKey.String()
-	pubsub.PublishTournamentEvent(ctx, server.pubsub, tkey, tournament.TournamentOutput{
+	tournament.PublishTournamentEvent(ctx, server.pubsub, tournament.TournamentEvent{
 		Key:  tkey,
 		Kind: tournament.TournamentCountdownKind,
 	})

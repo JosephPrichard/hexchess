@@ -64,7 +64,7 @@ func (s *websocketTestContext) getWsURL() string {
 	return strings.Replace(s.testServer.URL, "http", "ws", 1)
 }
 
-func (s *websocketTestContext) Shutdown() {
+func (s *websocketTestContext) Close() {
 	s.testServer.Close() // *MUST* be shutdown before infrastructure/worker pools are shutdown
 	s.testinfra.Close()
 	s.testPubsub.Close()
@@ -73,7 +73,13 @@ func (s *websocketTestContext) Shutdown() {
 func setupWebsocketTest(t *testing.T) websocketTestContext {
 	infra := itest.SetupIntegrationTest(t)
 
-	pubsubBroker := pubsub.NewPubsubBroker(pubsub.PubsubConfig{RedisClient: infra.Redis.PubSubClient, Dispatcher: goutil.SyncDispatcher{}})
+	pubsubBroker := pubsub.NewPubsubBroker(pubsub.PubsubConfig{
+		Strategy: "REDIS",
+		//Strategy:    "NATS",
+		RedisClient: infra.Redis.PubSubClient,
+		NatsURI:     itest.NatsAddr,
+		Dispatcher:  goutil.SyncDispatcher{},
+	})
 	pubsubBroker.Start(t.Context())
 
 	createTestSessions(t, infra.Redis)
@@ -102,7 +108,7 @@ type sseTestContext struct {
 	testServer *httptest.Server
 }
 
-func (s *sseTestContext) Shutdown() {
+func (s *sseTestContext) Close() {
 	s.testServer.Close() // *MUST* be shutdown before infrastructure/worker pools are shutdown
 	s.testinfra.Close()
 	s.testPubsub.Close()
@@ -111,7 +117,13 @@ func (s *sseTestContext) Shutdown() {
 func setupSSETest(t *testing.T) sseTestContext {
 	infra := itest.SetupIntegrationTest(t)
 
-	pubsubBroker := pubsub.NewPubsubBroker(pubsub.PubsubConfig{RedisClient: infra.Redis.PubSubClient, Dispatcher: goutil.SyncDispatcher{}})
+	pubsubBroker := pubsub.NewPubsubBroker(pubsub.PubsubConfig{
+		Strategy: "REDIS",
+		//Strategy:    "NATS",
+		RedisClient: infra.Redis.PubSubClient,
+		NatsURI:     itest.NatsAddr,
+		Dispatcher:  goutil.SyncDispatcher{},
+	})
 	pubsubBroker.Start(t.Context())
 
 	createTestSessions(t, infra.Redis)

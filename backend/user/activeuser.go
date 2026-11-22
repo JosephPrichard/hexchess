@@ -57,9 +57,9 @@ func (service *ActiveUserService) GetActiveCount(ctx context.Context) (_ int64, 
 func (service *ActiveUserService) RetainActiveUser(ctx context.Context, id string) (err error) {
 	defer perf.WithContext(ctx).LogFailable(&err)
 
-	updtTime := float64(service.entropy.GetTime().UnixMilli())
+	t := float64(service.entropy.GetTime().UnixMilli())
 
-	_, err = service.redis.PrimaryClient.ZAddXX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
+	_, err = service.redis.PrimaryClient.ZAddXX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: t, Member: id}).Result()
 	if err != nil {
 		return serrors.New("retain active user", err, "id", id)
 	}
@@ -71,9 +71,9 @@ func (service *ActiveUserService) RetainActiveUser(ctx context.Context, id strin
 func (service *ActiveUserService) AddActiveUser(ctx context.Context, id string) (_ int64, err error) {
 	defer perf.WithContext(ctx).LogFailable(&err)
 
-	updtTime := float64(service.entropy.GetTime().UnixMilli())
+	t := float64(service.entropy.GetTime().UnixMilli())
 
-	_, err = service.redis.PrimaryClient.ZAddNX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: updtTime, Member: id}).Result()
+	_, err = service.redis.PrimaryClient.ZAddNX(ctx, cache.Constants.ActiveUsersZSet, redis.Z{Score: t, Member: id}).Result()
 	if err != nil {
 		return 0, serrors.New("add active user", err, "id", id)
 	}
@@ -84,7 +84,7 @@ func (service *ActiveUserService) AddActiveUser(ctx context.Context, id string) 
 		return 0, serrors.New("get active user count after adding user", err, "id", id)
 	}
 
-	pubsub.PublishActiveCountEvent(ctx, service.publisher, count)
+	PublishActiveCountEvent(ctx, service.publisher, count)
 	return count, nil
 }
 
@@ -106,6 +106,6 @@ func (service *ActiveUserService) RemoveActiveUser(ctx context.Context, id strin
 		return 0, serrors.New("get active user count after removing user", err, "id", id)
 	}
 
-	pubsub.PublishActiveCountEvent(ctx, service.publisher, count)
+	PublishActiveCountEvent(ctx, service.publisher, count)
 	return count, nil
 }

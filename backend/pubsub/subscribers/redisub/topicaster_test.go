@@ -26,7 +26,7 @@ func TestBroadcastBroker(t *testing.T) {
 	go testSubscriber(sub1, mChan1)
 	go testSubscriber(sub4, mChan4)
 
-	broker.Publish("1", []byte("test1"))
+	broker.Broadcast("1", []byte("test1"))
 
 	sub2, unsub2 := broker.Subscribe("1", len(wantSub2Msgs))
 	sub3, unsub3 := broker.Subscribe("1", len(wantSub3Msgs))
@@ -34,13 +34,13 @@ func TestBroadcastBroker(t *testing.T) {
 	go testSubscriber(sub2, mChan2)
 	go testSubscriber(sub3, mChan3)
 
-	broker.Publish("1", []byte("test2"))
+	broker.Broadcast("1", []byte("test2"))
 
 	unsub3()
 
-	broker.Publish("1", []byte("test3"))
+	broker.Broadcast("1", []byte("test3"))
 
-	broker.Publish("2", []byte("test4"))
+	broker.Broadcast("2", []byte("test4"))
 
 	unsub1()
 	unsub2()

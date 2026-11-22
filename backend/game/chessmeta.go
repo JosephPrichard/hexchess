@@ -48,7 +48,7 @@ func (service *ChessMetadataService) UpdateGameMetadata(ctx context.Context, upd
 	slog.InfoContext(ctx, "updated game metadata", "update", updt, "result", result)
 
 	if result.IsNewRow {
-		pubsub.PublishGameCountEvent(ctx, service.publisher, result.Count)
+		PublishGameCountEvent(ctx, service.publisher, result.Count)
 	}
 	return nil
 }

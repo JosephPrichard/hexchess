@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/database/query"
 	"hexchess-svc/featureflag"
-	"hexchess-svc/userdata"
+	"hexchess-svc/userutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"
@@ -314,7 +314,7 @@ func createUserStatTotalsMap(eloRows []query.UserModeElo) map[int64]userStatTota
 
 		aggr.Elo = average(aggr.Elo, aggr.Datapoints, row.Elo)
 		aggr.HighestElo = max(aggr.HighestElo, row.Elo)
-		aggr.Winrate = average(aggr.Winrate, aggr.Datapoints, userdata.CalcUserWinrate(row.Wins, row.Losses, row.Draws))
+		aggr.Winrate = average(aggr.Winrate, aggr.Datapoints, userutil.CalcUserWinrate(row.Wins, row.Losses, row.Draws))
 
 		aggr.Losses += row.Losses
 		aggr.Wins += row.Wins

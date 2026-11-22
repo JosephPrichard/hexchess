@@ -30,7 +30,7 @@ type TournamentUpdater struct {
 }
 
 type UpdateTournamentProducer interface {
-	ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
+	ProduceAdvanceTournamentJob(ctx context.Context, txn pgx.Tx, args producers.AdvanceTournamentArgs) error
 }
 
 func NewTournamentUpdater(database database.PostgreSQL, redis cache.Redis, producer UpdateTournamentProducer) *TournamentUpdater {
@@ -250,7 +250,7 @@ func beginTournamentCountdown(
 		TournamentKey: tournamentKey,
 		ScheduledOn:   time.Now().Add(time.Duration(tournamentRow.Countdown) * time.Second),
 	}
-	if err := producer.ProduceAdvanceTournament(ctx, txn, producerArgs); err != nil {
+	if err := producer.ProduceAdvanceTournamentJob(ctx, txn, producerArgs); err != nil {
 		return err
 	}
 

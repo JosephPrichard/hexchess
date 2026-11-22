@@ -63,7 +63,7 @@ func (b *TopicBroadcaster) unsubscribe(roomID string, subscriberID SubscriberID)
 	}
 }
 
-func (b *TopicBroadcaster) Publish(roomID string, payload []byte) {
+func (b *TopicBroadcaster) Broadcast(roomID string, payload []byte) {
 	var recvCount, dropCount int
 
 	b.lock.Lock()

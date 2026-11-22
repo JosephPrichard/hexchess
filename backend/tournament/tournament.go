@@ -68,21 +68,3 @@ type AdvanceTournamentEvent struct {
 	EventID       uuid.UUID `json:"eventId"`
 	TournamentKey uuid.UUID `json:"tournamentKey"`
 }
-
-type TournamentOutputKind string
-
-const (
-	TournamentParticipantKind TournamentOutputKind = "participant"
-	TournamentCountdownKind   TournamentOutputKind = "countdown"
-	TournamentStartKind       TournamentOutputKind = "start"
-	TournamentMatchmakingKind TournamentOutputKind = "matchmaking"
-	TournamentErrorKind       TournamentOutputKind = "error"
-)
-
-type TournamentOutput struct {
-	Key             string               `json:"tournamentKey"`
-	Kind            TournamentOutputKind `json:"kind"`
-	Matches         []FullMatch          `json:"matches"`
-	Error           string               `json:"error"`
-	LeaderboardUser user.LbdUser         `json:"leaderboardUser"`
-}

@@ -159,7 +159,7 @@ func TestHandleGameplayWs(t *testing.T) {
 			wantBrdcasts := tt.wantBrdcasts
 
 			websocketTest := setupWebsocketTest(t)
-			defer websocketTest.Shutdown()
+			defer websocketTest.Close()
 
 			subscriber, unsubscribe, err := websocketTest.testPubsub.Subscribe(ctx, event.GamesChannel, gameID.String())
 			require.NoError(t, err)

@@ -98,5 +98,5 @@ func sendCountEvent(client *SSEClient, kind event.CountEventKind, count int64) {
 	if err != nil {
 		slog.ErrorContext(client.ctx, "marshal count event", "Err", err)
 	}
-	client.SendEvent(mapGlobalEvent(bytes))
+	client.SendEvent(mapCountEvent(bytes))
 }

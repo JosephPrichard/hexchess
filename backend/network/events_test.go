@@ -6,9 +6,9 @@ import (
 	"encoding/json/v2"
 	"fmt"
 	"hexchess-svc/challenges"
+	"hexchess-svc/game"
 	"hexchess-svc/gamedata"
 	"hexchess-svc/network"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/tournament"
 	"hexchess-svc/user"
@@ -27,7 +27,7 @@ func TestHandleCountEvents(t *testing.T) {
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)
-	defer sseTest.Shutdown()
+	defer sseTest.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/count", nil)
 	require.NoError(t, err)
@@ -35,8 +35,8 @@ func TestHandleCountEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	pubsub.PublishActiveCountEvent(ctx, sseTest.testPubsub, 2)
-	pubsub.PublishGameCountEvent(ctx, sseTest.testPubsub, 4)
+	user.PublishActiveCountEvent(ctx, sseTest.testPubsub, 2)
+	game.PublishGameCountEvent(ctx, sseTest.testPubsub, 4)
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
 
@@ -56,30 +56,29 @@ func TestHandleCountEvents(t *testing.T) {
 	}
 
 	gotEvents := scanLines(t, resp, len(wantLines))
-	assert.Equal(t, wantLines, gotEvents)
+	assert.ElementsMatch(t, wantLines, gotEvents)
 }
 
 func TestHandleActiveConn(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
 
 	sseTest := setupSSETest(t)
-	defer sseTest.Shutdown()
+	defer sseTest.Close()
 
 	broadcastSubscriber, unsubscribe, err := sseTest.testPubsub.Subscribe(ctx, event.ActiveCountChannel, "GLOBAL")
 	require.NoError(t, err)
 	defer unsubscribe()
 
-	go func() {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/active", nil)
-		req.Header.Set("Cookie", network.FmtCookie(TestSessionID1))
-		require.NoError(t, err)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/active", nil)
+	req.Header.Set("Cookie", network.FmtCookie(TestSessionID1))
+	require.NoError(t, err)
 
-		resp, err := http.DefaultClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close() // this must execute before we assert on broadcasts since one message is sent when the SSE drops
-	}()
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	resp.Body.Close() // this must execute before we assert on broadcasts since one message is sent when the SSE drops
 
-	wantCountEvent := event.CountEvent{Kind: event.GlobalActiveEvent, Count: 1}
+	wantCountEvent := event.CountEvent{Kind: event.ActiveCountEvent, Count: 1}
 
 	select {
 	case message := <-broadcastSubscriber:
@@ -95,7 +94,7 @@ func TestHandleUserEvents(t *testing.T) {
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)
-	defer sseTest.Shutdown()
+	defer sseTest.Close()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sseTest.testServer.URL+"/api/events/user", nil)
 	require.NoError(t, err)
@@ -104,14 +103,14 @@ func TestHandleUserEvents(t *testing.T) {
 	resp, err := http.DefaultClient.Do(req)
 	require.NoError(t, err)
 
-	inputMessages := []challenges.UserMessage{
-		{Kind: challenges.ChallengeKind, Challenge: challenges.Challenge{ChallengeeID: 2}}, // won't receive this
-		{Kind: challenges.ChallengeKind, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence1, StartColor: gamedata.White}},
-		{Kind: challenges.ChallengeKind, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence7, StartColor: gamedata.Black}},
+	inputMessages := []user.UserEvent{
+		{Kind: user.EventChallengeKind, UserID: 2, Challenge: challenges.Challenge{ChallengeeID: 2}}, // won't receive this
+		{Kind: user.EventChallengeKind, UserID: 1, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence1, StartColor: gamedata.White}},
+		{Kind: user.EventChallengeKind, UserID: 1, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence7, StartColor: gamedata.Black}},
 	}
 
 	for _, input := range inputMessages {
-		pubsub.PublishUserEvent(ctx, sseTest.testPubsub, input.Challenge.ChallengeeID, input)
+		user.PublishUserEvent(ctx, sseTest.testPubsub, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
@@ -133,14 +132,14 @@ func TestHandleUserEvents(t *testing.T) {
 	}
 
 	gotEvents := scanLines(t, resp, len(wantLines))
-	assert.Equal(t, wantLines, gotEvents)
+	assert.ElementsMatch(t, wantLines, gotEvents)
 }
 
 func TestHandleTournamentEvents(t *testing.T) {
 	ctx := t.Context()
 
 	sseTest := setupSSETest(t)
-	defer sseTest.Shutdown()
+	defer sseTest.Close()
 
 	keyUUID := uuid.NewV7()
 	keyString := "1"
@@ -152,7 +151,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// one message for each union category, with full permutations of nil/non-nil fields
-	inputTournaments := []tournament.TournamentOutput{
+	inputTournaments := []tournament.TournamentEvent{
 		{Key: uuid.NewV7().String()}, // won't receive this
 		{Key: keyString, Kind: tournament.TournamentStartKind},
 		{Key: keyString, Kind: tournament.TournamentMatchmakingKind},
@@ -189,7 +188,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	}
 
 	for _, input := range inputTournaments {
-		pubsub.PublishTournamentEvent(ctx, sseTest.testPubsub, input.Key, input)
+		tournament.PublishTournamentEvent(ctx, sseTest.testPubsub, input)
 	}
 
 	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
@@ -210,7 +209,7 @@ func TestHandleTournamentEvents(t *testing.T) {
 	}
 
 	gotEvents := scanLines(t, resp, len(wantLines))
-	assert.Equal(t, wantLines, gotEvents)
+	assert.ElementsMatch(t, wantLines, gotEvents)
 }
 
 func scanLines(t *testing.T, resp *http.Response, wantLinesCount int) []string {

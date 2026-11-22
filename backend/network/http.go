@@ -88,6 +88,10 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 	}
 
 	server := NewHttpServer(config)
+	adminServer := HttpAdminServer{
+		riverProducer: producers.NewRiverProducer(config.RiverClient),
+		redisClient:   config.Redis,
+	}
 
 	r.Post("/api/register", Rest(server.HandleRegister))
 	r.Post("/api/login", Rest(server.HandleLogin))
@@ -130,6 +134,8 @@ func NewServeMux(config HttpServerConfig, opts ...func(*chi.Mux)) *chi.Mux {
 
 	r.Get("/api/ws/game", server.HandleGameWebSocket)
 	r.Get("/api/info", info)
+
+	r.Post("/api/admin/producer", Rest(adminServer.HandleProduceEvent))
 
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		slog.ErrorContext(r.Context(), "route not found", "method", r.Method, "url", r.URL.String())

@@ -15,7 +15,7 @@ import (
 	"hexchess-svc/pubsub"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userdata"
+	"hexchess-svc/userutil"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
@@ -74,7 +74,7 @@ func (service *TournamentAdvancer) AdvanceTournament(ctx context.Context, tourna
 
 	// notify tournament participants that tournament has been progressed with new matches
 	tkey := tournamentKey.String()
-	pubsub.PublishTournamentEvent(ctx, service.publisher, tkey, TournamentOutput{
+	PublishTournamentEvent(ctx, service.publisher, TournamentEvent{
 		Key:     tkey,
 		Kind:    TournamentMatchmakingKind,
 		Matches: matches,
@@ -221,8 +221,8 @@ func advanceInProgressTournament(ctx context.Context, query database.QuerierMuta
 			Round:    row.Round,
 			WhiteID:  row.WhiteID,
 			BlackID:  row.BlackID,
-			WhiteElo: userdata.DefaultUserElo(row.WhiteElo),
-			BlackElo: userdata.DefaultUserElo(row.BlackElo),
+			WhiteElo: userutil.DefaultUserElo(row.WhiteElo),
+			BlackElo: userutil.DefaultUserElo(row.BlackElo),
 			Result:   result,
 		})
 	}

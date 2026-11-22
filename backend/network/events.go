@@ -3,8 +3,9 @@ package network
 import (
 	"context"
 	"encoding/json/v2"
+	"hexchess-svc/pubsub"
 	"hexchess-svc/pubsub/event"
-	svc "hexchess-svc/user"
+	"hexchess-svc/user"
 	"hexchess-svc/utils/serrors"
 	"hexchess-svc/utils/timeutil"
 	"log/slog"
@@ -20,8 +21,6 @@ const (
 	GamesCountEvent    = "gameCountEvents"
 	ActiveCountEvent   = "activeCountEvents"
 	TournamentEvent    = "tournamentEvent"
-	// SSEChanBufCap start dropping messages after an SSE connection is lagging behind by this many messages
-	SSEChanBufCap = 100
 )
 
 func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) error {
@@ -36,22 +35,26 @@ func (server *HttpServer) HandleCountEvents(client *SSEClient, _ *http.Request) 
 		return serrors.New("get chess state count", err)
 	}
 
-	sendCountEvent(client, event.GlobalActiveEvent, activeCount)
-	sendCountEvent(client, event.GlobalGamesEvent, gamesCount)
+	sendCountEvent(client, event.ActiveCountEvent, activeCount)
+	sendCountEvent(client, event.GamesCountEvent, gamesCount)
 
-	subscriber, unsubscribe, err := server.pubsub.Subscribe(ctx, event.ActiveCountChannel, "GLOBAL")
+	subjects := []pubsub.Subject{
+		{Channel: event.ActiveCountChannel, Topic: "GLOBAL"},
+		{Channel: event.GamesCountChannel, Topic: "GLOBAL"},
+	}
+	subscriber, unsubscribe, err := pubsub.SubscribeMany(ctx, server.pubsub, subjects)
 	if err != nil {
 		return serrors.New("subscribe to pubsub broker", err)
 	}
 	defer unsubscribe()
 
-	channelToSSE(client, subscriber, mapGlobalEvent)
+	channelToSSE(client, subscriber, mapCountEvent)
 
 	slog.InfoContext(ctx, "SSE handler: finished handle user events stream")
 	return nil
 }
 
-func mapGlobalEvent(payload []byte) SseEvent {
+func mapCountEvent(payload []byte) SseEvent {
 	var message event.CountEvent
 	if err := json.Unmarshal(payload, &message); err != nil {
 		slog.Error("failed to unmarshal global event", "error", err)
@@ -60,9 +63,9 @@ func mapGlobalEvent(payload []byte) SseEvent {
 
 	var eventName string
 	switch message.Kind {
-	case event.GlobalActiveEvent:
+	case event.ActiveCountEvent:
 		eventName = ActiveCountEvent
-	case event.GlobalGamesEvent:
+	case event.GamesCountEvent:
 		eventName = GamesCountEvent
 	default:
 		return SseEvent{}
@@ -71,7 +74,7 @@ func mapGlobalEvent(payload []byte) SseEvent {
 	return SseEvent{EventName: eventName, EventData: string(payload)}
 }
 
-const RetainActiveUserPeriod = svc.ActiveUserMaxAge - time.Second
+const RetainActiveUserPeriod = user.ActiveUserMaxAge - time.Second
 
 // HandleActiveConn is a long-lived TCP connection used to maintain an active user, it only ever receives "meta" messages
 func (server *HttpServer) HandleActiveConn(client *SSEClient, r *http.Request) error {

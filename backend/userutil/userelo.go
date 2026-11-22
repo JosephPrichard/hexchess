@@ -1,9 +1,8 @@
-package userdata
+package userutil
 
 import "github.com/jackc/pgx/v5/pgtype"
 
 const StartElo float64 = 1000
-const DefaultCountry = "un"
 
 func DefaultUserElo(elo pgtype.Float8) float64 {
 	if elo.Valid {

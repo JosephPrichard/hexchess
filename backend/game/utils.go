@@ -9,7 +9,7 @@ import (
 )
 
 func produceUpdtGameMetadata(ctx context.Context, pipe producers.RedisXAdder, state *ChessState) error {
-	return producers.ProduceUpdtGameMetadata(ctx, pipe, queue.UpdtGameMetadataJob{
+	return producers.ProduceUpdateGameMetadataJob(ctx, pipe, queue.UpdateGameMetadataJob{
 		GameID:      state.ID,
 		WhitePlayer: opt.Option[int64]{Value: state.WhitePlayer.ID, Present: state.WhitePlayer.Present},
 		BlackPlayer: opt.Option[int64]{Value: state.BlackPlayer.ID, Present: state.BlackPlayer.Present},

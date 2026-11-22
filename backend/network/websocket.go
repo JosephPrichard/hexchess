@@ -8,7 +8,6 @@ import (
 	"hexchess-svc/game"
 	"hexchess-svc/gameid"
 	"hexchess-svc/player"
-	"hexchess-svc/pubsub"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/errutil"
 	"hexchess-svc/utils/serrors"
@@ -27,10 +26,6 @@ type GameSocketContext struct {
 	Player      player.PlayerState
 	MessageChan chan wsMessage
 }
-
-// GameplayChanBufCap start dropping messages when a WebSocket is behind by this many messages
-// must be higher than the number of messages broadcasted in initialization for tests to be deterministic
-const GameplayChanBufCap = 100
 
 func (server *HttpServer) HandleGameWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -126,7 +121,7 @@ func (server *HttpServer) handleGameInit(ctx context.Context, gameID gameid.Iden
 		WhitePlayer: chessState.WhitePlayer,
 		BlackPlayer: chessState.BlackPlayer,
 	})
-	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
+	game.PublishGamesEvent(ctx, server.pubsub, output)
 
 	return playerState, []wsMessage{initBytes}
 }
@@ -181,7 +176,7 @@ func (server *HttpServer) handleGameForfeit(ctx GameSocketContext, messageID str
 		MessageID: messageID,
 		EndState:  endState,
 	})
-	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
+	game.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -198,7 +193,7 @@ func (server *HttpServer) handleGameMove(ctx GameSocketContext, pbInput *pb.Move
 		State:     moveResult.State,
 		UpdatedAt: time.Now(),
 	})
-	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
+	game.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -214,7 +209,7 @@ func (server *HttpServer) handleGameChat(ctx GameSocketContext, pbInput *pb.Chat
 	}
 
 	output := game.SerializeGameOutputChat(game.ChatGameOutput{GameID: ctx.GameID, MessageID: messageID, Chat: chat})
-	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
+	game.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 
@@ -236,7 +231,7 @@ func (server *HttpServer) handleGameUndo(ctx GameSocketContext, pbInput *pb.Undo
 		UndoID:    ctx.Player.ID,
 		State:     chessState,
 	})
-	pubsub.PublishGamesEvent(ctx, server.pubsub, output)
+	game.PublishGamesEvent(ctx, server.pubsub, output)
 	return nil
 }
 

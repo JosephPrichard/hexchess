@@ -26,15 +26,19 @@ func NewRedisPublisher(client *redis.Client, dispatcher goutil.Dispatcher) *Redi
 	}
 }
 
-func (b *RedisPublisher) Publish(ctx context.Context, channel string, _ string, payload []byte) {
+func (p *RedisPublisher) Publish(ctx context.Context, channel string, _ string, payload []byte) {
 	ctx = context.WithoutCancel(ctx)
-	b.dispatcher.Go(func() {
-		// TODO(Joseph): consider using unsafe rather than casting to a string here for performance reasons
-		recvCount, err := b.client.Publish(ctx, channel, string(payload)).Result()
+	p.dispatcher.Go(func() {
+		recvCount, err := p.client.Publish(ctx, channel, string(payload)).Result()
 		if err != nil {
 			slog.ErrorContext(ctx, "PubSub: failed to publish message to channel", "channel", channel, "error", err)
 		} else {
-			slog.InfoContext(ctx, "PubSub: published message to channel", "channel", channel, "recvCount", recvCount, "connURL", b.client.String())
+			slog.InfoContext(ctx, "PubSub: published message to channel",
+				"channel", channel, "recvCount", recvCount, "connURL", p.client.String())
 		}
 	})
+}
+
+func (p *RedisPublisher) Close() {
+	p.client.Close()
 }

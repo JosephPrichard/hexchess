@@ -1,11 +1,13 @@
 package game
 
 import (
+	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/gameid"
+	"hexchess-svc/itest"
 	"hexchess-svc/pb"
 	"hexchess-svc/pubsub"
-	"hexchess-svc/pubsub/subscribers/redisub"
+	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"
@@ -66,17 +68,18 @@ func setChessStates(t *testing.T, rdb cache.Redis, states ...*ChessState) {
 	}
 }
 
-func ExpectBroadcastGames(t *testing.T, rdb cache.Redis, gameID gameid.Identifier, wantOutputs []*pb.GameOutput) pubsub.ExpectBroadcastResult {
+func ExpectBroadcastGames(t *testing.T, infra itest.TestInfra, gameID gameid.Identifier, wantOutputs []*pb.GameOutput) pubsub.ExpectBroadcastResult {
 	cmpOptsGameOutputs := []cmp.Option{
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&pb.ReplayOutput{}, "id", "played_on"),
 	}
 
 	return pubsub.ExpectBroadcast(
-		t, rdb, wantOutputs,
-		func(lb *redisub.RedisBroadcastBroker, capacity int) <-chan []byte {
-			s, _ := lb.Games.Subscribe(gameID.String(), capacity)
-			return s
+		t, infra, wantOutputs,
+		func(s pubsub.Subscriber) <-chan []byte {
+			sChan, _, err := s.Subscribe(context.Background(), event.GamesChannel, gameID.String())
+			require.NoError(t, err)
+			return sChan
 		},
 		func(bytes []byte) *pb.GameOutput {
 			o := &pb.GameOutput{}

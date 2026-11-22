@@ -23,6 +23,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const DefaultCountry = "un"
+
 type UserService struct {
 	// infra
 	database.PostgreSQL
@@ -32,7 +34,7 @@ type UserService struct {
 }
 
 type UpdateUserProducer interface {
-	ProduceUpdateUser(ctx context.Context, txn pgx.Tx, args producers.UpdateUserArgs) error
+	ProduceUpdateUserJob(ctx context.Context, txn pgx.Tx, args producers.UpdateUserArgs) error
 }
 
 func NewUserService(database database.PostgreSQL, producer UpdateUserProducer) *UserService {
@@ -102,7 +104,7 @@ func insertUser(
 	}
 
 	producerArgs := producers.UpdateUserArgs{ID: userRow.ID}
-	if err := producer.ProduceUpdateUser(ctx, txn, producerArgs); err != nil {
+	if err := producer.ProduceUpdateUserJob(ctx, txn, producerArgs); err != nil {
 		return err
 	}
 
@@ -169,7 +171,7 @@ func updateUser(
 	}
 
 	producerArgs := producers.UpdateUserArgs{ID: userRow.ID}
-	if err := producer.ProduceUpdateUser(ctx, txn, producerArgs); err != nil {
+	if err := producer.ProduceUpdateUserJob(ctx, txn, producerArgs); err != nil {
 		return err
 	}
 

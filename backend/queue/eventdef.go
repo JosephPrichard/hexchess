@@ -38,7 +38,7 @@ type FinishGameJob struct {
 	InsertedTime time.Time         `json:"insertedTime"`
 }
 
-type UpdtGameMetadataJob struct {
+type UpdateGameMetadataJob struct {
 	GameID      gameid.Identifier `json:"id"`
 	WhitePlayer opt.Option[int64] `json:"whitePlayer"`
 	BlackPlayer opt.Option[int64] `json:"blackPlayer"`

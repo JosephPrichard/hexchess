@@ -140,7 +140,7 @@ func (service *GamePlayService) MakeGameMove(ctx context.Context, gameID gameid.
 			result = replay.BlackWin
 		}
 
-		err := producers.ProduceFinishGame(ctx, pipe, queue.FinishGameJob{
+		err := producers.ProduceFinishGameJob(ctx, pipe, queue.FinishGameJob{
 			GameID:       gameID,
 			WhiteID:      state.WhitePlayer.ID,
 			BlackID:      state.BlackPlayer.ID,
@@ -247,7 +247,7 @@ func (service *GamePlayService) EndGame(ctx context.Context, gameID gameid.Ident
 			result = replay.WhiteWin
 		}
 
-		err := producers.ProduceFinishGame(ctx, pipe, queue.FinishGameJob{
+		err := producers.ProduceFinishGameJob(ctx, pipe, queue.FinishGameJob{
 			GameID:       gameID,
 			WhiteID:      state.WhitePlayer.ID,
 			BlackID:      state.BlackPlayer.ID,

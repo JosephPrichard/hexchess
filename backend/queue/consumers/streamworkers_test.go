@@ -117,10 +117,10 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		},
 	}
 
-	broadcastTest := game.ExpectBroadcastGames(t, testinfra.Redis, newGameID, wantGameOutputs)
-	defer broadcastTest.Shutdown()
+	broadcastTest := game.ExpectBroadcastGames(t, testinfra, newGameID, wantGameOutputs)
+	defer broadcastTest.Close()
 
-	err := producers.ProduceFinishGame(ctx, testinfra.Redis.PrimaryClient, inputJob)
+	err := producers.ProduceFinishGameJob(ctx, testinfra.Redis.PrimaryClient, inputJob)
 	require.NoError(t, err)
 
 	waitConsumed(1)
@@ -150,7 +150,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 	blackUser1 := user.TestUsers[1]
 	gameID := gameid.NewGameID()
 
-	job := queue.UpdtGameMetadataJob{
+	job := queue.UpdateGameMetadataJob{
 		GameID:      gameID,
 		WhitePlayer: opt.Some(whiteUser0.ID),
 		BlackPlayer: opt.Some(blackUser1.ID),
@@ -158,7 +158,7 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		FirstColor:  gamedata.Random.String(),
 	}
 
-	err := producers.ProduceUpdtGameMetadata(ctx, testinfra.Redis.PrimaryClient, job)
+	err := producers.ProduceUpdateGameMetadataJob(ctx, testinfra.Redis.PrimaryClient, job)
 	require.NoError(t, err)
 
 	waitConsumed(1)

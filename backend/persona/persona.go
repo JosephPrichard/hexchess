@@ -9,7 +9,7 @@ import (
 	"hexchess-svc/gamedata"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userdata"
+	"hexchess-svc/userutil"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
@@ -130,7 +130,7 @@ func (service *PersonaService) getPersonaUserStats(ctx context.Context, userID i
 
 	var stats user.UserStats
 	if len(modeEloRows) == 0 {
-		stats = user.UserStats{HighestElo: userdata.StartElo, AvgElo: userdata.StartElo}
+		stats = user.UserStats{HighestElo: userutil.StartElo, AvgElo: userutil.StartElo}
 	} else {
 		stats = user.UserStats{HighestElo: math.SmallestNonzeroFloat64}
 	}
@@ -142,7 +142,7 @@ func (service *PersonaService) getPersonaUserStats(ctx context.Context, userID i
 			Wins:       row.Wins,
 			Losses:     row.Losses,
 			Draws:      row.Draws,
-			Winrate:    userdata.CalcUserWinrate(row.Wins, row.Losses, row.Draws),
+			Winrate:    userutil.CalcUserWinrate(row.Wins, row.Losses, row.Draws),
 			Elo:        row.Elo,
 			HighestElo: row.HighestElo,
 		}
@@ -265,8 +265,8 @@ func mapFullReplayByIDRow(row query.SelectReplayByIDRow) replay.FullReplay {
 			BlackName:    row.BlackName.String,
 			WhiteCountry: row.WhiteCountry.String,
 			BlackCountry: row.BlackCountry.String,
-			WhiteElo:     userdata.DefaultUserElo(row.WhiteElo),
-			BlackElo:     userdata.DefaultUserElo(row.BlackElo),
+			WhiteElo:     userutil.DefaultUserElo(row.WhiteElo),
+			BlackElo:     userutil.DefaultUserElo(row.BlackElo),
 		},
 		ReplayColorElos: replay.NewReplayView(replayData),
 	}

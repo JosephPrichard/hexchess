@@ -47,7 +47,7 @@ type AdvanceTournamentArgs struct {
 	ScheduledOn   time.Time
 }
 
-func (p *RiverProducer) ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx, args AdvanceTournamentArgs) error {
+func (p *RiverProducer) ProduceAdvanceTournamentJob(ctx context.Context, txn pgx.Tx, args AdvanceTournamentArgs) error {
 	opts := &river.InsertOpts{}
 	if !args.ScheduledOn.IsZero() {
 		opts.ScheduledAt = args.ScheduledOn
@@ -71,9 +71,8 @@ func (p *RiverProducer) ProduceAdvanceTournament(ctx context.Context, txn pgx.Tx
 
 type UpdateUserArgs = queue.UpdateUserJob
 
-func (p *RiverProducer) ProduceUpdateUser(ctx context.Context, txn pgx.Tx, args UpdateUserArgs) error {
+func (p *RiverProducer) ProduceUpdateUserJob(ctx context.Context, txn pgx.Tx, args UpdateUserArgs) error {
 	opts := &river.InsertOpts{}
-
 	job := args
 
 	_, err := p.riverClient.InsertTx(ctx, txn, job, opts)

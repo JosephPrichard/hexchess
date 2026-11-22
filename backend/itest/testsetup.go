@@ -19,11 +19,13 @@ import (
 )
 
 const (
-	// Test Preconditions: infrastructure is already running at these addresses (use docker compose in root)
-	redisAddr      = "localhost:20121"
-	localstackAddr = "http://localhost:30121"
-	dbAddr         = "localhost:40121"
-	esAddr         = "http://localhost:50121"
+	// RedisAddr etc. Test Preconditions: infrastructure is already running at these addresses (use docker compose in root)
+
+	RedisAddr      = "localhost:20121"
+	LocalstackAddr = "http://localhost:30121"
+	PostgreSQLAddr = "localhost:40121"
+	EsAddr         = "http://localhost:50121"
+	NatsAddr       = "localhost:60121"
 
 	dbUser = "postgres"
 	dbName = "postgres"
@@ -41,9 +43,10 @@ type TestInfra struct {
 }
 
 func (i TestInfra) Close() {
-	i.Redis.Close()
-	i.Database.Close()
 	i.Pool.Close()
+	i.Database.Close()
+	i.Redis.Close()
+	i.Es.Close(context.Background())
 }
 
 func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
@@ -60,19 +63,19 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 	infra.Pool = pgPool
 	infra.Database = database.NewDatabase(database.DatabasePools{Read: pgPool, Write: pgPool})
 	infra.Redis = cache.NewRedis(ctx, cache.RedisConfig{
-		PrimaryAddr:   []string{redisAddr},
-		PubsubAddr:    redisAddr,
+		PrimaryAddr:   []string{RedisAddr},
+		PubsubAddr:    RedisAddr,
 		ActiveProfile: config.Local,
 	})
 	infra.AWS = cloud.NewAWSClients(ctx, cloud.AWSClientConfig{
-		AWSEndpoint:   localstackAddr,
+		AWSEndpoint:   LocalstackAddr,
 		AWSRegion:     "us-east-1",
 		AWSUsername:   "testing",
 		AWSPassword:   "testing",
 		ActiveProfile: config.Local,
 		Names:         *testutil.NewTestNames(cloud.DefaultAWSNames),
 	})
-	infra.Es = cloud.NewElasticSearchClient(cloud.EsConfig{Address: esAddr})
+	infra.Es = cloud.NewElasticSearchClient(cloud.EsConfig{Address: EsAddr})
 
 	setupRedisPreconditions(t)
 	setupDbPreconditions(t, pgPool)
@@ -82,7 +85,7 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 
 func createPool(t slogutil.TestLogger) *pgxpool.Pool {
 	ctx := t.Context()
-	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPass, dbAddr, dbName)
+	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPass, PostgreSQLAddr, dbName)
 
 	pgPool, err := pgxpool.New(ctx, connString)
 	if err != nil {
@@ -117,7 +120,7 @@ func createSchema(ctx context.Context, pool *pgxpool.Pool) error {
 
 func setupRedisPreconditions(t slogutil.TestLogger) {
 	client := redis.NewClient(&redis.Options{
-		Addr:         redisAddr,
+		Addr:         RedisAddr,
 		PoolSize:     0, // default pool size
 		DialTimeout:  5 * time.Second,
 		ReadTimeout:  5 * time.Second,
