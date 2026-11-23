@@ -5,8 +5,8 @@ import (
 	"errors"
 	"hexchess-svc/database"
 	"hexchess-svc/database/query"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/userutil"
+	"hexchess-svc/game/gamedata"
+	"hexchess-svc/user/userutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 

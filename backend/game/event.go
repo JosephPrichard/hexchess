@@ -3,7 +3,7 @@ package game
 import (
 	"context"
 	"encoding/json/v2"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/pubsub/event"
 	"log/slog"

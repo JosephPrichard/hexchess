@@ -1,9 +1,9 @@
-// Contract for data and messages for information exchange within Hexchess
+// Data contract for information exchange/storage
 
 syntax = "proto3";
-option go_package = "hexchess-svc/pb";
+option go_package = "hexchess-svc/proto/pb";
 
-package messages;
+package structs;
 
 // user data state
 

@@ -18,7 +18,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"hexchess-svc/itest"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/utils/testutil"
 
 	"github.com/google/go-cmp/cmp"

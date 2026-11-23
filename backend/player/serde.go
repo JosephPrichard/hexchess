@@ -1,7 +1,7 @@
 package player
 
 import (
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 )
 
 // Player

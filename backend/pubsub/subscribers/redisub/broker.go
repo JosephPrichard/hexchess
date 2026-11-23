@@ -5,7 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"

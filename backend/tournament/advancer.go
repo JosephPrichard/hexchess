@@ -9,13 +9,13 @@ import (
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
 	"hexchess-svc/game"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/player"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userutil"
+	"hexchess-svc/user/userutil"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
@@ -175,7 +175,7 @@ func selectPreviousAdvanceEvent(ctx context.Context, query database.QuerierMutat
 }
 
 func advanceScheduledTournament(ctx context.Context, query database.QuerierMutator, tournament query.SelectTournamentByIDRow) (MatchmakingOutput, error) {
-	mode := enum.Expect(tournament.Mode, gamedata.GameModeEnums)
+	mode := enum.Expect(tournament.Mode, gamedata2.GameModeEnums)
 	ruleset := enum.Expect(tournament.Ruleset, TournamentRulesetEnums)
 
 	participantRows, err := query.SelectParticipantsForMatchmakingByTournamentID(ctx, tournament.TournamentKey)
@@ -201,7 +201,7 @@ func advanceScheduledTournament(ctx context.Context, query database.QuerierMutat
 }
 
 func advanceInProgressTournament(ctx context.Context, query database.QuerierMutator, tournament query.SelectTournamentByIDRow) (MatchmakingOutput, error) {
-	mode := enum.Expect(tournament.Mode, gamedata.GameModeEnums)
+	mode := enum.Expect(tournament.Mode, gamedata2.GameModeEnums)
 	ruleset := enum.Expect(tournament.Ruleset, TournamentRulesetEnums)
 
 	matchRows, err := query.SelectMatchesByTournamentID(ctx, tournament.TournamentKey)
@@ -354,7 +354,7 @@ func (service *TournamentAdvancer) setupGame(ctx context.Context, index int, mat
 	_, err := service.gameplay.CreateGame(ctx, game.ChessStateArgs{
 		ID:         match.GameID,
 		Mode:       match.GameMode.Value,
-		FirstColor: gamedata.White,
+		FirstColor: gamedata2.White,
 		White:      player.NewPlayer(match.WhiteID, whitePlayerData.Username, whitePlayerData.Country),
 		Black:      player.NewPlayer(match.BlackID, blackPlayerData.Username, blackPlayerData.Country),
 	})

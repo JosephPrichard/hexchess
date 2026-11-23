@@ -2,7 +2,7 @@ package cache
 
 import (
 	"fmt"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 )
 
 func FmtGameKey(gameID gameid.Identifier) string {

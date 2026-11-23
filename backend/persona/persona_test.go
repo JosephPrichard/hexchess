@@ -2,7 +2,7 @@ package persona
 
 import (
 	"hexchess-svc/cache"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"

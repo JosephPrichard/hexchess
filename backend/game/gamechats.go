@@ -5,7 +5,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/cloud"
 	"hexchess-svc/database/query"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/goutil"
 	"hexchess-svc/utils/perf"

@@ -3,8 +3,8 @@ package game
 import (
 	"context"
 	"errors"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/utils/slogutil"
 	"testing"
 
@@ -37,7 +37,7 @@ func TestEchoChessState(t *testing.T) {
 	id1 := gameid.NewGameID()
 	id2 := gameid.NewGameID()
 
-	s1 := NewChessState(ChessStateArgs{ID: id1, Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random})
+	s1 := NewChessState(ChessStateArgs{ID: id1, Mode: gamedata2.ModeCorrespondence1, FirstColor: gamedata2.Random})
 	ctx := t.Context()
 
 	require.NoError(t, service.SetChessState(ctx, id1, s1))
@@ -59,7 +59,7 @@ func TestUpdateChessState(t *testing.T) {
 	testID := gameid.NewGameID()
 	arbitraryKey := uuid.NewV7().String()
 
-	inState := NewChessState(ChessStateArgs{ID: testID, Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random})
+	inState := NewChessState(ChessStateArgs{ID: testID, Mode: gamedata2.ModeCorrespondence1, FirstColor: gamedata2.Random})
 	ctx := t.Context()
 
 	require.NoError(t, service.SetChessState(ctx, testID, inState))
@@ -91,7 +91,7 @@ func TestUpdateChessState_Errors(t *testing.T) {
 
 	testID := gameid.NewGameID()
 
-	inState := NewChessState(ChessStateArgs{ID: testID, Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.White})
+	inState := NewChessState(ChessStateArgs{ID: testID, Mode: gamedata2.ModeCorrespondence1, FirstColor: gamedata2.White})
 	require.NoError(t, service.SetChessState(context.Background(), testID, inState))
 	ctx := t.Context()
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"math"
 	"math/rand"
 	"time"

@@ -6,7 +6,7 @@ import (
 	"hexchess-svc/cache"
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutate"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/perf"

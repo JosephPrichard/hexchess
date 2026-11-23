@@ -12,8 +12,8 @@ PERF_K6_DIR     := $(PERF_DIR)/k6
 PERF_HTTP_DIR   := $(PERF_DIR)/http/scripts
 
 # Proto output dirs
-SVC_PB_OUT      := $(BACKEND_DIR)/pb
-SVC_GRPC_OUT    := $(BACKEND_DIR)/rpc
+SVC_PB_OUT      := $(BACKEND_DIR)/proto/pb
+SVC_GRPC_OUT    := $(BACKEND_DIR)/proto/grpc
 PERF_PB_K6_OUT  := $(PERF_K6_DIR)/pb
 UI_PB_OUT       := src/lib/pb
 
@@ -35,7 +35,7 @@ backend:
 	# SQLc and mockgen
 	cd $(BACKEND_DIR) && go generate ./...
 	# Protoc codegen
-	## PB messages codegen
+	## PB structs codegen
 	mkdir -p $(SVC_PB_OUT)
 	protoc \
 		-I $(VTPROTO)/include \
@@ -45,7 +45,7 @@ backend:
 		--go-vtproto_out=$(SVC_PB_OUT) \
 		--go-vtproto_opt=paths=source_relative \
 		--go-vtproto_opt=features=marshal+unmarshal+size \
-		$(CONTRACTS_DIR)/messages.proto
+		$(CONTRACTS_DIR)/structs.proto
 	## GRPC api codegen
 	mkdir -p $(SVC_GRPC_OUT)
 	protoc \
@@ -66,7 +66,7 @@ frontend:
 		npx protoc \
 			--ts_out $(UI_PB_OUT) \
 			--proto_path ../$(CONTRACTS_DIR) \
-			../$(CONTRACTS_DIR)/messages.proto \
+			../$(CONTRACTS_DIR)/structs.proto \
     )
 
 chess-wasm:
@@ -82,7 +82,7 @@ k6:
 		--go_opt=paths=source_relative \
 		--go_out=$(PERF_PB_K6_OUT) \
 		--proto_path $(CONTRACTS_DIR) \
-		$(CONTRACTS_DIR)/messages.proto
+		$(CONTRACTS_DIR)/structs.proto
 	# Compile k6 binary
 	cd $(PERF_K6_DIR) && go build -o ./k6 .
 	cd $(PERF_K6_DIR) && ./k6 version

@@ -1,7 +1,7 @@
-// Contract for GRPC server APIs within Hexchess
+// Contract for GRPC server APIs
 
 syntax = "proto3";
-option go_package = "hexchess-svc/rpc";
+option go_package = "hexchess-svc/proto/rpc";
 
 package api;
 

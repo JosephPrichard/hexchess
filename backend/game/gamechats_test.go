@@ -1,7 +1,7 @@
 package game
 
 import (
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
 	"hexchess-svc/utils/entropy"

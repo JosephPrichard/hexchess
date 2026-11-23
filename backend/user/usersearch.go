@@ -7,7 +7,7 @@ import (
 	"hexchess-svc/cloud"
 	"hexchess-svc/database/query"
 	"hexchess-svc/featureflag"
-	"hexchess-svc/userutil"
+	"hexchess-svc/user/userutil"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"log/slog"

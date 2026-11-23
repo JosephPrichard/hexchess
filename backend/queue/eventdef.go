@@ -2,7 +2,7 @@ package queue
 
 import (
 	"hexchess-svc/chess"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/utils/opt"
 	"time"
 

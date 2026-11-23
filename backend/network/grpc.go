@@ -2,9 +2,9 @@ package network
 
 import (
 	"context"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/matchmaker"
-	"hexchess-svc/rpc"
+	"hexchess-svc/proto/grpc"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/slogutil"
 	"io"

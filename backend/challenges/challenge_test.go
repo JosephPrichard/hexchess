@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"hexchess-svc/database/testquery"
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	"hexchess-svc/utils/entropy"
 
 	"testing"
@@ -73,8 +73,8 @@ func TestInsertChallenge(t *testing.T) {
 			_, err := service.InsertChallenge(ctx, ChallengeInst{
 				ChallengerID: tt.challengerID,
 				ChallengeeID: tt.challengeeID,
-				Mode:         gamedata.ModeCorrespondence7,
-				StartColor:   gamedata.Random,
+				Mode:         gamedata2.ModeCorrespondence7,
+				StartColor:   gamedata2.Random,
 			})
 
 			assert.Equal(t, tt.wantErr, err)
@@ -183,5 +183,5 @@ func TestDeleteChallenge(t *testing.T) {
 	}
 	assert.Equal(t, challenge, challengeBefore)
 	assert.Error(t, pgx.ErrNoRows, errAfterDelete)
-	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: gamedata.ModeTimed3Plus2, FirstColor: gamedata.Random}, dr)
+	assert.Equal(t, DeleteResult{ChallengerID: key.ChallengerID, ChallengeeID: key.ChallengeeID, Mode: gamedata2.ModeTimed3Plus2, FirstColor: gamedata2.Random}, dr)
 }

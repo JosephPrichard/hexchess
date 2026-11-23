@@ -12,8 +12,8 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/game"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/leaderboard"
 	"hexchess-svc/replay"
 	"hexchess-svc/tournament"
@@ -200,14 +200,14 @@ func generateUserIDPairs() (int64, int64) {
 	return firstID, blackID
 }
 
-func generateMode() gamedata.GameMode {
+func generateMode() gamedata2.GameMode {
 	switch rand.Intn(3) {
 	case 0:
-		return gamedata.ModeCorrespondence1
+		return gamedata2.ModeCorrespondence1
 	case 1:
-		return gamedata.ModeCorrespondence7
+		return gamedata2.ModeCorrespondence7
 	default:
-		return gamedata.ModeCorrespondence14
+		return gamedata2.ModeCorrespondence14
 	}
 }
 
@@ -240,7 +240,7 @@ func generateChallengeInsts() []challenges.ChallengeInst {
 		insts = append(insts, challenges.ChallengeInst{
 			ChallengerID: challengerID,
 			ChallengeeID: challengeeID,
-			StartColor:   gamedata.Random,
+			StartColor:   gamedata2.Random,
 			Mode:         generateMode(),
 			MadeOn:       time.Now(),
 		})
@@ -253,7 +253,7 @@ type GameResultInsts struct {
 	BlackID      int64               `json:"blackId"`
 	ReplayCause  replay.ReplayCause  `json:"cause"`
 	ReplayResult replay.ReplayResult `json:"result"`
-	ReplayMode   gamedata.GameMode   `json:"mode"`
+	ReplayMode   gamedata2.GameMode  `json:"mode"`
 }
 
 func generateReplayResult() replay.ReplayResult {

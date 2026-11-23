@@ -2,9 +2,9 @@ package game
 
 import (
 	"hexchess-svc/cache"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/testutil"

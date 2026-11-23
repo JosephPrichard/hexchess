@@ -6,9 +6,9 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/testquery"
 	"hexchess-svc/game"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
-	"hexchess-svc/pb"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/pubsub/publishers/redispub"
 	"hexchess-svc/queue"
 	"hexchess-svc/replay"
@@ -89,7 +89,7 @@ func TestHandleFinishedGameEvent(t *testing.T) {
 		Moves:        []chess.HistMove{},
 		WhiteID:      whiteUser0.ID, // winner
 		BlackID:      blackUser1.ID, // loser
-		ReplayMode:   gamedata.ModeCorrespondence1.String(),
+		ReplayMode:   gamedata2.ModeCorrespondence1.String(),
 		ReplayCause:  replay.Checkmate.String(),
 		ReplayResult: replay.WhiteWin.String(),
 	}
@@ -154,8 +154,8 @@ func TestHandleUpdtGameEvent(t *testing.T) {
 		GameID:      gameID,
 		WhitePlayer: opt.Some(whiteUser0.ID),
 		BlackPlayer: opt.Some(blackUser1.ID),
-		Mode:        gamedata.ModeCorrespondence1.String(),
-		FirstColor:  gamedata.Random.String(),
+		Mode:        gamedata2.ModeCorrespondence1.String(),
+		FirstColor:  gamedata2.Random.String(),
 	}
 
 	err := producers.ProduceUpdateGameMetadataJob(ctx, testinfra.Redis.PrimaryClient, job)

@@ -34,6 +34,7 @@ func NewDatabasePool(ctx context.Context, cfg PoolConfig) *pgxpool.Pool {
 	}
 
 	poolCfg.ConnConfig.ConnectTimeout = 10 * time.Second
+	poolCfg.ConnConfig.Tracer = NewTracer(slog.Default())
 
 	if cfg.ActiveProfile != config.Local {
 		poolCfg.BeforeConnect = PostgresBeforeConnect(ctx, poolCfg.ConnConfig, cfg.AwsRegion)

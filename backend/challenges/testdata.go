@@ -1,7 +1,7 @@
 package challenges
 
 import (
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"time"
 )
@@ -16,8 +16,8 @@ var TestChallenge = []Challenge{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              gamedata.ModeTimed3Plus2,
-		StartColor:        gamedata.Random,
+		Mode:              gamedata2.ModeTimed3Plus2,
+		StartColor:        gamedata2.Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
@@ -30,8 +30,8 @@ var TestChallenge = []Challenge{
 		ChallengeeName:    "user1",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              gamedata.ModeCorrespondence1,
-		StartColor:        gamedata.Random,
+		Mode:              gamedata2.ModeCorrespondence1,
+		StartColor:        gamedata2.Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
@@ -44,8 +44,8 @@ var TestChallenge = []Challenge{
 		ChallengeeName:    "user2",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     1000,
-		Mode:              gamedata.ModeCorrespondence1,
-		StartColor:        gamedata.Random,
+		Mode:              gamedata2.ModeCorrespondence1,
+		StartColor:        gamedata2.Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(time.Hour * 24 * 7),
 	},
@@ -58,8 +58,8 @@ var TestChallenge = []Challenge{
 		ChallengeeName:    "user4",
 		ChallengeeCountry: "us",
 		ChallengeeElo:     2000,
-		Mode:              gamedata.ModeCorrespondence1,
-		StartColor:        gamedata.Random,
+		Mode:              gamedata2.ModeCorrespondence1,
+		StartColor:        gamedata2.Random,
 		MadeOn:            itest.TimeNow.Local(),
 		ExpiresOn:         itest.TimeNow.Local().Add(time.Hour * 24 * 7),
 	},

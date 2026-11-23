@@ -1,8 +1,8 @@
 package tournament
 
 import (
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"

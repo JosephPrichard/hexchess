@@ -3,8 +3,8 @@ package game
 import (
 	"errors"
 	"hexchess-svc/chess"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/player"
 	"hexchess-svc/user"
 	"hexchess-svc/utils/opt"
@@ -31,29 +31,29 @@ func (kind EndKind) IsEnded() bool {
 
 type ChessState struct {
 	UndoState
-	ID           gameid.Identifier  `json:"id"`
-	StartTime    time.Time          `json:"startTime"`
-	WhitePlayer  player.PlayerState `json:"whitePlayer"`
-	BlackPlayer  player.PlayerState `json:"blackPlayer"`
-	FirstColor   gamedata.GameColor `json:"firstColor"`
-	Mode         gamedata.GameMode  `json:"mode"`
-	EndState     EndKind            `json:"endState"`
-	InitialBoard chess.Board        `json:"-"`
-	Game         chess.Game         `json:"-"`
+	ID           gameid.Identifier   `json:"id"`
+	StartTime    time.Time           `json:"startTime"`
+	WhitePlayer  player.PlayerState  `json:"whitePlayer"`
+	BlackPlayer  player.PlayerState  `json:"blackPlayer"`
+	FirstColor   gamedata2.GameColor `json:"firstColor"`
+	Mode         gamedata2.GameMode  `json:"mode"`
+	EndState     EndKind             `json:"endState"`
+	InitialBoard chess.Board         `json:"-"`
+	Game         chess.Game          `json:"-"`
 }
 
 type ChessMeta struct {
 	GameID      gameid.Identifier     `json:"gameId"`
 	WhitePlayer opt.Option[user.User] `json:"whitePlayer"`
 	BlackPlayer opt.Option[user.User] `json:"blackPlayer"`
-	Mode        gamedata.GameMode     `json:"mode"`
+	Mode        gamedata2.GameMode    `json:"mode"`
 	Ordering    int64                 `json:"ordering"`
 }
 
 type ChessStateArgs struct {
 	ID           gameid.Identifier
-	Mode         gamedata.GameMode
-	FirstColor   gamedata.GameColor
+	Mode         gamedata2.GameMode
+	FirstColor   gamedata2.GameColor
 	White        player.PlayerState
 	Black        player.PlayerState
 	InitialBoard *chess.Board

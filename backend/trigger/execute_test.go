@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"hexchess-svc/cache"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
 	"testing"
 	"time"

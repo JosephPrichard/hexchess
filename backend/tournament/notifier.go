@@ -2,7 +2,7 @@ package tournament
 
 import (
 	"context"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/pubsub"
 	"hexchess-svc/user"
 	"log/slog"

@@ -11,7 +11,7 @@ import (
 	"unicode"
 	"unsafe"
 
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 )
 
 type Piece byte

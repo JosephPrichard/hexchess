@@ -3,7 +3,7 @@ package tournament
 import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/testquery"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"hexchess-svc/queue/producers"
 	"hexchess-svc/utils/slogutil"

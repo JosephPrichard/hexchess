@@ -3,10 +3,10 @@ package tournament
 import (
 	"cmp"
 	"fmt"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/replay"
-	"hexchess-svc/userutil"
+	"hexchess-svc/user/userutil"
 	"math"
 	"slices"
 

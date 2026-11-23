@@ -1,7 +1,7 @@
 package game
 
 import (
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"hexchess-svc/utils/slogutil"
 	"testing"
@@ -24,13 +24,13 @@ func TestCreateGame(t *testing.T) {
 	service, testinfra := setupCreateTest(t)
 	defer testinfra.Close()
 
-	gameID, err := service.CreateGame(t.Context(), ChessStateArgs{FirstColor: gamedata.White, Mode: gamedata.ModeCorrespondence1})
+	gameID, err := service.CreateGame(t.Context(), ChessStateArgs{FirstColor: gamedata2.White, Mode: gamedata2.ModeCorrespondence1})
 	require.NoError(t, err)
 
 	wantGame := NewChessState(ChessStateArgs{
 		ID:         gameID,
-		Mode:       gamedata.ModeCorrespondence1,
-		FirstColor: gamedata.White,
+		Mode:       gamedata2.ModeCorrespondence1,
+		FirstColor: gamedata2.White,
 	})
 
 	wantGame.Game.InitPieceMoves()

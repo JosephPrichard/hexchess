@@ -7,8 +7,7 @@ import (
 	"syscall/js"
 
 	"hexchess-svc/chess"
-	"hexchess-svc/model"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 )
 
 type ChessWasm struct {
@@ -59,7 +58,7 @@ func (w *ChessWasm) unmarshalBoard(value js.Value) (chess.Board, error) {
 		return chess.Board{}, err
 	}
 
-	return model.DeserializeBoard(&pbBoard)
+	return chess.DeserializeBoard(&pbBoard)
 }
 
 func (w *ChessWasm) unmarshalGame(value js.Value) (chess.Game, error) {
@@ -71,7 +70,7 @@ func (w *ChessWasm) unmarshalGame(value js.Value) (chess.Game, error) {
 		return chess.Game{}, err
 	}
 
-	return model.DeserializeGame(&pbGameIn)
+	return chess.DeserializeGame(&pbGameIn)
 }
 
 func (w *ChessWasm) unmarshalMove(value js.Value) (chess.Move, error) {
@@ -83,7 +82,7 @@ func (w *ChessWasm) unmarshalMove(value js.Value) (chess.Move, error) {
 		return chess.Move{}, err
 	}
 
-	return model.DeserializeMove(&pbMoveIn), nil
+	return chess.DeserializeMove(&pbMoveIn), nil
 }
 
 func (w *ChessWasm) unmarshalHistMoveList(value js.Value) ([]chess.HistMove, error) {
@@ -95,11 +94,11 @@ func (w *ChessWasm) unmarshalHistMoveList(value js.Value) ([]chess.HistMove, err
 		return nil, err
 	}
 
-	return model.DeserializeHistMoveList(pbMoveList.Moves), nil
+	return chess.DeserializeHistMoveList(pbMoveList.Moves), nil
 }
 
 func (w *ChessWasm) marshalGame(game *chess.Game) any {
-	output, err := model.SerializeGame(game).MarshalVT()
+	output, err := chess.SerializeGame(game).MarshalVT()
 	if err != nil {
 		return w.JsErr(err)
 	}

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"hexchess-svc/challenges"
 	"hexchess-svc/game"
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	"hexchess-svc/network"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/tournament"
@@ -105,8 +105,8 @@ func TestHandleUserEvents(t *testing.T) {
 
 	inputMessages := []user.UserEvent{
 		{Kind: user.EventChallengeKind, UserID: 2, Challenge: challenges.Challenge{ChallengeeID: 2}}, // won't receive this
-		{Kind: user.EventChallengeKind, UserID: 1, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence1, StartColor: gamedata.White}},
-		{Kind: user.EventChallengeKind, UserID: 1, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata.ModeCorrespondence7, StartColor: gamedata.Black}},
+		{Kind: user.EventChallengeKind, UserID: 1, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata2.ModeCorrespondence1, StartColor: gamedata2.White}},
+		{Kind: user.EventChallengeKind, UserID: 1, Challenge: challenges.Challenge{ChallengeeID: 1, Mode: gamedata2.ModeCorrespondence7, StartColor: gamedata2.Black}},
 	}
 
 	for _, input := range inputMessages {

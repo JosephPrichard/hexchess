@@ -2,7 +2,7 @@ package leaderboard
 
 import (
 	"context"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"hexchess-svc/user"
 	"hexchess-svc/utils/slogutil"

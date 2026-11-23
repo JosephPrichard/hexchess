@@ -2,7 +2,7 @@ package redispub
 
 import (
 	"hexchess-svc/itest"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/pubsub/subscribers/redisub"
 	"hexchess-svc/utils/goutil"

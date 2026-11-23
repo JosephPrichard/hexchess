@@ -3,7 +3,7 @@ package game
 import (
 	"fmt"
 	"hexchess-svc/cache"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/utils/slogutil"
 	"testing"

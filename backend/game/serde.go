@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"hexchess-svc/chess"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
-	"hexchess-svc/pb"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/player"
+	"hexchess-svc/proto/pb"
 	"hexchess-svc/utils/enum"
 	"time"
 )
@@ -77,8 +77,8 @@ func DeserializeChessState(pbChess *pb.ChessState) (*ChessState, error) {
 		return nil, err
 	}
 
-	mode, me := enum.Parse(pbChess.Mode, gamedata.GameModeEnums)
-	firstColor, colorErr := enum.Parse(pbChess.FirstColor, gamedata.GameColorEnums)
+	mode, me := enum.Parse(pbChess.Mode, gamedata2.GameModeEnums)
+	firstColor, colorErr := enum.Parse(pbChess.FirstColor, gamedata2.GameColorEnums)
 	if err := errors.Join(me, colorErr); err != nil {
 		return nil, err
 	}

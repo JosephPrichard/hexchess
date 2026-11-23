@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/challenges"
 	"hexchess-svc/cloud"
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/network"
 	"hexchess-svc/persona"
 	"hexchess-svc/replay"
@@ -18,7 +18,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"io"
 	"net/http"
 	"net/http/httptest"

@@ -1,7 +1,7 @@
 package network_test
 
 import (
-	"hexchess-svc/rpc"
+	"hexchess-svc/proto/grpc"
 
 	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/testing/protocmp"

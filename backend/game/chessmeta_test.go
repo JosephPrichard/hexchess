@@ -2,7 +2,7 @@ package game
 
 import (
 	"hexchess-svc/database/testquery"
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
 	"hexchess-svc/pubsub/publishers/redispub"
@@ -39,13 +39,13 @@ func TestGetGameMetadata(t *testing.T) {
 	require.NoError(t, err)
 
 	wantAllChessMetas := []ChessMeta{
-		{Ordering: 3, GameID: itest.GameID3, Mode: gamedata.ModeCorrespondence1},
-		{Ordering: 2, GameID: itest.GameID2, Mode: gamedata.ModeCorrespondence1},
+		{Ordering: 3, GameID: itest.GameID3, Mode: gamedata2.ModeCorrespondence1},
+		{Ordering: 2, GameID: itest.GameID2, Mode: gamedata2.ModeCorrespondence1},
 		{
 			Ordering:    1,
 			GameID:      itest.GameID1,
 			BlackPlayer: opt.Some(user.User{ID: 2, Username: "user2", Country: "us"}),
-			Mode:        gamedata.ModeCorrespondence1,
+			Mode:        gamedata2.ModeCorrespondence1,
 		},
 	}
 	wantSelfChessMetas := []ChessMeta{
@@ -53,7 +53,7 @@ func TestGetGameMetadata(t *testing.T) {
 			Ordering:    1,
 			GameID:      itest.GameID1,
 			BlackPlayer: opt.Some(user.User{ID: 2, Username: "user2", Country: "us"}),
-			Mode:        gamedata.ModeCorrespondence1,
+			Mode:        gamedata2.ModeCorrespondence1,
 		},
 	}
 	assert.Equal(t, wantAllChessMetas, resp.ChessMetas)
@@ -79,8 +79,8 @@ func TestUpdateGameMetadata(t *testing.T) {
 	err := service.UpdateGameMetadata(ctx, UpdtGameMetadataEvent{
 		GameID:      itest.GameID1,
 		WhitePlayer: opt.Some(int64(1)),
-		Mode:        gamedata.ModeCorrespondence1,
-		FirstColor:  gamedata.Random,
+		Mode:        gamedata2.ModeCorrespondence1,
+		FirstColor:  gamedata2.Random,
 	})
 	require.NoError(t, err)
 

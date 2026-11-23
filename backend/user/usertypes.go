@@ -1,7 +1,7 @@
 package user
 
 import (
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/player"
 	"time"
 )

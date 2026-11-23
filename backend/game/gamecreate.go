@@ -3,7 +3,7 @@ package game
 import (
 	"context"
 	"hexchess-svc/cache"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/utils/perf"
 	"hexchess-svc/utils/serrors"
 	"time"

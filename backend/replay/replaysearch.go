@@ -5,7 +5,7 @@ import (
 	"errors"
 	"hexchess-svc/database"
 	"hexchess-svc/database/query"
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/opt"
 	"hexchess-svc/utils/perf"
@@ -37,11 +37,11 @@ type ReplaysQuery struct {
 	LoserID  opt.Option[int64] `json:"loserID"`
 	WinnerID opt.Option[int64] `json:"winnerId"`
 
-	Result   opt.Option[ReplayResult]      `json:"result"`
-	Mode     opt.Option[gamedata.GameMode] `json:"mode"`
-	Cause    opt.Option[ReplayCause]       `json:"cause"`
-	FromDate opt.Option[time.Time]         `json:"fromDate"`
-	ToDate   opt.Option[time.Time]         `json:"toDate"`
+	Result   opt.Option[ReplayResult]       `json:"result"`
+	Mode     opt.Option[gamedata2.GameMode] `json:"mode"`
+	Cause    opt.Option[ReplayCause]        `json:"cause"`
+	FromDate opt.Option[time.Time]          `json:"fromDate"`
+	ToDate   opt.Option[time.Time]          `json:"toDate"`
 
 	AfterID        opt.Option[int64]   `json:"afterId"`
 	AfterRating    opt.Option[float64] `json:"afterRating"`
@@ -105,7 +105,7 @@ func (service *ReplaySearchService) SearchReplaysByQuery(ctx context.Context, se
 		BlackID:      database.MapOptInt8(searchQuery.BlackID),
 		WinnerID:     database.MapOptInt8(searchQuery.WinnerID),
 		LoserID:      database.MapOptInt8(searchQuery.LoserID),
-		Mode:         gamedata.MapOptMode(searchQuery.Mode),
+		Mode:         gamedata2.MapOptMode(searchQuery.Mode),
 		Result:       MapOptResult(searchQuery.Result),
 		Cause:        MapOptCause(searchQuery.Cause),
 		FromDateDays: database.MapOptInt4(toDayEpoch(searchQuery.FromDate)),

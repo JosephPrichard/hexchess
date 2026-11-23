@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"hexchess-svc/chess"
 	"hexchess-svc/game"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/player"
 	"hexchess-svc/pubsub/event"
 	"hexchess-svc/utils/errutil"
@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 )
 
 type GameSocketContext struct {

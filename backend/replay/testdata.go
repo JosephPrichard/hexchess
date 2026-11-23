@@ -1,7 +1,7 @@
 package replay
 
 import (
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/itest"
 	"time"
 )

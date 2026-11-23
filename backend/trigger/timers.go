@@ -4,7 +4,7 @@ import (
 	"context"
 	"hexchess-svc/cache"
 	"hexchess-svc/game"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/utils/slogutil"
 	"log/slog"
 	"time"

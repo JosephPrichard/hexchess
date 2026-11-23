@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"hexchess-svc/assets"
 	"hexchess-svc/chess"
-	"hexchess-svc/gamedata"
+	gamedata2 "hexchess-svc/game/gamedata"
 	svc "hexchess-svc/replay"
 	"hexchess-svc/tournament"
 
@@ -123,18 +123,18 @@ func parseUpdateChallengeBody(body UpdateChallengeBody) (UpdateChallengeTBody, e
 
 type CreateChallengeTBody struct {
 	ChallengeeID int64
-	StartColor   gamedata.GameColor
-	Mode         gamedata.GameMode
+	StartColor   gamedata2.GameColor
+	Mode         gamedata2.GameMode
 }
 
 func parseCreateChallengeBody(body CreateChallengeBody) (CreateChallengeTBody, error) {
 	var respErr BadRequestError
 
-	color, err := enum.Parse(body.StartColor, gamedata.GameColorEnums)
+	color, err := enum.Parse(body.StartColor, gamedata2.GameColorEnums)
 	if err != nil {
 		respErr.Put("CreateChallengeBody.StartColor", err)
 	}
-	mode, err := enum.Parse(body.Mode, gamedata.GameModeEnums)
+	mode, err := enum.Parse(body.Mode, gamedata2.GameModeEnums)
 	if err != nil {
 		respErr.Put("CreateChallengeBody.Mode", err)
 	}
@@ -143,8 +143,8 @@ func parseCreateChallengeBody(body CreateChallengeBody) (CreateChallengeTBody, e
 }
 
 type CreateGameTBody struct {
-	FirstColor   gamedata.GameColor
-	Mode         gamedata.GameMode
+	FirstColor   gamedata2.GameColor
+	Mode         gamedata2.GameMode
 	InitialBoard chess.Board
 }
 
@@ -161,11 +161,11 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 		}
 	}
 
-	color, err := enum.Parse(body.FirstColor, gamedata.GameColorEnums)
+	color, err := enum.Parse(body.FirstColor, gamedata2.GameColorEnums)
 	if err != nil {
 		respErr.Put("CreateGameBody.FirstColor", err)
 	}
-	mode, err := enum.Parse(body.Mode, gamedata.GameModeEnums)
+	mode, err := enum.Parse(body.Mode, gamedata2.GameModeEnums)
 	if err != nil {
 		respErr.Put("CreateGameBody.Mode", err)
 	}
@@ -175,7 +175,7 @@ func parseCreateGameBody(body CreateGameBody) (CreateGameTBody, error) {
 
 type CreateTournamentTBody struct {
 	Name            string
-	Mode            gamedata.GameMode
+	Mode            gamedata2.GameMode
 	Ruleset         tournament.TournamentRuleset
 	Rounds          int32
 	CountdownMillis int64
@@ -184,7 +184,7 @@ type CreateTournamentTBody struct {
 func parseCreateTournamentBody(body CreateTournamentBody) (CreateTournamentTBody, error) {
 	var respErr BadRequestError
 
-	mode, err := enum.Parse(body.Mode, gamedata.GameModeEnums)
+	mode, err := enum.Parse(body.Mode, gamedata2.GameModeEnums)
 	if err != nil {
 		respErr.Put("CreateTournamentBody.Mode", err)
 	}
@@ -315,7 +315,7 @@ func parseReplaysQuery(values url.Values) (GetReplaysQuery, error) {
 	whiteID := parseOptInt[int64](q, "whiteId")
 	blackID := parseOptInt[int64](q, "blackId")
 
-	mode := parseOptEnum(q, "mode", gamedata.GameModeEnums)
+	mode := parseOptEnum(q, "mode", gamedata2.GameModeEnums)
 	result := parseOptEnum(q, "result", svc.ReplayResultEnums)
 	cause := parseOptEnum(q, "cause", svc.ReplayCauseEnums)
 
@@ -380,7 +380,7 @@ func parseLeaderboardQuery(values url.Values) (LeaderboardQuery, error) {
 	ctx := makeQueryParseCtx(values)
 
 	page := parseDefaultInt(ctx, "page", 1)
-	mode := parseEnum(ctx, "mode", gamedata.GameModeEnums)
+	mode := parseEnum(ctx, "mode", gamedata2.GameModeEnums)
 
 	return LeaderboardQuery{Page: page, Mode: mode}, ctx.RespErr.Inner()
 }

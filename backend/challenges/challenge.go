@@ -7,8 +7,8 @@ import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/mutate"
 	"hexchess-svc/database/query"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/userutil"
+	gamedata2 "hexchess-svc/game/gamedata"
+	"hexchess-svc/user/userutil"
 	"hexchess-svc/utils/entropy"
 	"hexchess-svc/utils/enum"
 	"hexchess-svc/utils/perf"
@@ -40,11 +40,11 @@ func NewChallengeService(database database.PostgreSQL, entropy entropy.Generator
 }
 
 type ChallengeInst struct {
-	ChallengerID int64              `json:"challengerId"`
-	ChallengeeID int64              `json:"challengeeId"`
-	Mode         gamedata.GameMode  `json:"mode"`
-	StartColor   gamedata.GameColor `json:"startColor"`
-	MadeOn       time.Time          `json:"madeOn"`
+	ChallengerID int64               `json:"challengerId"`
+	ChallengeeID int64               `json:"challengeeId"`
+	Mode         gamedata2.GameMode  `json:"mode"`
+	StartColor   gamedata2.GameColor `json:"startColor"`
+	MadeOn       time.Time           `json:"madeOn"`
 }
 
 func (service *ChallengeService) InsertChallenge(ctx context.Context, inst ChallengeInst) (_ Challenge, err error) {
@@ -80,8 +80,8 @@ func (service *ChallengeService) InsertChallenge(ctx context.Context, inst Chall
 		ChallengeeName:    row.ChallengeeName,
 		ChallengeeCountry: row.ChallengeeCountry,
 		ChallengeeElo:     userutil.DefaultUserElo(row.ChallengeeElo),
-		Mode:              enum.Expect(row.Mode, gamedata.GameModeEnums),
-		StartColor:        enum.Expect(row.StartColor, gamedata.GameColorEnums),
+		Mode:              enum.Expect(row.Mode, gamedata2.GameModeEnums),
+		StartColor:        enum.Expect(row.StartColor, gamedata2.GameColorEnums),
 		MadeOn:            row.MadeOn.Time,
 		ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
 	}
@@ -160,8 +160,8 @@ func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context,
 			ChallengeeName:    row.ChallengeeName,
 			ChallengeeCountry: row.ChallengeeCountry,
 			ChallengeeElo:     userutil.DefaultUserElo(row.ChallengeeElo),
-			Mode:              enum.Expect(row.Mode, gamedata.GameModeEnums),
-			StartColor:        enum.Expect(row.StartColor, gamedata.GameColorEnums),
+			Mode:              enum.Expect(row.Mode, gamedata2.GameModeEnums),
+			StartColor:        enum.Expect(row.StartColor, gamedata2.GameColorEnums),
 			MadeOn:            row.MadeOn.Time,
 			ExpiresOn:         row.MadeOn.Time.Add(ExpireChallengeMaxAge),
 		})
@@ -174,8 +174,8 @@ func (service *ChallengeService) GetChallengesByParticipant(ctx context.Context,
 type DeleteResult struct {
 	ChallengerID int64
 	ChallengeeID int64
-	Mode         gamedata.GameMode
-	FirstColor   gamedata.GameColor
+	Mode         gamedata2.GameMode
+	FirstColor   gamedata2.GameColor
 }
 
 func (service *ChallengeService) DeleteChallenge(ctx context.Context, challengerID int64, challengeeID int64) (_ DeleteResult, err error) {
@@ -190,8 +190,8 @@ func (service *ChallengeService) DeleteChallenge(ctx context.Context, challenger
 		return DeleteResult{}, serrors.New("delete challenge", err, "params", params)
 	}
 
-	gameColor := enum.Expect(challengeRow.StartColor, gamedata.GameColorEnums)
-	gameMode := enum.Expect(challengeRow.Mode, gamedata.GameModeEnums)
+	gameColor := enum.Expect(challengeRow.StartColor, gamedata2.GameColorEnums)
+	gameMode := enum.Expect(challengeRow.Mode, gamedata2.GameModeEnums)
 
 	delResult := DeleteResult{
 		ChallengerID: challengeRow.ChallengerID,

@@ -3,11 +3,11 @@ package tournament
 import (
 	"hexchess-svc/database"
 	"hexchess-svc/database/query"
-	"hexchess-svc/gamedata"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gamedata"
+	"hexchess-svc/game/gameid"
 	"hexchess-svc/replay"
 	"hexchess-svc/user"
-	"hexchess-svc/userutil"
+	"hexchess-svc/user/userutil"
 	"hexchess-svc/utils/enum"
 	"time"
 )

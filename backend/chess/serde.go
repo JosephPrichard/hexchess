@@ -2,7 +2,7 @@ package chess
 
 import (
 	"fmt"
-	"hexchess-svc/pb"
+	"hexchess-svc/proto/pb"
 	"time"
 )
 

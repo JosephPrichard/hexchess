@@ -3,7 +3,7 @@ package game
 import (
 	"errors"
 	"fmt"
-	"hexchess-svc/gameid"
+	"hexchess-svc/game/gameid"
 )
 
 var ErrForfeitPlayer = errors.New("must be a player to forfeit or abort")

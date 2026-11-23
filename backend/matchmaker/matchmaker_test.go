@@ -1,7 +1,7 @@
 package matchmaker
 
 import (
-	"hexchess-svc/gamedata"
+	"hexchess-svc/game/gamedata"
 	"hexchess-svc/utils/testutil"
 	"testing"
 	"time"

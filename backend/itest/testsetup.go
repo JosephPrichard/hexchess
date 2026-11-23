@@ -78,7 +78,7 @@ func SetupIntegrationTest(t slogutil.TestLogger) TestInfra {
 	infra.Es = cloud.NewElasticSearchClient(cloud.EsConfig{Address: EsAddr})
 
 	setupRedisPreconditions(t)
-	setupDbPreconditions(t, pgPool)
+	setupDbPreconditions(t)
 
 	return infra
 }
@@ -87,15 +87,17 @@ func createPool(t slogutil.TestLogger) *pgxpool.Pool {
 	ctx := t.Context()
 	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPass, PostgreSQLAddr, dbName)
 
-	pgPool, err := pgxpool.New(ctx, connString)
-	if err != nil {
-		t.Fatalf("failed to create pg pool: %v", err)
-	}
-	return pgPool
+	return database.NewDatabasePool(ctx, database.PoolConfig{Dsn: connString})
 }
 
-func setupDbPreconditions(t slogutil.TestLogger, pool *pgxpool.Pool) {
+func setupDbPreconditions(t slogutil.TestLogger) {
+	connString := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=disable", dbUser, dbPass, PostgreSQLAddr, dbName)
 	ctx := context.WithValue(context.Background(), slogutil.Trace, "insert-testing-data")
+
+	pool, err := pgxpool.New(ctx, connString)
+	if err != nil {
+		t.Fatalf("failed to create pool: %v", pool)
+	}
 
 	if err := dropSchema(ctx, pool); err != nil {
 		t.Fatalf("failed to drop schema: %v", err)
