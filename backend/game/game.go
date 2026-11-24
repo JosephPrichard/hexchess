@@ -2,7 +2,7 @@ package game
 
 import (
 	"hexchess-svc/chess"
-	gamedata2 "hexchess-svc/game/gamedata"
+	gamedata "hexchess-svc/game/gamedata"
 	"hexchess-svc/game/gameid"
 	"hexchess-svc/player"
 	"hexchess-svc/replay"
@@ -23,18 +23,18 @@ type FinishGameEvent struct {
 	Moves        []chess.HistMove    `json:"moves"`
 	WhiteID      int64               `json:"whiteID"`
 	BlackID      int64               `json:"blackID"`
-	ReplayMode   gamedata2.GameMode  `json:"mode"`
+	ReplayMode   gamedata.GameMode   `json:"mode"`
 	ReplayResult replay.ReplayResult `json:"replayResult"`
 	ReplayCause  replay.ReplayCause  `json:"replayCause"`
 	InsertedTime time.Time           `json:"insertedTime"`
 }
 
 type UpdtGameMetadataEvent struct {
-	GameID      gameid.Identifier   `json:"id"`
-	WhitePlayer opt.Option[int64]   `json:"whitePlayer"`
-	BlackPlayer opt.Option[int64]   `json:"blackPlayer"`
-	Mode        gamedata2.GameMode  `json:"mode"`
-	FirstColor  gamedata2.GameColor `json:"firstColor"`
+	GameID      gameid.Identifier  `json:"id"`
+	WhitePlayer opt.Option[int64]  `json:"whitePlayer"`
+	BlackPlayer opt.Option[int64]  `json:"blackPlayer"`
+	Mode        gamedata.GameMode  `json:"mode"`
+	FirstColor  gamedata.GameColor `json:"firstColor"`
 }
 
 type UndoKind int

@@ -3,7 +3,7 @@ package game
 import (
 	"context"
 	"hexchess-svc/chess"
-	gamedata2 "hexchess-svc/game/gamedata"
+	gamedata "hexchess-svc/game/gamedata"
 	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
@@ -33,13 +33,13 @@ func TestJoinGame(t *testing.T) {
 
 	whiteGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.White,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.White,
 	})
 	fullGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      player.PlayerState{ID: 2, Name: "black", Present: true},
 	})
@@ -95,15 +95,15 @@ func TestAttemptUndo(t *testing.T) {
 
 	noMovesGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      player.PlayerState{ID: 2, Name: "black", Present: true},
 	})
 	withMovesGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Name: "white", Present: true},
 		Black:      player.PlayerState{ID: 2, Name: "black", Present: true},
 	})
@@ -255,29 +255,29 @@ func TestAttemptUndo(t *testing.T) {
 func TestNewMove(t *testing.T) {
 	stateWhiteTurn := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Present: true},
 		Black:      player.PlayerState{ID: 2, Present: true},
 	})
 	stateEnded := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Present: true},
 		Black:      player.PlayerState{ID: 2, Present: true},
 		EndState:   Finished,
 	})
 	stateNotStarted := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Present: true},
 	})
 	stateIntoCheckmate := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 3, Present: true},
 		Black:      player.PlayerState{ID: 4, Present: true},
 		Game: new(chess.NewEmptyGame(false,
@@ -400,14 +400,14 @@ func TestForfeit(t *testing.T) {
 
 	abortGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Present: true},
 	})
 	forfeitGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Present: true},
 		Black:      player.PlayerState{ID: 2, Present: true},
 	})
@@ -450,22 +450,22 @@ func TestForfeit_Errors(t *testing.T) {
 
 	endedGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 1, Present: true},
 		Black:      player.PlayerState{ID: 2, Present: true},
 		EndState:   Finished,
 	})
 	cannotAbortGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 2, Present: true},
 	})
 	notPlayerGame := NewChessState(ChessStateArgs{
 		ID:         gameid.NewGameID(),
-		Mode:       gamedata2.ModeCorrespondence1,
-		FirstColor: gamedata2.Random,
+		Mode:       gamedata.ModeCorrespondence1,
+		FirstColor: gamedata.Random,
 		White:      player.PlayerState{ID: 3, Present: true},
 		Black:      player.PlayerState{ID: 4, Present: true},
 	})

@@ -3,7 +3,7 @@ package game
 import (
 	"errors"
 	"hexchess-svc/chess"
-	gamedata2 "hexchess-svc/game/gamedata"
+	gamedata "hexchess-svc/game/gamedata"
 	"hexchess-svc/game/gameid"
 	"hexchess-svc/player"
 	"hexchess-svc/user"
@@ -31,29 +31,29 @@ func (kind EndKind) IsEnded() bool {
 
 type ChessState struct {
 	UndoState
-	ID           gameid.Identifier   `json:"id"`
-	StartTime    time.Time           `json:"startTime"`
-	WhitePlayer  player.PlayerState  `json:"whitePlayer"`
-	BlackPlayer  player.PlayerState  `json:"blackPlayer"`
-	FirstColor   gamedata2.GameColor `json:"firstColor"`
-	Mode         gamedata2.GameMode  `json:"mode"`
-	EndState     EndKind             `json:"endState"`
-	InitialBoard chess.Board         `json:"-"`
-	Game         chess.Game          `json:"-"`
+	ID           gameid.Identifier  `json:"id"`
+	StartTime    time.Time          `json:"startTime"`
+	WhitePlayer  player.PlayerState `json:"whitePlayer"`
+	BlackPlayer  player.PlayerState `json:"blackPlayer"`
+	FirstColor   gamedata.GameColor `json:"firstColor"`
+	Mode         gamedata.GameMode  `json:"mode"`
+	EndState     EndKind            `json:"endState"`
+	InitialBoard chess.Board        `json:"-"`
+	Game         chess.Game         `json:"-"`
 }
 
 type ChessMeta struct {
 	GameID      gameid.Identifier     `json:"gameId"`
 	WhitePlayer opt.Option[user.User] `json:"whitePlayer"`
 	BlackPlayer opt.Option[user.User] `json:"blackPlayer"`
-	Mode        gamedata2.GameMode    `json:"mode"`
+	Mode        gamedata.GameMode     `json:"mode"`
 	Ordering    int64                 `json:"ordering"`
 }
 
 type ChessStateArgs struct {
 	ID           gameid.Identifier
-	Mode         gamedata2.GameMode
-	FirstColor   gamedata2.GameColor
+	Mode         gamedata.GameMode
+	FirstColor   gamedata.GameColor
 	White        player.PlayerState
 	Black        player.PlayerState
 	InitialBoard *chess.Board
@@ -142,7 +142,7 @@ func (state *ChessState) CurrPlayer() player.PlayerState {
 }
 
 func (state *ChessState) DeepCopy() ChessState {
-	s2 := ChessState{
+	return ChessState{
 		Game:         state.Game.DeepCopy(),
 		UndoState:    state.UndoState,
 		InitialBoard: state.InitialBoard,
@@ -150,8 +150,7 @@ func (state *ChessState) DeepCopy() ChessState {
 		FirstColor:   state.FirstColor,
 		Mode:         state.Mode,
 		EndState:     state.EndState,
+		WhitePlayer:  state.WhitePlayer,
+		BlackPlayer:  state.BlackPlayer,
 	}
-	s2.WhitePlayer = state.WhitePlayer
-	s2.BlackPlayer = state.BlackPlayer
-	return s2
 }

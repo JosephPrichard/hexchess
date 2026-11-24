@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"hexchess-svc/cache"
 	"hexchess-svc/game"
-	gamedata2 "hexchess-svc/game/gamedata"
+	gamedata "hexchess-svc/game/gamedata"
 	"hexchess-svc/game/gameid"
 	"hexchess-svc/network"
 	"hexchess-svc/player"
@@ -47,13 +47,13 @@ func createTestChessStates(t *testing.T, redis cache.Redis) {
 	var testStates = []*game.ChessState{
 		game.NewChessState(game.ChessStateArgs{
 			ID:         TestGameID1,
-			Mode:       gamedata2.ModeCorrespondence1,
-			FirstColor: gamedata2.Random,
+			Mode:       gamedata.ModeCorrespondence1,
+			FirstColor: gamedata.Random,
 			Black:      player.NewPlayer(2, "user2", "us"),
 			UndoState:  game.UndoState{UndoID: 2},
 		}),
-		game.NewChessState(game.ChessStateArgs{ID: "game2", Mode: gamedata2.ModeCorrespondence1, FirstColor: gamedata2.Random}),
-		game.NewChessState(game.ChessStateArgs{ID: "game3", Mode: gamedata2.ModeCorrespondence1, FirstColor: gamedata2.Random}),
+		game.NewChessState(game.ChessStateArgs{ID: "game2", Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random}),
+		game.NewChessState(game.ChessStateArgs{ID: "game3", Mode: gamedata.ModeCorrespondence1, FirstColor: gamedata.Random}),
 	}
 	ctx := t.Context()
 	for _, state := range testStates {
@@ -70,7 +70,7 @@ func createTestChessStates(t *testing.T, redis cache.Redis) {
 }
 
 type updtLbChangeSet struct {
-	Mode    gamedata2.GameMode
+	Mode    gamedata.GameMode
 	ID      int64
 	EloDiff float64
 }

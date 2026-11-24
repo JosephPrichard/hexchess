@@ -4,7 +4,7 @@ import (
 	"encoding/json/v2"
 	"hexchess-svc/database/testquery"
 	"hexchess-svc/game"
-	gamedata2 "hexchess-svc/game/gamedata"
+	gamedata "hexchess-svc/game/gamedata"
 	"hexchess-svc/game/gameid"
 	"hexchess-svc/itest"
 	"hexchess-svc/player"
@@ -274,7 +274,7 @@ func TestAdvanceTournament_ThenGetChessStates(t *testing.T) {
 	wantGames := map[gameid.Identifier]*game.ChessState{
 		itest.TestEventID_TournamentCreation_GameID: {
 			ID:          itest.TestEventID_TournamentCreation_GameID,
-			FirstColor:  gamedata2.White,
+			FirstColor:  gamedata.White,
 			WhitePlayer: player.PlayerState{ID: 1, Name: "user1", Country: "us", Present: true},
 			BlackPlayer: player.PlayerState{ID: 2, Name: "user2", Country: "us", Present: true},
 		},
@@ -300,7 +300,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 			Ordering:      10,
 			TournamentKey: tournamentKey,
 			Round:         1,
-			GameMode:      opt.Some(gamedata2.ModeCorrespondence1),
+			GameMode:      opt.Some(gamedata.ModeCorrespondence1),
 			WhiteID:       3,
 			BlackID:       4,
 		},
@@ -308,7 +308,7 @@ func TestAdvanceTournament_ConstructsFullMatches(t *testing.T) {
 			Ordering:      11,
 			TournamentKey: tournamentKey,
 			Round:         1,
-			GameMode:      opt.Some(gamedata2.ModeCorrespondence1),
+			GameMode:      opt.Some(gamedata.ModeCorrespondence1),
 			WhiteID:       5,
 			BlackID:       6,
 		},
